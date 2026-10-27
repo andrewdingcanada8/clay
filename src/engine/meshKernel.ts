@@ -29,9 +29,17 @@ export function setManifoldWasmUrl(url: string): void {
 
 export function getManifold(): Promise<ManifoldToplevel> {
   if (!wasmPromise) {
-    wasmPromise = (Module as unknown as (o?: object) => Promise<ManifoldToplevel>)(
-      wasmUrl ? { locateFile: () => wasmUrl } : undefined,
-    ).then((w) => {
+    // A data: URL (single-file build) is decoded here rather than fetched, since
+    // strict content policies can block fetch() of data: URLs.
+    let opts: object | undefined;
+    if (wasmUrl?.startsWith('data:')) {
+      const b64 = wasmUrl.slice(wasmUrl.indexOf(',') + 1);
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      opts = { wasmBinary: bytes.buffer };
+    } else if (wasmUrl) opts = { locateFile: () => wasmUrl };
+    wasmPromise = (Module as unknown as (o?: object) => Promise<ManifoldToplevel>)(opts).then((w) => {
       w.setup();
       return w;
     });

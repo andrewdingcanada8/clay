@@ -9,7 +9,8 @@
     "build:single": "vite build --mode single",
     "preview": "vite preview",
     "test": "vitest run",
-    "bench": "node bench/run.mjs"
+    "bench": "node bench/run.mjs",
+    "artifact": "vite build --mode single && python3 scripts/make-artifact.py"
   },
   "dependencies": {
     "manifold-3d": "^3.5.4",
