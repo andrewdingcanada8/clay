@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import type { CavityGrid } from '../engine/cavity';
 import type { SceneDoc } from '../engine/document';
 import { polygonSDF } from '../engine/math';
+import { sampleProfile } from '../engine/profile';
 import type { CompiledObject } from '../engine/primitives';
 import { type CompiledGroup, OPENING_EPS, compileGroups } from '../engine/scene';
 
@@ -21,6 +22,7 @@ const MAX_PROFILES = 8;
 const MAX_PINS = 32;
 const ROWS = 8; // texels per object in the data texture
 const PROFILE_RES: [number, number] = [160, 320];
+const PROFILE_SAMPLES = 64; // curve samples per profile span for the tables
 const TYPE_CODE: Record<string, number> = { sphere: 0, box: 1, cylinder: 2, cone: 3, torus: 4, capsule: 5, prism: 6, revolve: 7 };
 
 interface ProfileTex { tex: THREE.DataTexture; min: [number, number]; max: [number, number] }
@@ -52,6 +54,7 @@ uniform ivec2 uPinRange[${MAX_GROUPS}];
 uniform vec4 uGroupC[${MAX_GROUPS}];
 uniform vec4 uGroupE[${MAX_GROUPS}];
 uniform float uT[${MAX_GROUPS}];
+uniform float uK[${MAX_GROUPS}];
 uniform int uHollow[${MAX_GROUPS}];
 uniform int uUseGrid[${MAX_GRIDS}];
 uniform float uCavH[${MAX_GRIDS}];
@@ -93,6 +96,11 @@ float profileLookup(sampler2D tex, vec2 lo, vec2 hi, vec2 q, int ch) {
 float profile(int slot, vec2 q, int ch) {
 ${range(MAX_PROFILES).map((i) => `  if (slot == ${i}) return profileLookup(uProf${i}, uProfLo${i}, uProfHi${i}, q, ch);`).join('\n')}
   return 1e5;
+}
+float smin(float a, float b, float k) {
+  if (k <= 0.0) return min(a, b);
+  float h = max(k - abs(a - b), 0.0) / k;
+  return min(a, b) - h * h * k * 0.25;
 }
 bool bit(int mask, int n) { return ((mask >> n) & 1) == 1; }
 // Regular n-gon frustum along Y: P = (n, bottom radius, half height, top radius).
@@ -190,15 +198,18 @@ float cubicR(sampler3D tex, vec3 f, vec3 dims) {
   return g0.z * y0 + g1.z * y1;
 }
 
-// Cavity depth from grid k: trilinear far from the inner wall, tricubic near it.
-float gridDepth(int k, vec3 p, float wall) {
+// Cavity depth from grid k: the analytic base depth A plus the grid's correction
+// (trilinear far from the inner wall, tricubic near it). A must match scene.baseDepth.
+float gridDepth(int k, vec3 p, float wall, float A) {
 ${range(MAX_GRIDS).map((i) => `  if (k == ${i}) {
     vec3 dims = vec3(textureSize(uCav${i}, 0));
     vec3 tc = (p - uCavO${i}) * uCavS${i} + 0.5 / dims;
     if (any(lessThan(tc, vec3(0.0))) || any(greaterThan(tc, vec3(1.0)))) return -uCavC${i};
-    float d = texture(uCav${i}, tc).r;
-    if (abs(d - wall) < 2.0 * uCavH[${i}]) d = cubicR(uCav${i}, tc * dims - 0.5, dims);
-    return d;
+    A = clamp(A, -uCavC${i}, uCavC${i});
+    float d = A + texture(uCav${i}, tc).r;
+    if (abs(d - wall) < 2.0 * uCavH[${i}]) d = A + cubicR(uCav${i}, tc * dims - 0.5, dims);
+    // keep the field 1-Lipschitz: the far-interior correction is only a 'deep' flag
+    return clamp(d, -uCavC${i}, uCavC${i});
   }`).join('\n')}
   return -1e5;
 }
@@ -215,29 +226,32 @@ float map(vec3 p) {
     if (g >= uGroupCount) break;
     if (sdBox(p - uGroupC[g].xyz, uGroupE[g].xyz) >= s) continue;
     ivec4 R = uGroupRange[g];
-    float fs = 1e5, fo = 1e5, cut = 1e5, cav = 1e5;
+    float fs = 1e5, fo = 1e5, cut = 1e5, cav = 1e5, kb = uK[g];
     for (int i = R.x; i < R.y; i++) {
       float b = bound(i, p);
-      fs = min(fs, b < max(fs, 0.0) + 0.5 ? sdObj(i, p) : b);
+      fs = smin(fs, b < max(fs, 0.0) + 0.5 + kb ? sdObj(i, p) : b, kb);
     }
     for (int i = R.y; i < R.z; i++) {
       float b = bound(i, p);
-      fo = min(fo, b < max(min(fs, fo), 0.0) + 0.5 ? sdObj(i, p) : b);
+      fo = smin(fo, b < max(min(fs, fo), 0.0) + 0.5 + kb ? sdObj(i, p) : b, kb);
     }
-    float G = min(fs, fo);
+    float G = smin(fs, fo, kb);
     if (uHollow[g] == 1 && fs < ${OPENING_EPS.toFixed(3)}) {
-      // Depth below the shell surface: the exact cavity grid, or (while it is being
-      // rebuilt) the deepest single-object depth.
+      // Depth below the shell surface. A: the deepest single-object depth, exact
+      // wherever one object's surface is nearest. The cavity grid stores the
+      // correction to A, which only matters near joins, blends and shared openings.
+      // (smooth max over two texels where the deepest object switches; see scene.baseDepth)
+      bool useGrid = g < ${MAX_GRIDS} && uUseGrid[min(g, ${MAX_GRIDS - 1})] == 1;
+      float kA = useGrid ? 2.0 * uCavH[min(g, ${MAX_GRIDS - 1})] + kb : 0.0;
       float D = -1e5;
-      bool grid = g < ${MAX_GRIDS} && uUseGrid[min(g, ${MAX_GRIDS - 1})] == 1;
-      if (grid) D = gridDepth(g, p, uT[g]);
-      else {
-        for (int i = R.x; i < R.y; i++) {
-          if (bound(i, p) > 0.0) continue;
-          float d = sdObj(i, p);
-          D = max(D, d > 0.0 ? -d : holeDepth(i, p));
-        }
+      for (int i = R.x; i < R.y; i++) {
+        // (exact for every shell, no bounding-sphere shortcut: a jump in any term
+        // would show through the smooth max)
+        float d = sdObj(i, p);
+        d = d > 0.0 ? -d : holeDepth(i, p);
+        D = -smin(-D, -d, kA);
       }
+      if (useGrid) D = gridDepth(g, p, uT[g], D);
       cav = max(fs - ${OPENING_EPS.toFixed(3)}, uT[g] - D);
       cut = cav;
     }
@@ -357,6 +371,7 @@ export class SdfRenderer {
       uGroupC: { value: range(MAX_GROUPS).map(() => new THREE.Vector4()) },
       uGroupE: { value: range(MAX_GROUPS).map(() => new THREE.Vector4()) },
       uT: { value: range(MAX_GROUPS).map(() => 0.5) },
+      uK: { value: range(MAX_GROUPS).map(() => 0) },
       uHollow: { value: range(MAX_GROUPS).map(() => 0) },
       uUseGrid: { value: range(MAX_GRIDS).map(() => 0) },
       uCavH: { value: range(MAX_GRIDS).map(() => 0) },
@@ -440,6 +455,7 @@ export class SdfRenderer {
       (u.uGroupC.value as THREE.Vector4[])[k].set((gb.min[0] + gb.max[0]) / 2, (gb.min[1] + gb.max[1]) / 2, (gb.min[2] + gb.max[2]) / 2, 0);
       (u.uGroupE.value as THREE.Vector4[])[k].set((gb.max[0] - gb.min[0]) / 2 + 0.05, (gb.max[1] - gb.min[1]) / 2 + 0.05, (gb.max[2] - gb.min[2]) / 2 + 0.05, 0);
       (u.uT.value as number[])[k] = g.t;
+      (u.uK.value as number[])[k] = g.k;
       (u.uHollow.value as number[])[k] = g.hollow ? 1 : 0;
     });
     u.uGroupCount.value = groups.length;
@@ -558,7 +574,9 @@ export class SdfRenderer {
       if (o.obj.type !== 'revolve' || slot >= MAX_PROFILES) continue;
       const g = groups.find((x) => x.shells.includes(o) || x.solids.includes(o) || x.subs.includes(o))!;
       const isHole = (f: string) => g.holes.has(`${o.obj.id}|${f}`);
-      const prof = o.profile!;
+      // Finer than the CPU profile: the inner wall is an offset of this polyline, and
+      // coarse segments show as flat bands inside a large pot.
+      const prof = sampleProfile(o.obj.params.points ?? [], PROFILE_SAMPLES);
       const key = JSON.stringify([o.obj.params.points, prof.faces.filter(isHole)]);
       keep.add(key);
       let pt = this.profiles.get(key);

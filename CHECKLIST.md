@@ -53,7 +53,10 @@ Last updated: 2026-10-27. Benchmark numbers come from `bench/REPORT.md`, which `
 | ⬜ | Partial revolve (< 360°) | |
 | ⬜ | Sweep a profile along a path | |
 | ⬜ | Extrude an arbitrary 2D outline | |
-| ⬜ | Smooth blends (fillets) between joined shapes | SDF smooth-min makes this cheap. |
+| ✅ | Smooth blends between joined shapes (per-group Blend cm) | SDF only (smooth min); the Mesh kernel shows a sharp union and warns. |
+| ✅ | SDF inner wall exact away from joins | Cavity grid stores only the correction to the analytic per-object depth (D = A + C), so rims and openings on large pieces stay round; the grid matters only at joins/blends. |
+| ✅ | Examples where SDF beats Mesh | Narrow join (Mesh leaves a sealed wall), stretched pebble (Mesh walls 0.7–1.6× the set thickness), smooth blend (Mesh can't). |
+| ✅ | Transform as sliders (move / rotate / scale per axis) | Ranges widen to fit the value; heavy rebuilds happen on release. |
 | ✅ | Object modes: Join (shelled) / Solid (added after shelling) / Cut (carved before) | |
 | ✅ | Move / rotate / scale gizmo; numeric fields | Scale runs along the object's local axes; uniform lock. |
 | ✅ | Parametric: edit any object's parameters or profile later | Whole doc rebuilds; no undo needed. |

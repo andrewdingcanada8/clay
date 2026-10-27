@@ -279,6 +279,54 @@ export function examples(): Example[] {
     probes: [[0, -1, 0]],
   });
 
+  // Cases where the SDF kernel gets it right and the fast mesh offset can't.
+  {
+    // Two spheres that only just overlap. Each one hollowed on its own leaves its
+    // cavity short of the other's, so the mesh offset keeps a sealed double wall
+    // across the join; the true inward offset of the union is one connected cavity.
+    const d = doc([
+      obj('sphere', { r: 3.6 }, { pos: [-3.44, 0, 0], id: 'kl', name: 'Left' }),
+      obj('sphere', { r: 3.6 }, { pos: [3.44, 0, 0], id: 'kr', name: 'Right' }),
+    ], 0.3);
+    d.pins = [{ id: 'kp', objectId: 'kl', point: [0, 3.6, 0], normal: [0, 1, 0], radius: 0.6 }];
+    list.push({
+      id: 'sdf-narrow-join', title: 'SDF vs Mesh: narrow join', notes: 'Two barely touching spheres. Mesh hollows each separately and leaves a sealed wall across the join; SDF makes one connected cavity. Use a Z section.',
+      doc: d, probes: [[-1.5, 0, 0]],
+    });
+  }
+  list.push({
+    id: 'sdf-pebble', title: 'SDF vs Mesh: stretched pebble', notes: 'A sphere scaled 1.6 × 0.7 × 1. Mesh offsets the round sphere and stretches it, so walls vary from thin to thick; SDF keeps them even. Use a Z section.',
+    doc: doc([obj('sphere', { r: 3.6 }, { scale: [1.6, 0.7, 1], name: 'Pebble' })], 0.3),
+    probes: [[0, 0, 0]],
+  });
+  {
+    const d = doc([
+      obj('sphere', { r: 3 }, { pos: [0, -1, 0], name: 'Body' }),
+      obj('sphere', { r: 2 }, { pos: [0, 3, 0.3], name: 'Head' }),
+      obj('capsule', { r: 0.9, h: 3 }, { pos: [2.6, 0.2, 0], rot: [0, 0, -55], name: 'Arm' }),
+      obj('capsule', { r: 0.9, h: 3 }, { pos: [-2.6, 0.2, 0], rot: [0, 0, 55], name: 'Arm' }),
+      obj('cylinder', { r: 1.2, h: 2 }, { pos: [0, 4.6, 0.3], holes: ['top'], name: 'Neck' }),
+    ], 0.3);
+    d.groups[0].blend = 1.6;
+    list.push({
+      id: 'sdf-blend', title: 'SDF vs Mesh: smooth blend', notes: 'Spheres, capsules and an open neck melted together with a smooth blend (Shell tab → Blend). Only the SDF kernel can blend; Mesh shows a sharp union.',
+      doc: d, probes: [[0, -1, 0]],
+    });
+  }
+
+  list.push({
+    id: 'teapot', title: 'Large teapot, cut lid opening', notes: 'A ~60 cm teapot with an almost flat top, a round Subtract opening, a Shell spout and a Solid handle. The rim of the opening must stay round.',
+    doc: doc([
+      obj('revolve', { points: [
+        { r: 6, y: -8, corner: true }, { r: 11, y: -4 }, { r: 12, y: 1 }, { r: 9.5, y: 6 }, { r: 0.01, y: 7.8, corner: true },
+      ] }, { name: 'Body' }),
+      obj('cylinder', { r: 4.2, h: 4 }, { pos: [0, 8, 0], mode: 'subtract', name: 'Lid opening' }),
+      obj('capsule', { r: 1.6, h: 8 }, { pos: [-12, 5, 0], rot: [0, 0, 45], holes: [], name: 'Spout' }),
+      obj('torus', { R: 4, r: 0.9 }, { pos: [12, 1.5, 0], rot: [90, 0, 0], mode: 'solid', name: 'Handle' }),
+    ], 0.4),
+    probes: [[0, 0, 0]],
+  });
+
   // Scenes are authored small, then scaled to hand size (a vase ~19 cm across).
   // Walls are set per scene in real clay terms; the thin cases stay extreme.
   for (const e of list) {
@@ -298,4 +346,5 @@ const WALLS: Record<string, number> = {
   'cup-stick': 0.6, 'vase-sticks': 0.6, 'vase-solid-sticks': 0.6, torus: 0.6, lattice: 0.5,
   'vase-thin': 0.2, 'chain-thin': 0.2, transformed: 0.7, 'rotated-box': 0.7, tower: 0.6,
   'thick-wall': 2.5, 'cut-sphere': 0.7, 'mug-stick': 0.6, 'mug-thin': 0.08, 'two-groups': 0.6, 'big-pins': 0.6, frustums: 0.6,
+  'sdf-narrow-join': 0.8, 'sdf-pebble': 0.8, 'sdf-blend': 0.6, teapot: 1.0,
 };

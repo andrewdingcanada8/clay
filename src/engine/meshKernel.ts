@@ -227,6 +227,7 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
     const solids = members.filter((c) => c.obj.mode === 'solid');
     const subs = members.filter((c) => c.obj.mode === 'subtract');
     const t = Math.max(0.01, g.thickness);
+    if ((g.blend ?? 0) > 0) warnings.push(`${g.name}: smooth blend needs the SDF kernel; shown as a sharp union`);
     const shellU = union(shells.map((c) => built.get(c.obj.id)!.solid));
     const material = union([shellU, ...solids.map((c) => built.get(c.obj.id)!.solid)]);
     if (!material) continue;

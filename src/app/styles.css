@@ -146,12 +146,8 @@ input[type="number"] {
   width: 100%; min-width: 0; box-sizing: border-box; height: 34px; border-radius: 8px; border: 1px solid var(--line);
   background: var(--surface-2); color: var(--fg); font: 500 13px var(--font-mono); padding: 0 6px; font-variant-numeric: tabular-nums;
 }
-.xyz { display: grid; grid-template-columns: 74px repeat(3, 1fr) 34px; gap: 6px; align-items: center; font-size: 13px; }
-.xyz > span { color: var(--muted); }
-.xyz label { position: relative; min-width: 0; }
-.xyz label i { position: absolute; left: 6px; top: 9px; font: 600 10px var(--font-mono); color: var(--muted); font-style: normal; pointer-events: none; }
-.xyz input { padding-left: 18px; }
-.lock { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); cursor: pointer; }
+.xyz-head { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; font-size: 13px; color: var(--muted); }
+.lock { min-width: 34px; height: 34px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); cursor: pointer; }
 .lock[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
 .list { display: flex; flex-direction: column; gap: 6px; }
 .list-item {

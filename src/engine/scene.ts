@@ -1,7 +1,9 @@
 // Groups and the shared scene field.
 //
 // For each group g:
-//   G_g   = min(shell SDFs, solid SDFs)                 the group's material
+//   G_g   = min(shell SDFs, solid SDFs)                 the group's material (a smooth
+//                                                        min with radius k when the
+//                                                        group blends)
 //   C_g   = max(F_shell, t - D)                         its cavity: inside the shell
 //                                                        objects and deeper than t from
 //                                                        their non-opening surface
@@ -10,8 +12,10 @@
 // and the scene is S = min over groups. Groups never cut each other.
 //
 // D is the depth below the group's shell surface, ignoring faces marked as openings.
-// The exact D comes from a precomputed grid (cavity.ts); without one, an analytic
-// approximation (deepest depth inside any single shell object) is used.
+// The analytic per-object depth A (deepest depth inside any single shell object) is
+// exact except near joins, blends and openings shared between objects; there a
+// precomputed grid (cavity.ts) gives D. hybridDepth uses A wherever the grid agrees
+// with it, so walls away from joins are as exact as the outer surface.
 
 import type { SceneDoc } from './document';
 import { type AABB, type Vec3, emptyAABB, growAABB } from './math';
@@ -28,6 +32,8 @@ export interface CompiledGroup {
   id: string;
   name: string;
   t: number;
+  /** Smooth-union radius (0 = sharp min). */
+  k: number;
   /** Shelling applies (global switch on and the group has shell objects). */
   hollow: boolean;
   shells: CompiledObject[];
@@ -44,7 +50,7 @@ export function compileGroups(doc: SceneDoc): CompiledGroup[] {
   const objs = doc.objects.filter((o) => !o.hidden).map(compileObject);
   const byId = new Map(objs.map((o) => [o.obj.id, o]));
   const groups: CompiledGroup[] = doc.groups.map((g, index) => ({
-    index, id: g.id, name: g.name, t: Math.max(0.01, g.thickness), hollow: false,
+    index, id: g.id, name: g.name, t: Math.max(0.01, g.thickness), k: Math.max(0, g.blend ?? 0), hollow: false,
     shells: [], solids: [], subs: [], pins: [], holes: new Set(), bounds: emptyAABB(), shellBounds: emptyAABB(),
   }));
   const gById = new Map(groups.map((g) => [g.id, g]));
@@ -62,6 +68,8 @@ export function compileGroups(doc: SceneDoc): CompiledGroup[] {
     for (const o of g.shells) {
       growAABB(g.shellBounds, ...o.worldBounds.min); growAABB(g.shellBounds, ...o.worldBounds.max);
     }
+    // a smooth union bulges at most k/4 past the plain union
+    if (g.k > 0) for (const b of [g.bounds, g.shellBounds]) for (let a = 0; a < 3; a++) { b.min[a] -= g.k / 4; b.max[a] += g.k / 4; }
   }
   for (const pin of doc.pins) {
     const o = byId.get(pin.objectId);
@@ -104,9 +112,16 @@ export function pinSDF(p: CompiledPin, x: number, y: number, z: number): number 
   return (Math.sign(d) * Math.sqrt(Math.abs(d))) / baba;
 }
 
+/** Polynomial smooth min (iq); k = 0 is the plain min. */
+export function smin(a: number, b: number, k: number): number {
+  if (k <= 0) return Math.min(a, b);
+  const h = Math.max(k - Math.abs(a - b), 0) / k;
+  return Math.min(a, b) - h * h * k * 0.25;
+}
+
 export function shellSDF(g: CompiledGroup, x: number, y: number, z: number): number {
   let f = Infinity;
-  for (const o of g.shells) { const d = sdfWorld(o, x, y, z); if (d < f) f = d; }
+  for (const o of g.shells) f = smin(f, sdfWorld(o, x, y, z), g.k);
   return f;
 }
 
@@ -181,6 +196,22 @@ export function approxDepth(g: CompiledGroup, x: number, y: number, z: number): 
 }
 
 /**
+ * The analytic base depth A, clamped to ±clampV, computed exactly as the shader
+ * does. The cavity grid stores the correction D − A, so D = A + C: exact
+ * wherever a single object's surface is nearest (C = 0), and the grid only has to
+ * carry the smooth correction near joins, blends and shared openings.
+ */
+export function baseDepth(g: CompiledGroup, x: number, y: number, z: number, clampV: number, h: number): number {
+  // Smooth max: where the deepest object switches, A gets a crease the trilinear
+  // correction can't follow; rounding it (over two texels, plus the blend radius in
+  // blended groups) keeps D = A + C smooth.
+  const k = 2 * h + g.k;
+  let d = -Infinity;
+  for (const o of g.shells) d = -smin(-d, -holeDepth(o, g.holes, x, y, z), k);
+  return Math.max(-clampV, Math.min(clampV, d));
+}
+
+/**
  * The cavity reaches this far past the shell surface. Across an opening the field
  * would otherwise touch zero exactly on the face plane: a skin of zero thickness.
  */
@@ -201,9 +232,9 @@ export function evalScene(groups: CompiledGroup[], depth: DepthFn, x: number, y:
     const boxD = Math.hypot(dx, dy, dz);
     if (boxD > Math.min(s, cull)) continue;
     let fs = Infinity, fo = Infinity;
-    for (const o of g.shells) { const d = sdfWorld(o, x, y, z); if (d < fs) fs = d; }
-    for (const o of g.solids) { const d = sdfWorld(o, x, y, z); if (d < fo) fo = d; }
-    const G = Math.min(fs, fo);
+    for (const o of g.shells) fs = smin(fs, sdfWorld(o, x, y, z), g.k);
+    for (const o of g.solids) fo = smin(fo, sdfWorld(o, x, y, z), g.k);
+    const G = smin(fs, fo, g.k);
     let cut = Infinity, kind: typeof last.kind = 'material';
     if (g.hollow && fs < OPENING_EPS) {
       const c = Math.max(fs - OPENING_EPS, g.t - depth(g, x, y, z));

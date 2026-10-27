@@ -159,7 +159,7 @@ function update(mut: (d: SceneDoc) => void, interactive = false) {
 function cavityKey(gi: number): string {
   const g = doc.groups[gi];
   const shells = doc.objects.filter((o) => o.groupId === g.id && o.mode === 'shell' && !o.hidden);
-  return JSON.stringify([ui.quality, shells.map((o) => [o.type, o.params, o.transform, o.holes])]);
+  return JSON.stringify([ui.quality, g.blend ?? 0, shells.map((o) => [o.type, o.params, o.transform, o.holes])]);
 }
 
 function currentGrids(): (CavityGrid | null)[] {
@@ -271,10 +271,14 @@ function slider(key: string, label: string, value: number, min: number, max: num
     <input type="number" id="n-${key}" data-num="${key}" min="${min}" step="${step}" value="${value}"></label>`;
 }
 
-function xyz(key: string, label: string, v: Vec3, step: number, lock = false) {
-  return `<div class="xyz"><span>${label}</span>${['x', 'y', 'z'].map((a, i) =>
-    `<label><i>${a.toUpperCase()}</i><input type="number" id="t-${key}-${i}" data-num="tf.${key}.${i}" step="${step}" value="${+v[i].toFixed(3)}"></label>`).join('')}
-    ${lock ? `<button class="lock" data-act="lock" aria-pressed="${ui.lockScale}" aria-label="Lock uniform scale" title="Uniform scale">⛓</button>` : '<span></span>'}</div>`;
+/** One slider per axis; ranges widen to fit the current value. */
+function xyz(key: 'position' | 'rotation' | 'scale', label: string, v: Vec3, step: number, lock = false) {
+  const range = (x: number): [number, number] =>
+    key === 'rotation' ? [-180, 180]
+      : key === 'scale' ? [0.05, Math.max(4, Math.ceil(x * 1.5))]
+        : ((r) => [-r, r])(Math.max(50, Math.ceil(Math.abs(x) * 1.5)));
+  return `<div class="xyz-head"><span>${label}</span>${lock ? `<button class="lock" data-act="lock" aria-pressed="${ui.lockScale}" aria-label="Lock uniform scale" title="Uniform scale">⛓ uniform</button>` : ''}</div>
+    ${['X', 'Y', 'Z'].map((a, i) => slider(`tf.${key}.${i}`, a, +v[i].toFixed(3), ...range(v[i]), step)).join('')}`;
 }
 
 const PARAMS: Record<PrimitiveType, [string, string, number, number, number][]> = {
@@ -334,8 +338,8 @@ function editPanel() {
       ${seg<GizmoMode>('gizmo', ui.gizmo, [['translate', 'Move'], ['rotate', 'Rotate'], ['scale', 'Scale'], ['off', 'Hide']])}
       ${xyz('position', 'Position', t.position, 0.1)}
       ${xyz('rotation', 'Rotation°', t.rotation, 1)}
-      ${xyz('scale', 'Scale', t.scale, 0.05, true)}
-      <p class="hint">Scale runs along the object's own axes. Lock ⛓ to scale uniformly.</p>
+      ${xyz('scale', 'Scale', t.scale, 0.01, true)}
+      <p class="hint">Scale runs along the object's own axes. Turn on ⛓ uniform to scale all three together.</p>
     </div>
     <div class="row"><button class="btn" data-act="duplicate">Duplicate</button><button class="btn danger" data-act="delete">Delete</button></div>`;
   } else body = '<p class="hint">Tap the model, or pick an object below, to edit it.</p>';
@@ -351,6 +355,7 @@ function shellPanel() {
       <div class="row"><input class="group-name" id="gname-${g.id}" data-group-name="${g.id}" value="${escapeHtml(g.name)}" aria-label="Group name">
         ${doc.groups.length > 1 ? `<button class="btn danger" data-del-group="${g.id}" aria-label="Delete group">Delete</button>` : ''}</div>
       ${slider(`wall.${i}`, 'Wall cm', g.thickness, 0.05, 4, 0.01)}
+      ${slider(`blend.${i}`, 'Blend cm', g.blend ?? 0, 0, 10, 0.1)}
       <p class="hint">${count('shell')} shell · ${count('solid')} solid · ${count('subtract')} subtract</p>
     </div>`;
   }).join('');
@@ -388,7 +393,7 @@ function viewPanel() {
   return `<div class="section"><h3>Shelling kernel</h3>
       ${seg('kernel', doc.kernel, [['sdf', 'SDF'], ['mesh', 'Mesh']])}
       ${doc.kernel === 'mesh' ? seg('meshMethod', doc.meshMethod, [['offset', 'Fast offset'], ['minkowski', 'Exact (slow)']]) : ''}
-      <p class="hint">${doc.kernel === 'sdf' ? 'Distance fields drawn directly on the GPU: exact outer surfaces and joins at any zoom, exact wall thickness, openings on any surface. Quality sets the cavity detail.' : doc.meshMethod === 'offset' ? 'Exact surfaces and very fast. Each form is hollowed separately, so walls come out thicker where forms meet, and narrow joins can stay closed.' : 'Exact erosion of the whole union. Correct at joins, but can take minutes.'}</p>
+      <p class="hint">${doc.kernel === 'sdf' ? 'Distance fields drawn directly on the GPU: exact outer surfaces and joins at any zoom, exact walls, openings on any surface, smooth blends. Quality sets the detail where forms join.' : doc.meshMethod === 'offset' ? 'Exact surfaces and very fast. Each form is hollowed separately, so walls come out thicker where forms meet, narrow joins can stay closed, stretched shapes get uneven walls, and there are no smooth blends.' : 'Exact erosion of the whole union. Correct at joins, but can take minutes.'}</p>
       ${seg<Quality>('quality', ui.quality, [['draft', 'Draft'], ['normal', 'Normal'], ['fine', 'Fine']])}
     </div>
     <div class="section"><h3>Look inside</h3>
@@ -471,6 +476,10 @@ function setNum(key: string, v: number, interactive: boolean) {
   if (key.startsWith('wall.')) {
     const gi = Number(key.slice(5));
     return update((d) => { d.groups[gi].thickness = Math.max(0.02, v); }, interactive);
+  }
+  if (key.startsWith('blend.')) {
+    const gi = Number(key.slice(6));
+    return update((d) => { d.groups[gi].blend = Math.max(0, v); }, interactive);
   }
   if (key === 'pin') { ui.pinRadius = Math.max(0.02, v); return; }
   if (key === 'section') { ui.section.t = v; view.setSection(true, ui.section.axis, v); return; }

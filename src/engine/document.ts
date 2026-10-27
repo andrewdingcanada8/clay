@@ -21,6 +21,8 @@ export interface Group {
   name: string;
   /** Wall thickness (cm) for this group's shell. */
   thickness: number;
+  /** Smooth-union radius (cm) between the group's shell and solid objects; 0 = sharp. SDF only. */
+  blend?: number;
 }
 
 export interface Transform {
@@ -127,6 +129,7 @@ export function scaleDoc(d: SceneDoc, k: number): SceneDoc {
     pin.point = pin.point.map((v) => v * k) as Vec3;
     pin.radius *= k;
   }
+  for (const g of d.groups) if (g.blend) g.blend *= k;
   return d;
 }
 

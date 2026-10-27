@@ -12,7 +12,7 @@
 // and measures the distance to that seed's small tangent disc.
 
 import type { Quality } from './document';
-import { type CompiledGroup, shellSDF } from './scene';
+import { type CompiledGroup, baseDepth, shellSDF } from './scene';
 import { faceAtWorld, sdfWorld } from './primitives';
 
 export interface CavityGrid {
@@ -20,7 +20,8 @@ export interface CavityGrid {
   origin: [number, number, number];
   h: number;
   dims: [number, number, number];
-  /** Signed depth per texel (x fastest), clamped to [-clampV, clampV]. */
+  /** Per texel (x fastest): signed depth D minus the analytic base depth A
+   *  (scene.baseDepth). D = A + C, clamped to [-clampV, clampV]. */
   data: Float32Array;
   clampV: number;
   /** Walls up to this thickness are represented exactly (grid can be reused). */
@@ -153,7 +154,9 @@ export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid 
   const data = new Float32Array(N);
   for (let q = 0; q < N; q++) {
     const f = F[q];
-    if (!Number.isFinite(f) || Number.isNaN(f)) { data[q] = f < 0 ? clampV : -clampV; continue; }
+    // Far from the surface: a correction big enough that A + C lands beyond ±clampV
+    // whatever A is (A itself is clamped to ±clampV).
+    if (!Number.isFinite(f) || Number.isNaN(f)) { data[q] = f < 0 ? 2 * clampV : -2 * clampV; continue; }
     const s = nearest[q];
     let d = clampV;
     if (s >= 0) {
@@ -175,8 +178,9 @@ export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid 
       }
       d = Math.min(clampV, Math.hypot(vn, Math.max(0, lat - r)));
     }
-    if (f <= 0) data[q] = d;
-    else data[q] = d > f + 0.5 * h ? d : -Math.min(f, clampV);
+    const D = f <= 0 ? d : d > f + 0.5 * h ? d : -Math.min(f, clampV);
+    // store the correction to the analytic depth (see scene.baseDepth)
+    data[q] = D - baseDepth(g, qx(q), qy(q), qz(q), clampV, h);
   }
   return { groupIndex: g.index, origin, h, dims, data, clampV, tMax };
 }
@@ -185,7 +189,7 @@ export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid 
 export function sampleCavity(c: CavityGrid, x: number, y: number, z: number): number {
   const fx = (x - c.origin[0]) / c.h, fy = (y - c.origin[1]) / c.h, fz = (z - c.origin[2]) / c.h;
   const [nx, ny, nz] = c.dims;
-  if (fx < 0 || fy < 0 || fz < 0 || fx > nx - 1 || fy > ny - 1 || fz > nz - 1) return -c.clampV;
+  if (fx < 0 || fy < 0 || fz < 0 || fx > nx - 1 || fy > ny - 1 || fz > nz - 1) return -2 * c.clampV;
   const i = Math.min(nx - 2, Math.floor(fx)), j = Math.min(ny - 2, Math.floor(fy)), k = Math.min(nz - 2, Math.floor(fz));
   const u = fx - i, v = fy - j, w = fz - k;
   const D = c.data;
@@ -198,7 +202,8 @@ export function sampleCavity(c: CavityGrid, x: number, y: number, z: number): nu
   return (c00 * (1 - v) + c10 * v) * (1 - w) + (c01 * (1 - v) + c11 * v) * w;
 }
 
-/** Cavity depth at a point (grid lookup). */
-export function cavityDepth(c: CavityGrid, _g: CompiledGroup, x: number, y: number, z: number): number {
-  return sampleCavity(c, x, y, z);
+/** Cavity depth at a point: analytic base depth plus the grid's correction. */
+export function cavityDepth(c: CavityGrid, g: CompiledGroup, x: number, y: number, z: number): number {
+  const d = baseDepth(g, x, y, z, c.clampV, c.h) + sampleCavity(c, x, y, z);
+  return Math.max(-c.clampV, Math.min(c.clampV, d));
 }
