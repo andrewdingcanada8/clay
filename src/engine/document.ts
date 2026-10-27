@@ -38,6 +38,7 @@ export interface PrimitiveParams {
   h?: number; // cylinder, cone, capsule (straight part), prism
   R?: number; // torus major radius (tube radius = r)
   n?: number; // prism sides
+  r2?: number; // prism top circumradius (0 = point)
   points?: ProfilePoint[]; // revolve
 }
 
@@ -99,7 +100,7 @@ export function defaultParams(type: PrimitiveType): PrimitiveParams {
     case 'cone': return { r: 9, h: 18 };
     case 'torus': return { R: 9, r: 3 };
     case 'capsule': return { r: 4.5, h: 12 };
-    case 'prism': return { n: 6, r: 9, h: 15 };
+    case 'prism': return { n: 6, r: 9, r2: 9, h: 15 };
     case 'revolve': return { points: defaultVaseProfile() };
   }
 }
@@ -118,7 +119,7 @@ export function defaultVaseProfile(): ProfilePoint[] {
 export function scaleDoc(d: SceneDoc, k: number): SceneDoc {
   for (const o of d.objects) {
     const p = o.params as Record<string, unknown>;
-    for (const key of ['r', 'x', 'y', 'z', 'h', 'R']) if (typeof p[key] === 'number') p[key] = (p[key] as number) * k;
+    for (const key of ['r', 'r2', 'x', 'y', 'z', 'h', 'R']) if (typeof p[key] === 'number') p[key] = (p[key] as number) * k;
     if (o.params.points) o.params.points = o.params.points.map((q) => ({ ...q, r: q.r * k, y: q.y * k }));
     o.transform.position = o.transform.position.map((v) => v * k) as Vec3;
   }

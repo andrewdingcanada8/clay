@@ -930,12 +930,86 @@
  "tower|sdf": {
   "id": "tower",
   "kernel": "sdf",
-  "error": "Error: Error creating WebGL context."
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 141624,
+   "vertices": 70814,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.19910714285714284,
+   "activeCells": 647680,
+   "warnings": [],
+   "timings": {
+    "cavity": 0,
+    "activate": 11.4,
+    "sample": 284,
+    "vertices": 557.5,
+    "faces": 21.7
+   },
+   "totalMs": 899.7
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0,
+    0.534896449704142,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0,
+    0.11375739644970415,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1300
  },
  "tower|mesh": {
   "id": "tower",
   "kernel": "mesh",
-  "error": "Error: Error creating WebGL context."
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 408,
+   "vertices": 210,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 13.4,
+    "primitives": 2.3,
+    "groups": 11.5,
+    "finish": 7.6,
+    "extract": 0.3
+   },
+   "totalMs": 35.2
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0,
+    0.5332544378698225,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1300
  },
  "thick-wall|sdf": {
   "id": "thick-wall",
@@ -986,5 +1060,73 @@
   "id": "two-groups",
   "kernel": "mesh",
   "error": "Error: Error creating WebGL context."
+ },
+ "frustums|sdf": {
+  "id": "frustums",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 212592,
+   "vertices": 106298,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.12857142857142856,
+   "activeCells": 806912,
+   "warnings": [],
+   "timings": {
+    "cavity": 0.1,
+    "activate": 8.3,
+    "sample": 297.5,
+    "vertices": 717.7,
+    "faces": 24.2
+   },
+   "totalMs": 1099.3
+  },
+  "whiteFrac": [
+   [
+    0.00007396449704142012,
+    0.00014792899408284024,
+    0,
+    0.534215976331361,
+    0.00007396449704142012,
+    0.00017751479289940828
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "frustums|mesh": {
+  "id": "frustums",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 76,
+   "vertices": 42,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 16.6,
+    "primitives": 5,
+    "groups": 6.2,
+    "finish": 1,
+    "extract": 0.7
+   },
+   "totalMs": 29.6
+  },
+  "whiteFrac": [
+   [
+    0.0016715976331360947,
+    0.0016715976331360947,
+    0,
+    0.5845562130177515,
+    0.0016715976331360947,
+    0.0016715976331360947
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
  }
 }

@@ -328,7 +328,7 @@ export function ghostGeometry(o: SceneObject): THREE.BufferGeometry {
   const p = o.params;
   switch (o.type) {
     case 'box': return new THREE.BoxGeometry(p.x, p.y, p.z);
-    case 'prism': return lathe([0, -p.h! / 2, p.r!, -p.h! / 2, p.r!, p.h! / 2, 0, p.h! / 2], Math.max(3, Math.round(p.n!)), Math.PI / 2);
+    case 'prism': return lathe([0, -p.h! / 2, p.r!, -p.h! / 2, p.r2 ?? p.r!, p.h! / 2, 0, p.h! / 2], Math.max(3, Math.round(p.n!)), Math.PI / 2);
     case 'torus': {
       const g = new THREE.TorusGeometry(p.R, p.r, 16, 48);
       g.rotateX(Math.PI / 2);

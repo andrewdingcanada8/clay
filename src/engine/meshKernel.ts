@@ -136,7 +136,54 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
     };
   };
 
+  // Prism: regular n-gon frustum. Its inward offset is again a frustum (each plane
+  // moved in by t), computed exactly in world units.
+  const frustumFrom = (c: CompiledObject, f: NonNullable<CompiledObject['frustum']>): Built => {
+    const [sx, sy, sz] = c.scale;
+    const uniformXZ = Math.abs(sx - sz) < 1e-6;
+    const k = uniformXZ ? sx : Math.sqrt(sx * sz);
+    const mat = uniformXZ ? placeMat(c) : placeMat(c, sx / k, 1, sz / k);
+    const cosA = Math.cos(Math.PI / f.n);
+    const make = (R1: number, R2: number, yb: number, yt: number) => {
+      const H = yt - yb;
+      if (H <= 1e-6 || Math.max(R1, R2) <= 1e-6) return null;
+      const big = Math.max(R1, R2), small = Math.min(R1, R2);
+      const pts: [number, number][] = [];
+      for (let i = 0; i < f.n; i++) {
+        const a = (2 * Math.PI * i) / f.n;
+        pts.push([big * Math.cos(a), -big * Math.sin(a)]);
+      }
+      const cs = keep(new CrossSection([ccw(pts)], 'Positive'));
+      let m = keep(keep(cs.extrude(H, 0, 0, [small / big, small / big])).translate([0, 0, -H / 2]));
+      if (R1 < R2) m = keep(m.mirror([0, 0, 1])); // wide end on top
+      m = keep(toY(m).translate([0, (yb + yt) / 2, 0]));
+      return keep(m.transform(mat as never));
+    };
+    const R1 = f.r1 * k, R2 = f.r2 * k, H = f.h * sy;
+    const solid = make(R1, R2, -H / 2, H / 2)!;
+    return {
+      solid,
+      approx: !uniformXZ,
+      cavity: (delta) => {
+        const t = -delta; // inward offset
+        const A1 = R1 * cosA, A2 = R2 * cosA, L = Math.hypot(H, A1 - A2);
+        const u = (y: number) => A1 + ((A2 - A1) * (y + H / 2)) / H - (t * L) / H;
+        let yb = -H / 2 + t, yt = H / 2 - t;
+        if (yt <= yb) return null;
+        let ab = u(yb), at = u(yt);
+        if (ab <= 0 && at <= 0) return null;
+        // clip at the apex where the offset sides meet
+        if (ab < 0 || at < 0) {
+          const y0 = -H / 2 + (((t * L) / H - A1) * H) / (A2 - A1);
+          if (ab < 0) { yb = y0; ab = 0; } else { yt = y0; at = 0; }
+        }
+        return make(ab / cosA, at / cosA, yb, yt);
+      },
+    };
+  };
+
   const build = (c: CompiledObject): Built => {
+    if (c.frustum) return frustumFrom(c, c.frustum);
     if (c.extrusion) return extrudeFrom(c, c.extrusion.poly, c.extrusion.h);
     const outline = c.obj.type === 'revolve'
       ? Array.from(c.profile!.pts)

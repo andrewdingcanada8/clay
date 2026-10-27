@@ -283,7 +283,7 @@ const PARAMS: Record<PrimitiveType, [string, string, number, number, number][]> 
   cone: [['r', 'Radius', 0.2, 40, 0.1], ['h', 'Height', 0.2, 80, 0.1]],
   torus: [['R', 'Ring', 1, 40, 0.1], ['r', 'Tube', 0.2, 20, 0.1]],
   capsule: [['r', 'Radius', 0.2, 25, 0.1], ['h', 'Length', 0, 80, 0.1]],
-  prism: [['n', 'Sides', 3, 12, 1], ['r', 'Radius', 0.5, 40, 0.1], ['h', 'Height', 0.2, 80, 0.1]],
+  prism: [['n', 'Sides', 3, 12, 1], ['r', 'Bottom radius', 0, 40, 0.1], ['r2', 'Top radius', 0, 40, 0.1], ['h', 'Height', 0.2, 80, 0.1]],
   revolve: [],
 };
 
@@ -326,7 +326,7 @@ function editPanel() {
       ${doc.groups.length > 1 ? `<div class="row">${doc.groups.map((g) => `<button class="face-chip" data-move-group="${g.id}" aria-pressed="${g.id === o.groupId}">${escapeHtml(g.name)}</button>`).join('')}</div>` : ''}
     </div>
     <div class="section"><h3>Shape</h3>
-      ${PARAMS[o.type].map(([k, l, mn, mx, st]) => slider(`p.${k}`, l, (o.params as Record<string, number>)[k], mn, mx, st)).join('')}
+      ${PARAMS[o.type].map(([k, l, mn, mx, st]) => slider(`p.${k}`, l, (o.params as Record<string, number>)[k] ?? (k === 'r2' ? o.params.r! : 0), mn, mx, st)).join('')}
       ${o.type === 'revolve' ? `<button class="btn primary" data-act="edit-profile">Edit profile (${o.params.points?.length ?? 0} points)</button>` : ''}
     </div>
     <div class="section"><h3>Transform</h3>

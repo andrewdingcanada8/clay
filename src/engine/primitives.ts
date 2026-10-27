@@ -28,6 +28,8 @@ export interface CompiledObject {
   profile?: SampledProfile;
   /** Extrusion-family primitives: convex polygon in the XZ plane + height along Y. */
   extrusion?: { poly: Float64Array; h: number };
+  /** Prism: regular n-gon frustum (bottom/top circumradius). */
+  frustum?: { n: number; r1: number; r2: number; h: number };
 }
 
 const tmp: Vec3 = [0, 0, 0];
@@ -105,6 +107,41 @@ export function revolveOutline(type: PrimitiveType, p: SceneObject['params'], se
   }
 }
 
+/** Plane geometry of a regular n-gon frustum along Y (sides numbered as faces side0..). */
+export function prismFrustum(n: number, r1: number, r2: number, h: number) {
+  const hh = h / 2, c = Math.cos(Math.PI / n);
+  const ap1 = r1 * c, ap2 = r2 * c;
+  const L = Math.hypot(h, ap1 - ap2) || 1;
+  const an = Math.PI / n;
+  // signed distance to the side plane whose outward normal has angle 'a' in XZ
+  const planeAt = (u: number, y: number) => ((u - ap1) * h + (y + hh) * (ap1 - ap2)) / L;
+  const sideDist = (x: number, y: number, z: number) => {
+    const a = Math.atan2(z, x);
+    // side normals point at angles (2k+1)*an; b = angle from the nearest one
+    const b = (((a % (2 * an)) + 2 * an) % (2 * an)) - an;
+    return planeAt(Math.hypot(x, z) * Math.cos(b), y);
+  };
+  return {
+    sideDist,
+    sdf: (x: number, y: number, z: number) => Math.max(sideDist(x, y, z), y - hh, -y - hh),
+    sideIndex: (x: number, z: number) => {
+      const a = Math.atan2(z, x);
+      return ((Math.round(a / (2 * an) - 0.5 + 1) % n) + n) % n;
+    },
+    /** depth inside, to side i only */
+    sideDepth: (i: number, x: number, y: number, z: number) => {
+      const a = (2 * Math.PI * (i - 0.5)) / n;
+      return -planeAt(x * Math.cos(a) + z * Math.sin(a), y);
+    },
+    sidePlane: (i: number): { n: Vec3; p: Vec3 } => {
+      const a = (2 * Math.PI * (i - 0.5)) / n;
+      const ny = (ap1 - ap2) / L, nr = h / L;
+      const apm = (ap1 + ap2) / 2;
+      return { n: [Math.cos(a) * nr, ny, Math.sin(a) * nr], p: [Math.cos(a) * apm, 0, Math.sin(a) * apm] };
+    },
+  };
+}
+
 function extrudeSDF(d2: number, y: number, hh: number): number {
   const wx = d2, wy = Math.abs(y) - hh;
   const ox = Math.max(wx, 0), oy = Math.max(wy, 0);
@@ -124,6 +161,7 @@ export function compileObject(obj: SceneObject): CompiledObject {
   const lb = emptyAABB();
   let profile: SampledProfile | undefined;
   let extrusion: CompiledObject['extrusion'];
+  let frustum: CompiledObject['frustum'];
 
   switch (obj.type) {
     case 'sphere': {
@@ -209,29 +247,30 @@ export function compileObject(obj: SceneObject): CompiledObject {
       break;
     }
     case 'prism': {
-      const n = Math.max(3, Math.round(p.n!)), r = p.r!, hh = p.h! / 2;
-      const poly = regularPolygon(n, r);
-      const apothem = r * Math.cos(Math.PI / n);
-      sdfLocal = (x, y, z) => extrudeSDF(polygonSDF(poly, n, x, z).d, y, hh);
+      // Regular n-gon frustum: bottom circumradius r, top circumradius r2 (0 = point,
+      // larger = flared). A convex polytope, so its SDF is the max of its planes
+      // (exact inside and on the surface; a lower bound outside near edges).
+      const n = Math.max(3, Math.round(p.n!)), r = p.r!, r2 = p.r2 ?? p.r!, hh = p.h! / 2;
+      const fr = prismFrustum(n, r, r2, p.h!);
+      sdfLocal = (x, y, z) => fr.sdf(x, y, z);
       faceAtLocal = (x, y, z) => {
-        const q = polygonSDF(poly, n, x, z);
-        const side = Math.abs(q.d) * Math.min(scale[0], scale[2]);
+        const sxz = Math.min(scale[0], scale[2]);
+        const side = Math.abs(fr.sideDist(x, y, z)) * sxz;
         const top = Math.abs(hh - y) * scale[1], bot = Math.abs(hh + y) * scale[1];
-        if (side <= top && side <= bot) return `side${(q.seg + 1) % n}`;
+        const hasTop = r2 > 1e-6, hasBot = r > 1e-6;
+        if ((!hasTop || side <= top) && (!hasBot || side <= bot)) return `side${fr.sideIndex(x, z)}`;
+        if (!hasBot) return 'top';
+        if (!hasTop) return 'bottom';
         return top < bot ? 'top' : 'bottom';
       };
       faces = [
-        { id: 'top', label: 'Top', plane: { n: [0, 1, 0], p: [0, hh, 0] } },
-        { id: 'bottom', label: 'Bottom', plane: { n: [0, -1, 0], p: [0, -hh, 0] } },
+        ...(r2 > 1e-6 ? [{ id: 'top', label: 'Top', plane: { n: [0, 1, 0] as Vec3, p: [0, hh, 0] as Vec3 } }] : []),
+        ...(r > 1e-6 ? [{ id: 'bottom', label: 'Bottom', plane: { n: [0, -1, 0] as Vec3, p: [0, -hh, 0] as Vec3 } }] : []),
       ];
-      for (let i = 0; i < n; i++) {
-        // side i spans polygon vertices i-1 -> i (matching polygonSDF's seg = j)
-        const a = (2 * Math.PI * (i - 0.5)) / n;
-        const nx = Math.cos(a), nz = Math.sin(a);
-        faces.push({ id: `side${i}`, label: `Side ${i + 1}`, plane: { n: [nx, 0, nz], p: [nx * apothem, 0, nz * apothem] } });
-      }
-      extrusion = { poly, h: p.h! };
-      growAABB(lb, -r, -hh, -r); growAABB(lb, r, hh, r);
+      for (let i = 0; i < n; i++) faces.push({ id: `side${i}`, label: `Side ${i + 1}`, plane: fr.sidePlane(i) });
+      frustum = { n, r1: r, r2, h: p.h! };
+      const rm = Math.max(r, r2);
+      growAABB(lb, -rm, -hh, -rm); growAABB(lb, rm, hh, rm);
       break;
     }
     case 'revolve': {
@@ -258,7 +297,7 @@ export function compileObject(obj: SceneObject): CompiledObject {
   const c: CompiledObject = {
     obj, rot, pos: [...t.position] as Vec3, scale, minScale: Math.min(scale[0], scale[1], scale[2]),
     sdfLocal: sdfLocal!, faceAtLocal: faceAtLocal!, faces: faces!, localBounds: lb, worldBounds: emptyAABB(),
-    profile, extrusion,
+    profile, extrusion, frustum,
   };
   const w: Vec3 = [0, 0, 0];
   for (let i = 0; i < 8; i++) {

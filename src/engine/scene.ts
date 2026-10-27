@@ -15,7 +15,7 @@
 
 import type { SceneDoc } from './document';
 import { type AABB, type Vec3, emptyAABB, growAABB } from './math';
-import { type CompiledObject, compileObject, normalToWorld, sdfWorld, toLocal, toWorld } from './primitives';
+import { type CompiledObject, compileObject, normalToWorld, prismFrustum, sdfWorld, toLocal, toWorld } from './primitives';
 
 export interface CompiledPin {
   ax: number; ay: number; az: number; // outside end
@@ -149,16 +149,12 @@ export function holeDepth(c: CompiledObject, holes: Set<string>, x: number, y: n
     }
     case 'prism': {
       const n = Math.max(3, Math.round(p.n!)), hh = p.h! / 2;
-      const ap = p.r! * Math.cos(Math.PI / n);
+      const fr = prismFrustum(n, p.r!, p.r2 ?? p.r!, p.h!);
       const sxz = Math.min(sx, sz);
       let d = Infinity;
       if (!isHole('top')) d = Math.min(d, (hh - ly) * sy);
       if (!isHole('bottom')) d = Math.min(d, (hh + ly) * sy);
-      for (let i = 0; i < n; i++) {
-        if (isHole(`side${i}`)) continue;
-        const a = (2 * Math.PI * (i - 0.5)) / n;
-        d = Math.min(d, (ap - (lx * Math.cos(a) + lz * Math.sin(a))) * sxz);
-      }
+      for (let i = 0; i < n; i++) if (!isHole(`side${i}`)) d = Math.min(d, fr.sideDepth(i, lx, ly, lz) * sxz);
       return d;
     }
     default: {

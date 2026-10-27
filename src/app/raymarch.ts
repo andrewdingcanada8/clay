@@ -72,14 +72,6 @@ float sdCone2(vec2 q, float r, float hh) {
   bool inside = q.y > -hh && q.y < hh && q.x < r * (hh - q.y) / (2.0 * hh);
   return inside ? -d : d;
 }
-float sdNgon(vec2 p, float r, float n) {
-  float an = 3.14159265 / n;
-  float a = atan(p.y, p.x);
-  float b = mod(a - an, 2.0 * an) - an;
-  vec2 v = length(p) * vec2(cos(b), abs(sin(b)));
-  float ap = r * cos(an), hw = r * sin(an);
-  return length(v - vec2(ap, min(v.y, hw))) * sign(v.x - ap);
-}
 float sdPin(vec3 p, vec3 a, vec3 b, float r) {
   vec3 ba = b - a, pa = p - a;
   float baba = dot(ba, ba), paba = dot(pa, ba);
@@ -103,6 +95,21 @@ ${range(MAX_PROFILES).map((i) => `  if (slot == ${i}) return profileLookup(uProf
   return 1e5;
 }
 bool bit(int mask, int n) { return ((mask >> n) & 1) == 1; }
+// Regular n-gon frustum along Y: P = (n, bottom radius, half height, top radius).
+// Signed distance to the side plane at angle 'a' (outward normal), from (u, y)
+// where u is the coordinate along that normal.
+float frustumSide(float u, float y, vec4 P) {
+  float c = cos(3.14159265 / P.x);
+  float ap1 = P.y * c, ap2 = P.w * c, h = 2.0 * P.z;
+  return ((u - ap1) * h + (y + P.z) * (ap1 - ap2)) / length(vec2(h, ap1 - ap2));
+}
+float sdFrustum(vec3 q, vec4 P) {
+  float an = 3.14159265 / P.x;
+  // side normals point at angles (2k+1)*an; b = angle from the nearest one
+  float b = mod(atan(q.z, q.x), 2.0 * an) - an;
+  float side = frustumSide(length(q.xz) * cos(b), q.y, P);
+  return max(side, abs(q.y) - P.z);
+}
 
 float sdLocal(vec3 q, vec4 P, int type, int slot) {
   if (type == 0) return length(q) - P.x;
@@ -111,7 +118,7 @@ float sdLocal(vec3 q, vec4 P, int type, int slot) {
   if (type == 3) return sdCone2(vec2(length(q.xz), q.y), P.x, P.y);
   if (type == 4) return length(vec2(length(q.xz) - P.x, q.y)) - P.y;
   if (type == 5) return length(vec3(q.x, q.y - clamp(q.y, -P.y, P.y), q.z)) - P.x;
-  if (type == 6) return extrude(sdNgon(q.xz, P.y, P.x), q.y, P.z);
+  if (type == 6) return sdFrustum(q, P);
   return profile(slot, vec2(length(q.xz), q.y), 0);
 }
 float sdObj(int i, vec3 p) {
@@ -156,7 +163,7 @@ float holeDepth(int i, vec3 p) {
       if (float(k) >= n) break;
       if (bit(mask, 2 + k)) continue;
       float a = 6.2831853 * (float(k) - 0.5) / n;
-      d = min(d, (P.y * cos(3.14159265 / n) - dot(q.xz, vec2(cos(a), sin(a)))) * min(S.x, S.z));
+      d = min(d, -frustumSide(dot(q.xz, vec2(cos(a), sin(a))), q.y, P) * min(S.x, S.z));
     }
     return d;
   }
@@ -517,7 +524,7 @@ export class SdfRenderer {
         case 'box': data[k3] = q.x! / 2; data[k3 + 1] = q.y! / 2; data[k3 + 2] = q.z! / 2; break;
         case 'cylinder': case 'cone': case 'capsule': data[k3] = q.r!; data[k3 + 1] = q.h! / 2; break;
         case 'torus': data[k3] = q.R!; data[k3 + 1] = q.r!; break;
-        case 'prism': data[k3] = Math.min(12, Math.max(3, Math.round(q.n!))); data[k3 + 1] = q.r!; data[k3 + 2] = q.h! / 2; break;
+        case 'prism': data[k3] = Math.min(12, Math.max(3, Math.round(q.n!))); data[k3 + 1] = q.r!; data[k3 + 2] = q.h! / 2; data[k3 + 3] = q.r2 ?? q.r!; break;
         default: break;
       }
       const k4 = (i * ROWS + 4) * 4;

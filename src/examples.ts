@@ -270,6 +270,15 @@ export function examples(): Example[] {
     list.push({ id: 'big-pins', title: 'Big holes on a curve', notes: 'Pin holes almost as wide as the cylinder is round: the hole must cut cleanly all the way round.', doc: d, probes: [[0, -2, 0]] });
   }
 
+  list.push({
+    id: 'frustums', title: 'Tapered prisms', notes: 'A hexagonal pyramid (top radius 0) on a flared square prism (top wider than bottom), hollow, open at the bottom.',
+    doc: doc([
+      obj('prism', { n: 4, r: 2.4, r2: 3.6, h: 3 }, { pos: [0, -1.5, 0], holes: ['bottom'] }),
+      obj('prism', { n: 6, r: 2.8, r2: 0, h: 4 }, { pos: [0, 2, 0] }),
+    ], 0.25),
+    probes: [[0, -1, 0]],
+  });
+
   // Scenes are authored small, then scaled to hand size (a vase ~19 cm across).
   // Walls are set per scene in real clay terms; the thin cases stay extreme.
   for (const e of list) {
@@ -288,5 +297,5 @@ const WALLS: Record<string, number> = {
   'open-box': 0.8, 'sphere-cube': 0.8, 'chain-30': 0.6, vase: 0.7, bowl: 0.8, 'cylinder-pins': 0.7,
   'cup-stick': 0.6, 'vase-sticks': 0.6, 'vase-solid-sticks': 0.6, torus: 0.6, lattice: 0.5,
   'vase-thin': 0.2, 'chain-thin': 0.2, transformed: 0.7, 'rotated-box': 0.7, tower: 0.6,
-  'thick-wall': 2.5, 'cut-sphere': 0.7, 'mug-stick': 0.6, 'mug-thin': 0.08, 'two-groups': 0.6, 'big-pins': 0.6,
+  'thick-wall': 2.5, 'cut-sphere': 0.7, 'mug-stick': 0.6, 'mug-thin': 0.08, 'two-groups': 0.6, 'big-pins': 0.6, frustums: 0.6,
 };

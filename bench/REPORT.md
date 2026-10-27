@@ -34,8 +34,8 @@ Quality: normal. Images: `bench/out/<case>-<kernel>.png`.
 | transformed | mesh | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
 | rotated-box | sdf | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
 | rotated-box | mesh | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
-| tower | sdf | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
-| tower | mesh | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| tower | sdf | 900 | 141624 | 0 | 0 | 53.5 |  |
+| tower | mesh | 35 | 408 | 0 | 0 | 53.3 |  |
 | thick-wall | sdf | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
 | thick-wall | mesh | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
 | cut-sphere | sdf | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
@@ -46,3 +46,5 @@ Quality: normal. Images: `bench/out/<case>-<kernel>.png`.
 | mug-thin | mesh | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
 | two-groups | sdf | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
 | two-groups | mesh | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| frustums | sdf | 1099 | 212592 | 0 | 0 | 53.4 |  |
+| frustums | mesh | 30 | 76 | 0 | 0 | 58.5 |  |
