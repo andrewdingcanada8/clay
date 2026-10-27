@@ -5,8 +5,8 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 368184,
-   "vertices": 184094,
+   "triangles": 368224,
+   "vertices": 184114,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.10714285714285714,
@@ -14,18 +14,18 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 14.3,
-    "sample": 341.5,
-    "vertices": 531.6,
+    "activate": 20.2,
+    "sample": 1019.2,
+    "vertices": 1979.6,
     "faces": 41.8
    },
-   "totalMs": 1032.3
+   "totalMs": 3173.2
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.44782544378698225,
+    0.45597633136094673,
     0,
     0,
     0
@@ -73,25 +73,25 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 210932,
-   "vertices": 105468,
+   "triangles": 210848,
+   "vertices": 105426,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.15714285714285714,
-   "activeCells": 865792,
+   "activeCells": 865280,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 12.2,
-    "sample": 162.2,
-    "vertices": 383.9,
-    "faces": 28.2
+    "cavity": 0,
+    "activate": 7.4,
+    "sample": 382.5,
+    "vertices": 1061.3,
+    "faces": 35.5
    },
-   "totalMs": 649.5
+   "totalMs": 1535.1
   },
   "whiteFrac": [
    [
-    0.11326923076923077,
+    0.11748520710059171,
     0,
     0,
     0,
@@ -99,7 +99,7 @@
     0
    ],
    [
-    0.7287130177514793,
+    0.7932396449704142,
     0,
     0,
     0,
@@ -157,21 +157,21 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 165436,
-   "vertices": 82653,
+   "triangles": 165124,
+   "vertices": 82495,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 63,
+   "nonManifoldEdges": 65,
    "cellSize": 0.24,
    "activeCells": 496128,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 10.1,
-    "sample": 674,
-    "vertices": 1887.6,
-    "faces": 20.3
+    "cavity": 0.3,
+    "activate": 13.4,
+    "sample": 971.3,
+    "vertices": 4737.6,
+    "faces": 20.4
    },
-   "totalMs": 2631.6
+   "totalMs": 5783.4
   },
   "whiteFrac": [
    [
@@ -257,8 +257,8 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 189884,
-   "vertices": 94944,
+   "triangles": 189904,
+   "vertices": 94954,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.21428571428571427,
@@ -266,18 +266,18 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 7.7,
-    "sample": 514.4,
-    "vertices": 1066.6,
-    "faces": 25.1
+    "activate": 370,
+    "sample": 1089.3,
+    "vertices": 2656.9,
+    "faces": 24.1
    },
-   "totalMs": 1666.1
+   "totalMs": 4213.1
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.02319526627218935,
+    0.02316568047337278,
     0,
     0,
     0
@@ -285,7 +285,7 @@
    [
     0,
     0,
-    0.18116863905325445,
+    0.17693786982248522,
     0,
     0,
     0
@@ -349,22 +349,22 @@
    "activeCells": 906752,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 7.5,
-    "sample": 438.5,
-    "vertices": 628.9,
-    "faces": 23.2
+    "cavity": 0,
+    "activate": 12.9,
+    "sample": 3071.8,
+    "vertices": 5219.5,
+    "faces": 21.8
    },
-   "totalMs": 1129.8
+   "totalMs": 8358.7
   },
   "whiteFrac": [
    [
-    0.18708579881656806,
-    0.18707100591715975,
-    1,
+    0.158698224852071,
+    0.15866863905325443,
+    0.9275147928994083,
     0,
-    0.18708579881656806,
-    0.18707100591715975
+    0.158698224852071,
+    0.15866863905325443
    ]
   ],
   "width": 1560,
@@ -409,27 +409,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 295396,
-   "vertices": 147688,
+   "triangles": 295420,
+   "vertices": 147700,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.125,
-   "activeCells": 1287680,
+   "activeCells": 1287168,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 11.5,
-    "sample": 472.5,
-    "vertices": 1018.5,
-    "faces": 35.2
+    "cavity": 0.1,
+    "activate": 14,
+    "sample": 790.9,
+    "vertices": 1935.4,
+    "faces": 33.7
    },
-   "totalMs": 1612.3
+   "totalMs": 2858.1
   },
   "whiteFrac": [
    [
     0.007603550295857988,
     0.004201183431952663,
-    0.24997041420118343,
+    0.25465976331360946,
     0,
     0.04084319526627219,
     0.03321005917159763
@@ -477,27 +477,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 169044,
-   "vertices": 84523,
+   "triangles": 169088,
+   "vertices": 84546,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 1,
+   "nonManifoldEdges": 0,
    "cellSize": 0.19642857142857142,
    "activeCells": 930304,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 8.2,
-    "sample": 411.4,
-    "vertices": 684,
-    "faces": 23.6
+    "cavity": 0.1,
+    "activate": 11.9,
+    "sample": 3258.8,
+    "vertices": 5947.9,
+    "faces": 23.1
    },
-   "totalMs": 1165.2
+   "totalMs": 9278.7
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.22275147928994082,
+    0.23004437869822486,
     0,
     0,
     0
@@ -545,27 +545,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 206596,
-   "vertices": 103293,
+   "triangles": 206780,
+   "vertices": 103364,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 7,
+   "nonManifoldEdges": 10,
    "cellSize": 0.21428571428571427,
-   "activeCells": 697856,
+   "activeCells": 683520,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 8.3,
-    "sample": 470.1,
-    "vertices": 1244,
-    "faces": 24.9
+    "cavity": 0,
+    "activate": 16.1,
+    "sample": 3208.3,
+    "vertices": 12872,
+    "faces": 25.2
    },
-   "totalMs": 1803.4
+   "totalMs": 16172.7
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.017100591715976332,
+    0.017514792899408285,
     0,
     0,
     0
@@ -613,27 +613,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 198432,
-   "vertices": 99218,
+   "triangles": 198444,
+   "vertices": 99224,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.21428571428571427,
    "activeCells": 894464,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 10.7,
-    "sample": 562.7,
-    "vertices": 1107.7,
-    "faces": 26.2
+    "cavity": 0.2,
+    "activate": 18.5,
+    "sample": 4624.6,
+    "vertices": 10534.7,
+    "faces": 24.5
    },
-   "totalMs": 1758.1
+   "totalMs": 15269.9
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.017100591715976332,
+    0.01596153846153846,
     0,
     0,
     0
@@ -686,16 +686,16 @@
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.175,
-   "activeCells": 713728,
+   "activeCells": 724992,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 8.4,
-    "sample": 265.1,
-    "vertices": 914.7,
-    "faces": 25.2
+    "cavity": 0,
+    "activate": 6.9,
+    "sample": 237.1,
+    "vertices": 728.5,
+    "faces": 29.9
    },
-   "totalMs": 1274
+   "totalMs": 1082.4
   },
   "whiteFrac": [
    [
@@ -703,8 +703,8 @@
     0,
     0,
     0,
-    0,
-    0
+    0.00017751479289940828,
+    0.00017751479289940828
    ]
   ],
   "width": 1560,
@@ -749,26 +749,26 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 256308,
-   "vertices": 128164,
+   "triangles": 254464,
+   "vertices": 127242,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.16071428571428573,
    "activeCells": 1050624,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 11.9,
-    "sample": 780.3,
-    "vertices": 2415.5,
-    "faces": 29.6
+    "cavity": 0,
+    "activate": 15.9,
+    "sample": 940.6,
+    "vertices": 3193,
+    "faces": 28.9
    },
-   "totalMs": 3310.3
+   "totalMs": 4238.3
   },
   "whiteFrac": [
    [
     0,
-    0,
+    0.008476331360946745,
     0,
     0,
     0,
@@ -814,7 +814,47 @@
  "vase-thin|sdf": {
   "id": "vase-thin",
   "kernel": "sdf",
-  "error": "timeout (> 300 s)"
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 1173448,
+   "vertices": 586726,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.08806181718224988,
+   "activeCells": 3737088,
+   "warnings": [
+    "Mesh wall for Group 1 drawn at 0.21 cm, not 0.20 cm (grid too coarse at this size)."
+   ],
+   "timings": {
+    "cavity": 0.1,
+    "activate": 496.3,
+    "sample": 4462.4,
+    "vertices": 16167.1,
+    "faces": 108.3
+   },
+   "totalMs": 21800
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.031242603550295858,
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0.24071005917159763,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1300
  },
  "vase-thin|mesh": {
   "id": "vase-thin",
@@ -863,23 +903,21 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 654448,
-   "vertices": 326973,
-   "boundaryEdges": 650,
-   "nonManifoldEdges": 490,
+   "triangles": 611428,
+   "vertices": 305526,
+   "boundaryEdges": 12,
+   "nonManifoldEdges": 134,
    "cellSize": 0.08,
-   "activeCells": 2029568,
-   "warnings": [
-    "243 quads skipped at block borders"
-   ],
+   "activeCells": 2017280,
+   "warnings": [],
    "timings": {
     "cavity": 0.2,
-    "activate": 37.7,
-    "sample": 1380.1,
-    "vertices": 4822,
-    "faces": 71.8
+    "activate": 41.4,
+    "sample": 1912.3,
+    "vertices": 7114.3,
+    "faces": 70.4
    },
-   "totalMs": 6547.5
+   "totalMs": 9375.5
   },
   "whiteFrac": [
    [
@@ -910,7 +948,45 @@
  "transformed|sdf": {
   "id": "transformed",
   "kernel": "sdf",
-  "error": "Error: Error creating WebGL context."
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 194212,
+   "vertices": 97065,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 43,
+   "cellSize": 0.15662361222653745,
+   "activeCells": 872960,
+   "warnings": [],
+   "timings": {
+    "cavity": 0,
+    "activate": 8.4,
+    "sample": 373.6,
+    "vertices": 1104.3,
+    "faces": 24.7
+   },
+   "totalMs": 1564
+  },
+  "whiteFrac": [
+   [
+    0.09309171597633135,
+    0.21960059171597632,
+    0.6981065088757397,
+    0,
+    0.42436390532544377,
+    0
+   ],
+   [
+    0,
+    0.1458136094674556,
+    0.2527810650887574,
+    0,
+    0,
+    0.00020710059171597634
+   ]
+  ],
+  "width": 1560,
+  "height": 1300
  },
  "transformed|mesh": {
   "id": "transformed",
@@ -920,7 +996,37 @@
  "rotated-box|sdf": {
   "id": "rotated-box",
   "kernel": "sdf",
-  "error": "Error: Error creating WebGL context."
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 217420,
+   "vertices": 108639,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 73,
+   "cellSize": 0.17512494211030935,
+   "activeCells": 777728,
+   "warnings": [],
+   "timings": {
+    "cavity": 0,
+    "activate": 8.2,
+    "sample": 338.6,
+    "vertices": 1174.2,
+    "faces": 26.4
+   },
+   "totalMs": 1601.9
+  },
+  "whiteFrac": [
+   [
+    0,
+    0.07288461538461538,
+    0.5156952662721893,
+    0,
+    0.17949704142011835,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
  },
  "rotated-box|mesh": {
   "id": "rotated-box",
@@ -933,28 +1039,28 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 141624,
-   "vertices": 70814,
+   "triangles": 142296,
+   "vertices": 71150,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.19910714285714284,
    "activeCells": 647680,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 11.4,
-    "sample": 284,
-    "vertices": 557.5,
-    "faces": 21.7
+    "cavity": 0.1,
+    "activate": 8.5,
+    "sample": 1001.9,
+    "vertices": 2327.9,
+    "faces": 25.1
    },
-   "totalMs": 899.7
+   "totalMs": 3393.3
   },
   "whiteFrac": [
    [
     0,
     0,
     0,
-    0.534896449704142,
+    0.5801331360946745,
     0,
     0
    ],
@@ -962,7 +1068,7 @@
     0,
     0,
     0,
-    0.11375739644970415,
+    0.11865384615384615,
     0,
     0
    ]
@@ -1014,7 +1120,37 @@
  "thick-wall|sdf": {
   "id": "thick-wall",
   "kernel": "sdf",
-  "error": "Error: Error creating WebGL context."
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 94984,
+   "vertices": 47494,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.21607142857142858,
+   "activeCells": 458240,
+   "warnings": [],
+   "timings": {
+    "cavity": 0,
+    "activate": 5.1,
+    "sample": 236.2,
+    "vertices": 505.7,
+    "faces": 16
+   },
+   "totalMs": 783
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.008165680473372782,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
  },
  "thick-wall|mesh": {
   "id": "thick-wall",
@@ -1024,7 +1160,37 @@
  "cut-sphere|sdf": {
   "id": "cut-sphere",
   "kernel": "sdf",
-  "error": "Error: Error creating WebGL context."
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 236992,
+   "vertices": 118491,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 5,
+   "cellSize": 0.14464285714285716,
+   "activeCells": 870400,
+   "warnings": [],
+   "timings": {
+    "cavity": 0,
+    "activate": 9.1,
+    "sample": 368.4,
+    "vertices": 1182.7,
+    "faces": 26.6
+   },
+   "totalMs": 1646.9
+  },
+  "whiteFrac": [
+   [
+    0.17026627218934912,
+    0,
+    0.18340236686390532,
+    0.05514792899408284,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
  },
  "cut-sphere|mesh": {
   "id": "cut-sphere",
@@ -1034,7 +1200,37 @@
  "mug-stick|sdf": {
   "id": "mug-stick",
   "kernel": "sdf",
-  "error": "Error: Error creating WebGL context."
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 164812,
+   "vertices": 82403,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 5,
+   "cellSize": 0.24,
+   "activeCells": 843264,
+   "warnings": [],
+   "timings": {
+    "cavity": 0,
+    "activate": 14.5,
+    "sample": 2645.9,
+    "vertices": 5506,
+    "faces": 22
+   },
+   "totalMs": 8234.8
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.15539940828402368,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
  },
  "mug-stick|mesh": {
   "id": "mug-stick",
@@ -1044,7 +1240,40 @@
  "mug-thin|sdf": {
   "id": "mug-thin",
   "kernel": "sdf",
-  "error": "Error: Error creating WebGL context."
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 923756,
+   "vertices": 461970,
+   "boundaryEdges": 258,
+   "nonManifoldEdges": 11,
+   "cellSize": 0.1021942858476148,
+   "activeCells": 3500544,
+   "warnings": [
+    "Mesh wall for Group 1 drawn at 0.25 cm, not 0.08 cm (grid too coarse at this size).",
+    "122 quads skipped at block borders"
+   ],
+   "timings": {
+    "cavity": 0,
+    "activate": 2170.7,
+    "sample": 8163.9,
+    "vertices": 28817.8,
+    "faces": 254.7
+   },
+   "totalMs": 40182.3
+  },
+  "whiteFrac": [
+   [
+    0,
+    0.0007988165680473373,
+    0.19449704142011834,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
  },
  "mug-thin|mesh": {
   "id": "mug-thin",
@@ -1054,7 +1283,37 @@
  "two-groups|sdf": {
   "id": "two-groups",
   "kernel": "sdf",
-  "error": "Error: Error creating WebGL context."
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 224836,
+   "vertices": 112420,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.19642857142857142,
+   "activeCells": 1235456,
+   "warnings": [],
+   "timings": {
+    "cavity": 0.2,
+    "activate": 17.5,
+    "sample": 3404,
+    "vertices": 5708.9,
+    "faces": 31.7
+   },
+   "totalMs": 9216.2
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.34276627218934913,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
  },
  "two-groups|mesh": {
   "id": "two-groups",
@@ -1067,30 +1326,30 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 212592,
-   "vertices": 106298,
+   "triangles": 213280,
+   "vertices": 106642,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.12857142857142856,
-   "activeCells": 806912,
+   "activeCells": 806400,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 8.3,
-    "sample": 297.5,
-    "vertices": 717.7,
-    "faces": 24.2
+    "cavity": 0,
+    "activate": 10.2,
+    "sample": 995.4,
+    "vertices": 3129.3,
+    "faces": 26.6
    },
-   "totalMs": 1099.3
+   "totalMs": 4215.1
   },
   "whiteFrac": [
    [
-    0.00007396449704142012,
-    0.00014792899408284024,
+    0.0022928994082840235,
+    0.0022928994082840235,
     0,
-    0.534215976331361,
-    0.00007396449704142012,
-    0.00017751479289940828
+    0.5961390532544378,
+    0.0022928994082840235,
+    0.002337278106508876
    ]
   ],
   "width": 1560,
@@ -1124,6 +1383,181 @@
     0.5845562130177515,
     0.0016715976331360947,
     0.0016715976331360947
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "big-pins|sdf": {
+  "id": "big-pins",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 270988,
+   "vertices": 135492,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.14285714285714285,
+   "activeCells": 1153024,
+   "warnings": [],
+   "timings": {
+    "cavity": 0,
+    "activate": 12,
+    "sample": 559,
+    "vertices": 1533.4,
+    "faces": 34.2
+   },
+   "totalMs": 2208.8
+  },
+  "whiteFrac": [
+   [
+    0.050355029585798815,
+    0,
+    0.23081360946745563,
+    0,
+    0.05979289940828402,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "sdf-narrow-join|sdf": {
+  "id": "sdf-narrow-join",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 174300,
+   "vertices": 87152,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.25142857142857145,
+   "activeCells": 666624,
+   "warnings": [],
+   "timings": {
+    "cavity": 0,
+    "activate": 6.4,
+    "sample": 274.7,
+    "vertices": 666.1,
+    "faces": 22.1
+   },
+   "totalMs": 1008.5
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.019497041420118343,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "sdf-pebble|sdf": {
+  "id": "sdf-pebble",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 150660,
+   "vertices": 75334,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.2057142857142857,
+   "activeCells": 743936,
+   "warnings": [],
+   "timings": {
+    "cavity": 0.1,
+    "activate": 6.1,
+    "sample": 181.9,
+    "vertices": 404.9,
+    "faces": 22.9
+   },
+   "totalMs": 646.9
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "sdf-blend|sdf": {
+  "id": "sdf-blend",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 159660,
+   "vertices": 79832,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.19579227496462578,
+   "activeCells": 673792,
+   "warnings": [],
+   "timings": {
+    "cavity": 0.1,
+    "activate": 7.2,
+    "sample": 428.4,
+    "vertices": 1050,
+    "faces": 23.5
+   },
+   "totalMs": 1542.6
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.012144970414201183,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "teapot|sdf": {
+  "id": "teapot",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 345184,
+   "vertices": 172574,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 18,
+   "cellSize": 0.4,
+   "activeCells": 1126912,
+   "warnings": [],
+   "timings": {
+    "cavity": 0.1,
+    "activate": 300.8,
+    "sample": 1439.4,
+    "vertices": 4664.5,
+    "faces": 35.6
+   },
+   "totalMs": 6558.5
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.2567455621301775,
+    0,
+    0,
+    0
    ]
   ],
   "width": 1560,
