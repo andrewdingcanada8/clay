@@ -259,6 +259,17 @@ export function examples(): Example[] {
     });
   }
 
+  {
+    // Large pin holes on a tightly curved wall: the drill must clear the wall at
+    // the rim of the hole, which lies deeper than at its centre.
+    const d = doc([obj('cylinder', { r: 3.2, h: 8 }, { holes: ['top'], id: 'bigcyl' })], 0.25);
+    d.pins = [
+      { id: 'bp1', objectId: 'bigcyl', point: [0, 1, 3.2], normal: [0, 0, 1], radius: 1.2 },
+      { id: 'bp2', objectId: 'bigcyl', point: [3.2, -1.5, 0], normal: [1, 0, 0], radius: 0.8 },
+    ];
+    list.push({ id: 'big-pins', title: 'Big holes on a curve', notes: 'Pin holes almost as wide as the cylinder is round: the hole must cut cleanly all the way round.', doc: d, probes: [[0, -2, 0]] });
+  }
+
   // Scenes are authored small, then scaled to hand size (a vase ~19 cm across).
   // Walls are set per scene in real clay terms; the thin cases stay extreme.
   for (const e of list) {
@@ -277,5 +288,5 @@ const WALLS: Record<string, number> = {
   'open-box': 0.8, 'sphere-cube': 0.8, 'chain-30': 0.6, vase: 0.7, bowl: 0.8, 'cylinder-pins': 0.7,
   'cup-stick': 0.6, 'vase-sticks': 0.6, 'vase-solid-sticks': 0.6, torus: 0.6, lattice: 0.5,
   'vase-thin': 0.2, 'chain-thin': 0.2, transformed: 0.7, 'rotated-box': 0.7, tower: 0.6,
-  'thick-wall': 2.5, 'cut-sphere': 0.7, 'mug-stick': 0.6, 'mug-thin': 0.08, 'two-groups': 0.6,
+  'thick-wall': 2.5, 'cut-sphere': 0.7, 'mug-stick': 0.6, 'mug-thin': 0.08, 'two-groups': 0.6, 'big-pins': 0.6,
 };

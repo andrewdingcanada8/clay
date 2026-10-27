@@ -71,7 +71,7 @@ export function compileGroups(doc: SceneDoc): CompiledGroup[] {
     toWorld(o, pin.point[0], pin.point[1], pin.point[2], c);
     const n = normalToWorld(o, pin.normal[0], pin.normal[1], pin.normal[2]);
     const out = Math.max(0.5, pin.radius);
-    const depth = (g.hollow ? g.t : pin.radius * 4) * 1.6 + 0.05;
+    const depth = pinDepth(g.hollow ? g.t : null, pin.radius);
     g.pins.push({
       ax: c[0] + n[0] * out, ay: c[1] + n[1] * out, az: c[2] + n[2] * out,
       bx: c[0] - n[0] * depth, by: c[1] - n[1] * depth, bz: c[2] - n[2] * depth,
@@ -79,6 +79,15 @@ export function compileGroups(doc: SceneDoc): CompiledGroup[] {
     });
   }
   return groups.filter((g) => g.shells.length + g.solids.length > 0);
+}
+
+/**
+ * How far a pin hole drills inward from the tapped point. On a curved surface the
+ * wall at the rim of the hole lies deeper than at its centre (by up to the hole's
+ * radius), so the drill goes that much further to clear the wall all the way round.
+ */
+export function pinDepth(wall: number | null, radius: number): number {
+  return wall !== null ? 1.5 * wall + 1.2 * radius + 0.05 : 4 * radius;
 }
 
 export function pinSDF(p: CompiledPin, x: number, y: number, z: number): number {

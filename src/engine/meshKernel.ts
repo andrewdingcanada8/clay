@@ -18,6 +18,7 @@ import { type BuildResult, Timer } from './kernel';
 import type { Vec3 } from './math';
 import { edgeStats } from './meshCheck';
 import { type CompiledObject, compileScene, normalToWorld, revolveOutline, toWorld } from './primitives';
+import { pinDepth } from './scene';
 
 let wasmPromise: Promise<ManifoldToplevel> | null = null;
 let wasmUrl: string | undefined;
@@ -160,7 +161,7 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
     toWorld(o, pin.point[0], pin.point[1], pin.point[2], c);
     const n = normalToWorld(o, pin.normal[0], pin.normal[1], pin.normal[2]);
     const out = Math.max(0.5, pin.radius);
-    const depth = (hollow ? t : pin.radius * 4) * 1.6 + 0.05;
+    const depth = pinDepth(hollow ? t : null, pin.radius);
     // cylinder along +Z from 0..len, then align +Z with -n and start outside
     const cyl = keep(Manifold.cylinder(out + depth, pin.radius, pin.radius, Math.max(16, Math.round(segs / 2))));
     const z: Vec3 = [-n[0], -n[1], -n[2]];
