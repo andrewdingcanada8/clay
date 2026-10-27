@@ -13,13 +13,13 @@
    "activeCells": 2006016,
    "warnings": [],
    "timings": {
-    "cavity": 0.2,
-    "activate": 26.8,
-    "sample": 1120.2,
-    "vertices": 2253.2,
-    "faces": 42.3
+    "cavity": 0.1,
+    "activate": 23.9,
+    "sample": 1092.7,
+    "vertices": 2129.9,
+    "faces": 42.8
    },
-   "totalMs": 3550.6
+   "totalMs": 3409
   },
   "whiteFrac": [
    [
@@ -81,13 +81,13 @@
    "activeCells": 865280,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 8.4,
-    "sample": 415,
-    "vertices": 1160.4,
-    "faces": 25.5
+    "cavity": 0.1,
+    "activate": 8,
+    "sample": 456.9,
+    "vertices": 1310.3,
+    "faces": 24.6
    },
-   "totalMs": 1668.3
+   "totalMs": 1849
   },
   "whiteFrac": [
    [
@@ -166,12 +166,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.2,
-    "activate": 14.1,
-    "sample": 1045.3,
-    "vertices": 5804.7,
-    "faces": 21.7
+    "activate": 11.9,
+    "sample": 1056.2,
+    "vertices": 5351.2,
+    "faces": 19.2
    },
-   "totalMs": 6923.5
+   "totalMs": 6476.1
   },
   "whiteFrac": [
    [
@@ -266,12 +266,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 359.8,
-    "sample": 1180.6,
-    "vertices": 2604.9,
-    "faces": 24.7
+    "activate": 353.3,
+    "sample": 1329.4,
+    "vertices": 3239.9,
+    "faces": 24.3
    },
-   "totalMs": 4224.4
+   "totalMs": 4992.4
   },
   "whiteFrac": [
    [
@@ -350,12 +350,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 230.1,
-    "sample": 945.4,
-    "vertices": 1699.1,
-    "faces": 22.6
+    "activate": 217,
+    "sample": 1152,
+    "vertices": 1990.7,
+    "faces": 22.1
    },
-   "totalMs": 2931.8
+   "totalMs": 3416.5
   },
   "whiteFrac": [
    [
@@ -409,30 +409,30 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 195568,
-   "vertices": 97786,
+   "triangles": 295440,
+   "vertices": 147710,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.125,
-   "activeCells": 1112576,
+   "activeCells": 1287168,
    "warnings": [],
    "timings": {
     "cavity": 0,
-    "activate": 13.7,
-    "sample": 752.4,
-    "vertices": 1429,
-    "faces": 28
+    "activate": 19.9,
+    "sample": 840.3,
+    "vertices": 2076.7,
+    "faces": 33.3
    },
-   "totalMs": 2268.4
+   "totalMs": 3046.9
   },
   "whiteFrac": [
    [
-    0.0015532544378698224,
+    0.007603550295857988,
+    0.004201183431952663,
+    0.25465976331360946,
     0,
-    0,
-    0,
-    0,
-    0
+    0.04084319526627219,
+    0.03321005917159763
    ]
   ],
   "width": 1560,
@@ -485,13 +485,13 @@
    "activeCells": 930304,
    "warnings": [],
    "timings": {
-    "cavity": 0.3,
-    "activate": 227,
-    "sample": 1250.4,
-    "vertices": 2501.3,
-    "faces": 23.2
+    "cavity": 0.1,
+    "activate": 241.7,
+    "sample": 1321,
+    "vertices": 2567.5,
+    "faces": 23.1
    },
-   "totalMs": 4038.5
+   "totalMs": 4188.3
   },
   "whiteFrac": [
    [
@@ -545,30 +545,30 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 206656,
-   "vertices": 103306,
+   "triangles": 206788,
+   "vertices": 103367,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 6,
+   "nonManifoldEdges": 11,
    "cellSize": 0.21428571428571427,
    "activeCells": 683520,
    "warnings": [],
    "timings": {
-    "cavity": 0.3,
-    "activate": 370.5,
-    "sample": 1181.8,
-    "vertices": 4781.1,
-    "faces": 23.1
+    "cavity": 0.1,
+    "activate": 376.1,
+    "sample": 1174.1,
+    "vertices": 4774.5,
+    "faces": 23.2
    },
-   "totalMs": 6412.6
+   "totalMs": 6396.8
   },
   "whiteFrac": [
    [
-    0.009437869822485206,
-    0.0031508875739644972,
-    0.02076923076923077,
     0,
     0,
-    0.0045414201183431955
+    0.0171301775147929,
+    0,
+    0,
+    0
    ]
   ],
   "width": 1560,
@@ -621,13 +621,13 @@
    "activeCells": 894464,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 408.1,
-    "sample": 1308.1,
-    "vertices": 2921,
-    "faces": 26.8
+    "cavity": 0.2,
+    "activate": 364.4,
+    "sample": 1426.5,
+    "vertices": 3418.6,
+    "faces": 25.1
    },
-   "totalMs": 4721.4
+   "totalMs": 5301.5
   },
   "whiteFrac": [
    [
@@ -690,12 +690,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0,
-    "activate": 6.9,
-    "sample": 287.8,
-    "vertices": 786.1,
-    "faces": 25.6
+    "activate": 7.3,
+    "sample": 268.4,
+    "vertices": 883.2,
+    "faces": 23.9
    },
-   "totalMs": 1166.7
+   "totalMs": 1233.1
   },
   "whiteFrac": [
    [
@@ -749,21 +749,21 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 254464,
-   "vertices": 127242,
+   "triangles": 254460,
+   "vertices": 127239,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 0,
+   "nonManifoldEdges": 1,
    "cellSize": 0.16071428571428573,
    "activeCells": 1050624,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 11.9,
-    "sample": 1053,
-    "vertices": 3810.2,
-    "faces": 32.9
+    "cavity": 0,
+    "activate": 12.2,
+    "sample": 1153.7,
+    "vertices": 4339.8,
+    "faces": 27.8
    },
-   "totalMs": 4973.1
+   "totalMs": 5616.1
   },
   "whiteFrac": [
    [
@@ -827,13 +827,13 @@
     "Mesh wall for Group 1 drawn at 0.21 cm, not 0.20 cm (grid too coarse at this size)."
    ],
    "timings": {
-    "cavity": 0.1,
-    "activate": 524.2,
-    "sample": 4594.4,
-    "vertices": 16600.2,
-    "faces": 124.9
+    "cavity": 0,
+    "activate": 492.4,
+    "sample": 5297.1,
+    "vertices": 20050,
+    "faces": 107.3
    },
-   "totalMs": 22686.4
+   "totalMs": 26455.9
   },
   "whiteFrac": [
    [
@@ -912,12 +912,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0,
-    "activate": 39.1,
-    "sample": 2144.7,
-    "vertices": 8056.5,
-    "faces": 65.8
+    "activate": 38.4,
+    "sample": 2337.9,
+    "vertices": 9245.7,
+    "faces": 61.9
    },
-   "totalMs": 10521
+   "totalMs": 11894
   },
   "whiteFrac": [
    [
@@ -960,12 +960,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0,
-    "activate": 8.4,
-    "sample": 418.9,
-    "vertices": 1276.5,
-    "faces": 27.5
+    "activate": 8.9,
+    "sample": 446.6,
+    "vertices": 1379.1,
+    "faces": 25.3
    },
-   "totalMs": 1785.5
+   "totalMs": 1909.2
   },
   "whiteFrac": [
    [
@@ -1008,12 +1008,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 10.5,
-    "sample": 370,
-    "vertices": 1280.7,
-    "faces": 25.2
+    "activate": 9.6,
+    "sample": 376.2,
+    "vertices": 1383.9,
+    "faces": 24.8
    },
-   "totalMs": 1748.9
+   "totalMs": 1846.8
   },
   "whiteFrac": [
    [
@@ -1039,21 +1039,21 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 126660,
-   "vertices": 63332,
+   "triangles": 142296,
+   "vertices": 71150,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.19910714285714284,
-   "activeCells": 632320,
+   "activeCells": 647680,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 7.9,
-    "sample": 1003.2,
-    "vertices": 2328.1,
-    "faces": 22.6
+    "cavity": 0.1,
+    "activate": 12.5,
+    "sample": 1143,
+    "vertices": 2820.2,
+    "faces": 22.1
    },
-   "totalMs": 3385.8
+   "totalMs": 4026.3
   },
   "whiteFrac": [
    [
@@ -1131,13 +1131,13 @@
    "activeCells": 458240,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 5.2,
-    "sample": 221.5,
-    "vertices": 497.5,
-    "faces": 17.7
+    "cavity": 0.1,
+    "activate": 5.3,
+    "sample": 269.5,
+    "vertices": 650,
+    "faces": 15.3
    },
-   "totalMs": 761.9
+   "totalMs": 959.9
   },
   "whiteFrac": [
    [
@@ -1172,12 +1172,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 16.8,
-    "sample": 468.8,
-    "vertices": 1456.7,
-    "faces": 26.1
+    "activate": 12.6,
+    "sample": 469.4,
+    "vertices": 1482.1,
+    "faces": 27.4
    },
-   "totalMs": 2032.9
+   "totalMs": 2069.3
   },
   "whiteFrac": [
    [
@@ -1203,27 +1203,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 164944,
-   "vertices": 82470,
+   "triangles": 164796,
+   "vertices": 82396,
    "boundaryEdges": 0,
    "nonManifoldEdges": 4,
    "cellSize": 0.24,
    "activeCells": 843264,
    "warnings": [],
    "timings": {
-    "cavity": 0.2,
-    "activate": 228.2,
-    "sample": 1174.4,
-    "vertices": 2536.3,
-    "faces": 22.6
+    "cavity": 0.1,
+    "activate": 230.5,
+    "sample": 1152.3,
+    "vertices": 2482.9,
+    "faces": 22
    },
-   "totalMs": 4001
+   "totalMs": 3929.4
   },
   "whiteFrac": [
    [
     0,
-    0.004097633136094674,
-    0.16894970414201183,
+    0,
+    0.15650887573964498,
     0,
     0,
     0
@@ -1243,30 +1243,30 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 877360,
-   "vertices": 438985,
-   "boundaryEdges": 674,
-   "nonManifoldEdges": 31,
-   "cellSize": 0.10148974351130463,
-   "activeCells": 3540992,
+   "triangles": 923602,
+   "vertices": 461897,
+   "boundaryEdges": 254,
+   "nonManifoldEdges": 10,
+   "cellSize": 0.10219700718241802,
+   "activeCells": 3500544,
    "warnings": [
-    "Mesh wall for Group 1 drawn at 0.24 cm, not 0.08 cm (grid too coarse at this size).",
-    "266 quads skipped at block borders"
+    "Mesh wall for Group 1 drawn at 0.25 cm, not 0.08 cm (grid too coarse at this size).",
+    "121 quads skipped at block borders"
    ],
    "timings": {
-    "cavity": 0,
-    "activate": 1328.9,
-    "sample": 3619.6,
-    "vertices": 11107.8,
-    "faces": 87.4
+    "cavity": 0.1,
+    "activate": 1465.4,
+    "sample": 3975,
+    "vertices": 13807.9,
+    "faces": 117.3
    },
-   "totalMs": 16566.8
+   "totalMs": 20016.6
   },
   "whiteFrac": [
    [
     0,
-    0,
-    0.18014792899408283,
+    0.0005473372781065089,
+    0.1951923076923077,
     0,
     0,
     0
@@ -1295,12 +1295,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 248.5,
-    "sample": 1157.6,
-    "vertices": 2002.7,
-    "faces": 31
+    "activate": 241.1,
+    "sample": 1285,
+    "vertices": 2343.4,
+    "faces": 32.1
    },
-   "totalMs": 3496.7
+   "totalMs": 3979.4
   },
   "whiteFrac": [
    [
@@ -1334,13 +1334,13 @@
    "activeCells": 806400,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 10.2,
-    "sample": 1040.8,
-    "vertices": 3210,
-    "faces": 26.1
+    "cavity": 0.1,
+    "activate": 10.8,
+    "sample": 1154,
+    "vertices": 3678.1,
+    "faces": 26.6
    },
-   "totalMs": 4356
+   "totalMs": 4928.1
   },
   "whiteFrac": [
    [
@@ -1394,29 +1394,29 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 179276,
-   "vertices": 89640,
+   "triangles": 271036,
+   "vertices": 135516,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.14285714285714285,
-   "activeCells": 1047040,
+   "activeCells": 1153024,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 11.8,
-    "sample": 561.8,
-    "vertices": 1075.8,
-    "faces": 27
+    "cavity": 0.1,
+    "activate": 15.9,
+    "sample": 650.4,
+    "vertices": 1797.9,
+    "faces": 32.2
    },
-   "totalMs": 1718.5
+   "totalMs": 2571.2
   },
   "whiteFrac": [
    [
-    0.02519230769230769,
+    0.050355029585798815,
     0,
-    0.016331360946745564,
+    0.23081360946745563,
     0,
-    0.011804733727810652,
+    0.05979289940828402,
     0
    ]
   ],
@@ -1439,11 +1439,11 @@
    "timings": {
     "cavity": 0,
     "activate": 6.2,
-    "sample": 274.1,
-    "vertices": 815.8,
-    "faces": 22.9
+    "sample": 310.2,
+    "vertices": 968.2,
+    "faces": 22.8
    },
-   "totalMs": 1159.6
+   "totalMs": 1367.8
   },
   "whiteFrac": [
    [
@@ -1473,12 +1473,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0,
-    "activate": 6.7,
-    "sample": 205.1,
-    "vertices": 483.8,
-    "faces": 22.9
+    "activate": 6.8,
+    "sample": 219.8,
+    "vertices": 513.1,
+    "faces": 23.3
    },
-   "totalMs": 750.9
+   "totalMs": 795.3
   },
   "whiteFrac": [
    [
@@ -1508,12 +1508,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 17.8,
-    "sample": 594.7,
-    "vertices": 1600.4,
-    "faces": 19.9
+    "activate": 11.9,
+    "sample": 631.3,
+    "vertices": 1734.4,
+    "faces": 23.1
    },
-   "totalMs": 2269.5
+   "totalMs": 2440.4
   },
   "whiteFrac": [
    [
@@ -1542,13 +1542,13 @@
    "activeCells": 1126912,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 302.6,
-    "sample": 1350.3,
-    "vertices": 4779.4,
-    "faces": 36.9
+    "cavity": 0,
+    "activate": 321,
+    "sample": 1609.9,
+    "vertices": 5896.8,
+    "faces": 36.7
    },
-   "totalMs": 6566.9
+   "totalMs": 7959.9
   },
   "whiteFrac": [
    [
