@@ -4,11 +4,11 @@ Quality: normal. Images: `bench/out/<case>-<kernel>.png`.
 
 | case | kernel | build ms | triangles | boundary edges | non-manifold | max interior white % | warnings |
 |---|---|---:|---:|---:|---:|---:|---|
-| open-box | sdf | 1032 | 270384 | 0 | 0 | 44.8 |  |
+| open-box | sdf | 991 | 368184 | 0 | 0 | 44.8 |  |
 | open-box | mesh | 33 | 40 | 0 | 0 | 44.8 |  |
-| sphere-cube | sdf | 770 | 155056 | 0 | 0 | 72.2 |  |
+| sphere-cube | sdf | 654 | 210932 | 0 | 0 | 72.9 |  |
 | sphere-cube | mesh | 108 | 18428 | 0 | 0 | 72.9 |  |
-| chain-30 | sdf | 881 | 166140 | 0 | 72 | 11.8 |  |
+| chain-30 | sdf | 2599 | 165436 | 0 | 63 | 10.9 |  |
 | chain-30 | mesh | 4701 | 576744 | 0 | 0 | 10.8 |  |
 | vase | sdf | 1113 | 139324 | 0 | 0 | 18.1 |  |
 | vase | mesh | 92 | 21612 | 0 | 0 | 17.3 |  |
@@ -26,7 +26,7 @@ Quality: normal. Images: `bench/out/<case>-<kernel>.png`.
 | torus | mesh | 132 | 41624 | 0 | 0 | 0.0 |  |
 | lattice | sdf | 761 | 187752 | 0 | 2 | 0.7 |  |
 | lattice | mesh | 15 | 372 | 0 | 0 | 0.7 |  |
-| vase-thin | sdf | 8506 | 1189248 | 0 | 0 | 23.9 | Wall drawn at 0.21 cm, not 0.20 cm: the SDF grid can't resolve it at this size. Use Fine quality, or the Mesh kernel for the exact wall. |
+| vase-thin | sdf | 9118 | 1169672 | 0 | 0 | 24.1 | Mesh wall for Group 1 drawn at 0.21 cm, not 0.20 cm (grid too coarse at this size). |
 | vase-thin | mesh | 163 | 22070 | 0 | 0 | 24.0 |  |
 | chain-thin | sdf | 2935 | 616112 | 0 | 88 | 0.0 |  |
 | chain-thin | mesh | 968 | 223848 | 0 | 0 | 0.0 | Sphere 1: opening on curved face "surface" not supported by the mesh kernel |

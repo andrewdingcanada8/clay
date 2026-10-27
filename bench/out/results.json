@@ -5,30 +5,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 270384,
-   "vertices": 135194,
+   "triangles": 368184,
+   "vertices": 184094,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
-   "cellSize": 0.125,
-   "activeCells": 1353728,
+   "cellSize": 0.10714285714285714,
+   "activeCells": 2006016,
    "warnings": [],
    "timings": {
-    "activate": 22.5,
-    "sampleF": 80.1,
-    "seeds": 133.1,
-    "propagate": 306.7,
-    "sampleS": 82.8,
-    "vertices": 307.3,
-    "faces": 35.6,
-    "check": 63.9
+    "cavity": 0.1,
+    "activate": 12.4,
+    "sample": 288.3,
+    "vertices": 520,
+    "faces": 42.9
    },
-   "totalMs": 1032.1
+   "totalMs": 990.9
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.4478698224852071,
+    0.44782544378698225,
     0,
     0,
     0
@@ -78,28 +75,25 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 155056,
-   "vertices": 77530,
+   "triangles": 210932,
+   "vertices": 105468,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
-   "cellSize": 0.18333333333333332,
-   "activeCells": 619520,
+   "cellSize": 0.15714285714285714,
+   "activeCells": 865792,
    "warnings": [],
    "timings": {
-    "activate": 7.3,
-    "sampleF": 57.1,
-    "seeds": 64.5,
-    "propagate": 326,
-    "sampleS": 45,
-    "vertices": 215.1,
-    "faces": 23.4,
-    "check": 31.6
+    "cavity": 0,
+    "activate": 6.9,
+    "sample": 179.3,
+    "vertices": 383.4,
+    "faces": 26.2
    },
-   "totalMs": 770.2
+   "totalMs": 654.4
   },
   "whiteFrac": [
    [
-    0.11316568047337278,
+    0.11326923076923077,
     0,
     0,
     0,
@@ -107,7 +101,7 @@
     0
    ],
    [
-    0.7224556213017751,
+    0.7287130177514793,
     0,
     0,
     0,
@@ -167,29 +161,26 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 166140,
-   "vertices": 82996,
+   "triangles": 165436,
+   "vertices": 82653,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 72,
+   "nonManifoldEdges": 63,
    "cellSize": 0.24,
-   "activeCells": 437248,
+   "activeCells": 496128,
    "warnings": [],
    "timings": {
-    "activate": 12,
-    "sampleF": 65.4,
-    "seeds": 59.6,
-    "propagate": 324.5,
-    "sampleS": 41.3,
-    "vertices": 319.1,
-    "faces": 21.4,
-    "check": 37.2
+    "cavity": 0.2,
+    "activate": 12.3,
+    "sample": 646,
+    "vertices": 1882.8,
+    "faces": 21.4
    },
-   "totalMs": 880.6
+   "totalMs": 2599.2
   },
   "whiteFrac": [
    [
     0,
-    0.11505917159763314,
+    0.10899408284023669,
     0,
     0,
     0,
@@ -198,13 +189,13 @@
    [
     0,
     0,
-    0.05581360946745562,
+    0.05195266272189349,
     0,
     0,
     0
    ],
    [
-    0.11770710059171598,
+    0.10899408284023669,
     0,
     0,
     0,
@@ -872,32 +863,29 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 1189248,
-   "vertices": 594626,
+   "triangles": 1169672,
+   "vertices": 584838,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
-   "cellSize": 0.08741797320368391,
-   "activeCells": 3720192,
+   "cellSize": 0.08809635219689861,
+   "activeCells": 3738112,
    "warnings": [
-    "Wall drawn at 0.21 cm, not 0.20 cm: the SDF grid can't resolve it at this size. Use Fine quality, or the Mesh kernel for the exact wall."
+    "Mesh wall for Group 1 drawn at 0.21 cm, not 0.20 cm (grid too coarse at this size)."
    ],
    "timings": {
-    "activate": 203.2,
-    "sampleF": 1282.8,
-    "seeds": 958.6,
-    "propagate": 1862,
-    "sampleS": 194.4,
-    "vertices": 3388.4,
-    "faces": 108.9,
-    "check": 508
+    "cavity": 0.1,
+    "activate": 89.3,
+    "sample": 2160.8,
+    "vertices": 6036,
+    "faces": 107
    },
-   "totalMs": 8506.3
+   "totalMs": 9118.4
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.030887573964497043,
+    0.03118343195266272,
     0,
     0,
     0
@@ -905,7 +893,7 @@
    [
     0,
     0,
-    0.23934911242603552,
+    0.2405621301775148,
     0,
     0,
     0

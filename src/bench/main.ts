@@ -6,6 +6,12 @@ import { examples } from '../examples';
 import '../browserSetup';
 import { buildMesh } from '../engine/build';
 import type { KernelName, Quality } from '../engine/document';
+import { buildCavityGrid, type CavityGrid, sampleCavity } from '../engine/cavity';
+import { buildSDF } from '../engine/sdfKernel';
+import { approxDepth, compileGroups, traceScene } from '../engine/scene';
+import type { Vec3 } from '../engine/math';
+import { SdfRenderer } from '../app/raymarch';
+import type { BuildResult } from '../engine/kernel';
 
 const params = new URLSearchParams(location.search);
 const caseId = params.get('case') ?? 'open-box';
@@ -22,7 +28,28 @@ async function main() {
   const ex = examples().find((e) => e.id === caseId);
   if (!ex) throw new Error(`unknown case ${caseId}`);
   const doc = { ...ex.doc, kernel, meshMethod: kernelParam === 'mesh-mk' ? 'minkowski' as const : 'offset' as const };
-  const result = await buildMesh(doc, quality);
+  // SDF: raymarched exactly as in the app (cavity grids + GPU field); the mesher
+  // runs too, only for topology statistics. Mesh kernels: triangles.
+  const sdf = kernel === 'sdf';
+  let result: BuildResult;
+  let sdfR: SdfRenderer | null = null;
+  let gridArr: (CavityGrid | null)[] = [];
+  let cavityMs = 0;
+  if (sdf) {
+    const t0 = performance.now();
+    const groups = compileGroups(doc);
+    gridArr = [];
+    for (const g of groups) gridArr[g.index] = g.hollow ? buildCavityGrid(g, quality) : null;
+    cavityMs = performance.now() - t0;
+    sdfR = new SdfRenderer();
+    sdfR.setDoc(doc);
+    sdfR.setGrids(gridArr);
+    sdfR.setStyle({ clay: 0xb8b2aa, cap: 0x8a1c1c });
+    result = params.get('stats') === '0'
+      ? { positions: new Float32Array(0), indices: new Uint32Array(0), stats: { kernel: 'sdf', triangles: 0, vertices: 0, boundaryEdges: 0, nonManifoldEdges: 0, warnings: [], timings: {}, totalMs: 0 } }
+      : buildSDF(doc, quality, compileGroups(doc).map((g) => gridArr[g.index] ?? null));
+    result.stats.timings = { cavity: Math.round(cavityMs), ...result.stats.timings };
+  } else result = await buildMesh(doc, quality);
   const { positions, indices, stats } = result;
 
   const geo = new THREE.BufferGeometry();
@@ -31,7 +58,7 @@ async function main() {
   geo.computeVertexNormals();
   geo.computeBoundingBox();
   geo.computeBoundingSphere();
-  const bs = geo.boundingSphere ?? new THREE.Sphere(new THREE.Vector3(), 5);
+  const bs = sdfR ? sdfR.bounds.getBoundingSphere(new THREE.Sphere()) : geo.boundingSphere ?? new THREE.Sphere(new THREE.Vector3(), 5);
 
   const probes = ex.probes;
   const cols = 6;
@@ -62,10 +89,23 @@ async function main() {
   const clipPlanes: THREE.Plane[] = [];
   const front = new THREE.MeshStandardMaterial({ color: 0xb8b2aa, roughness: 0.9, side: THREE.FrontSide, clippingPlanes: clipPlanes, flatShading: false });
   const back = new THREE.MeshBasicMaterial({ color: 0x8a1c1c, side: THREE.BackSide, clippingPlanes: clipPlanes });
-  shaded.add(new THREE.Mesh(geo, front));
-  shaded.add(new THREE.Mesh(geo, back));
-  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 35), new THREE.LineBasicMaterial({ color: 0x222222, clippingPlanes: clipPlanes }));
-  shaded.add(edges);
+  const edges = new THREE.LineSegments(sdf ? new THREE.BufferGeometry() : new THREE.EdgesGeometry(geo, 35), new THREE.LineBasicMaterial({ color: 0x222222, clippingPlanes: clipPlanes }));
+  if (!sdf) {
+    shaded.add(new THREE.Mesh(geo, front));
+    shaded.add(new THREE.Mesh(geo, back));
+    shaded.add(edges);
+  }
+  const setClip = (pl: THREE.Plane | null) => {
+    clipPlanes.length = 0;
+    if (pl) clipPlanes.push(pl);
+    front.needsUpdate = back.needsUpdate = edges.material.needsUpdate = true;
+    sdfR?.setClip(pl);
+  };
+  const useSdf = (scene: THREE.Scene, flat: boolean) => {
+    if (!sdfR) return;
+    scene.add(sdfR.mesh);
+    sdfR.setStyle({ flat });
+  };
   if (params.get('wire')) {
     const wm = new THREE.MeshBasicMaterial({ color: 0x0044ff, wireframe: true, clippingPlanes: clipPlanes, transparent: true, opacity: 0.35 });
     shaded.add(new THREE.Mesh(geo, wm));
@@ -93,6 +133,7 @@ async function main() {
     ['front', new THREE.Vector3(0, 0, 1)],
     ['side', new THREE.Vector3(1, 0, 0)],
   ];
+  useSdf(shaded, false);
   ext.forEach(([name, dir, up], i) => {
     view(i, 0, ortho(dir, up), shaded);
     label(i * T + 2, 2, name);
@@ -106,47 +147,54 @@ async function main() {
     ['section Y', new THREE.Vector3(0, -1, 0), new THREE.Vector3(0.2, 1, 0.3)],
   ];
   sections.forEach(([name, n, camDir], i) => {
-    clipPlanes.length = 0;
-    clipPlanes.push(new THREE.Plane(n, -n.dot(p0)));
-    front.needsUpdate = back.needsUpdate = true;
+    setClip(new THREE.Plane(n, -n.dot(p0)));
     view(i, 1, ortho(camDir, Math.abs(camDir.y) > 0.9 ? new THREE.Vector3(0, 0, -1) : undefined), shaded);
     label(i * T + 2, T + 2, name);
   });
-  clipPlanes.length = 0;
+  setClip(null);
 
   // --- detail row: zoomed wall cross-sections and inner surface where rays from
   // the first probe hit the wall (+X side, top, bottom).
   const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
   const rc = new THREE.Raycaster();
-  const zoomR = Number(params.get('zoom') ?? 0) || Math.min(bs.radius * 0.3, Math.max(4 * doc.shell.thickness, 1.2));
+  const zoomR = Number(params.get('zoom') ?? 0) || Math.min(bs.radius * 0.3, Math.max(4 * doc.groups[0].thickness, 1.2));
   const hits: [string, THREE.Vector3, THREE.Vector3][] = [];
   for (const [name, d] of [['+X', new THREE.Vector3(1, 0, 0)], ['+Y', new THREE.Vector3(0, 1, 0)], ['-Y', new THREE.Vector3(0, -1, 0)]] as [string, THREE.Vector3][]) {
-    rc.set(p0, d);
-    const h = rc.intersectObject(mesh, false)[0];
-    if (h) hits.push([name, h.point.clone(), d]);
+    if (sdf) {
+      const groups = compileGroups(doc);
+      const depth = (g: { index: number }, x: number, y: number, z: number) => {
+        const c = gridArr[g.index];
+        return c ? sampleCavity(c, x, y, z) : approxDepth(g as never, x, y, z);
+      };
+      const h = traceScene(groups, depth, p0.toArray() as Vec3, d.toArray() as Vec3, 0.01, 500);
+      if (h) hits.push([name, new THREE.Vector3(...h.p), d]);
+    } else {
+      rc.set(p0, d);
+      const h = rc.intersectObject(mesh, false)[0];
+      if (h) hits.push([name, h.point.clone(), d]);
+    }
   }
   hits.forEach(([name, hp, d], i) => {
-    clipPlanes.length = 0;
-    clipPlanes.push(new THREE.Plane(new THREE.Vector3(0, 0, -1), hp.z));
-    front.needsUpdate = back.needsUpdate = edges.material.needsUpdate = true;
+    setClip(new THREE.Plane(new THREE.Vector3(0, 0, -1), hp.z));
     const cam = new THREE.OrthographicCamera(-zoomR, zoomR, zoomR, -zoomR, 0.01, 1000);
     cam.position.copy(hp).add(new THREE.Vector3(0.15, 0.1, 1).multiplyScalar(50));
     cam.lookAt(hp);
     view(2 * i, 2, cam, shaded);
     label(2 * i * T + 2, 2 * T + 2, `detail section ${name}`);
-    clipPlanes.length = 0;
+    setClip(null);
     const pc = new THREE.PerspectiveCamera(60, 1, 0.005, 1000);
     pc.position.copy(hp).addScaledVector(d, -Math.min(hp.distanceTo(p0) * 0.9, zoomR * 2.5));
     pc.lookAt(hp);
     view(2 * i + 1, 2, pc, shaded);
     label((2 * i + 1) * T + 2, 2 * T + 2, `detail inner surface ${name}`);
   });
-  clipPlanes.length = 0;
+  setClip(null);
 
   // --- interior 360° views: unlit black on white
   const inner = new THREE.Scene();
   inner.background = new THREE.Color(0xffffff);
-  inner.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide })));
+  if (sdf) useSdf(inner, true);
+  else inner.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide })));
   const dirs: [string, THREE.Vector3, THREE.Vector3][] = [
     ['+X', new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0)],
     ['-X', new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 1, 0)],
@@ -184,9 +232,10 @@ async function main() {
   info.textContent = [
     `${ex.title}  [${stats.kernel} / ${quality}]`,
     ex.notes,
-    `wall ${doc.shell.thickness} cm   tris ${stats.triangles}   cell ${stats.cellSize?.toFixed(3) ?? '-'}`,
+    `wall ${doc.groups[0].thickness} cm   tris ${stats.triangles}   cell ${stats.cellSize?.toFixed(3) ?? '-'}`,
     `boundary edges ${stats.boundaryEdges}   non-manifold ${stats.nonManifoldEdges}`,
-    `total ${stats.totalMs.toFixed(0)} ms`,
+    sdf ? `display: GPU raymarch · cavity grids ${cavityMs.toFixed(0)} ms ${gridArr.filter(Boolean).map((c) => `${c!.dims.join('x')} @${c!.h.toFixed(2)}cm`).join(', ')}` : '',
+    sdf ? `mesher (stats only) ${stats.totalMs.toFixed(0)} ms` : `total ${stats.totalMs.toFixed(0)} ms`,
     Object.entries(stats.timings).map(([k, v]) => `${k} ${v}`).join('  '),
     ...stats.warnings.map((w) => `! ${w}`),
   ].join('\n');

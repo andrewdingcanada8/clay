@@ -5,6 +5,8 @@ import {
   TYPE_LABEL, cloneDoc, emptyDoc, makeObject, newId, normalizeDoc,
 } from '../engine/document';
 import type { BuildResult } from '../engine/kernel';
+import type { CavityGrid } from '../engine/cavity';
+import { DEFAULT_WALL, type Group } from '../engine/document';
 import type { Vec3 } from '../engine/math';
 import { classifyPoint, compileScene, sdfWorld, toLocal } from '../engine/primitives';
 import { examples } from '../examples';
@@ -78,6 +80,9 @@ const ui: UIState = {
 };
 let lastResult: BuildResult | null = null;
 let busy = false;
+/** Cavity grids per group index, with the key of the shell geometry they were built for. */
+const gridCache: ({ key: string; grid: CavityGrid } | null)[] = [];
+let cavityMs = 0;
 let frameOnNext = true;
 let profileEditor: ProfileEditor | null = null;
 
@@ -115,7 +120,15 @@ new MutationObserver(applyTheme).observe(document.documentElement, { attributes:
 
 const builder = new Builder();
 builder.onBusy = (b) => { busy = b; renderStatus(); };
-builder.onResult = (r) => {
+builder.onGrids = (grids, tag, ms) => {
+  const keys = tag as Record<number, string>;
+  for (const g of grids) gridCache[g.groupIndex] = { key: keys[g.groupIndex], grid: g };
+  cavityMs = ms;
+  applyGrids();
+  renderStatus();
+  if (ui.tab === 'view') renderPanel();
+};
+builder.onMesh = (r) => {
   lastResult = r;
   view.setResult(r, ui.wire);
   if (ui.section.on) view.setSection(true, ui.section.axis, ui.section.t);
@@ -138,7 +151,49 @@ function update(mut: (d: SceneDoc) => void, interactive = false) {
   if (!interactive) commit();
   const sel = selected();
   if (sel) view.syncGhost(sel);
-  builder.schedule(doc, ui.quality, interactive);
+  sync(interactive);
+}
+
+// ---------- display / builds
+/** Key of what a group's cavity depends on: its shell objects and their openings. */
+function cavityKey(gi: number): string {
+  const g = doc.groups[gi];
+  const shells = doc.objects.filter((o) => o.groupId === g.id && o.mode === 'shell' && !o.hidden);
+  return JSON.stringify([ui.quality, shells.map((o) => [o.type, o.params, o.transform, o.holes])]);
+}
+
+function currentGrids(): (CavityGrid | null)[] {
+  return doc.groups.map((g, i) => {
+    const c = gridCache[i];
+    return c && c.key === cavityKey(i) && g.thickness <= c.grid.tMax ? c.grid : null;
+  });
+}
+
+function applyGrids() {
+  if (doc.kernel === 'sdf') view.setSdfGrids(currentGrids());
+}
+
+/** Bring the display in line with the document. */
+function sync(interactive: boolean) {
+  if (doc.kernel === 'mesh') {
+    view.setMode('mesh');
+    builder.request('mesh', doc, ui.quality, { delay: interactive ? 60 : 0, wait: interactive });
+    return;
+  }
+  // SDF: the GPU draws the document straight away; only stale cavity grids rebuild.
+  view.setMode('sdf');
+  view.setSdfDoc(doc);
+  const grids = currentGrids();
+  view.setSdfGrids(grids);
+  const missing: number[] = [];
+  const keys: Record<number, string> = {};
+  doc.groups.forEach((g, i) => {
+    const hollow = doc.shell.enabled && doc.objects.some((o) => o.groupId === g.id && o.mode === 'shell' && !o.hidden);
+    if (hollow && !grids[i]) { missing.push(i); keys[i] = cavityKey(i); }
+  });
+  if (missing.length) builder.request('cavity', doc, ui.quality, { groups: missing, tag: keys, delay: interactive ? 250 : 0 });
+  if (frameOnNext) { view.frame(); frameOnNext = false; }
+  renderStatus();
 }
 
 function commit() {
@@ -158,7 +213,7 @@ function restore(s: string) {
   save(doc);
   if (!selected()) ui.selectedId = doc.objects[0]?.id ?? null;
   refreshGhost();
-  builder.schedule(doc, ui.quality, false);
+  sync(false);
   renderAll();
 }
 
@@ -175,15 +230,21 @@ function renderTopbar() {
 
 function renderStatus() {
   const chips: string[] = [];
-  const s = lastResult?.stats;
-  const kernelName = doc.kernel === 'sdf' ? 'SDF' : doc.meshMethod === 'minkowski' ? 'Mesh · Minkowski' : 'Mesh';
-  chips.push(`<span class="chip ${busy ? 'busy' : 'ok'}">${kernelName}${busy ? ' · building' : s ? ` · ${fmtMs(s.totalMs)}` : ''}</span>`);
+  const s = doc.kernel === 'mesh' ? lastResult?.stats : undefined;
+  if (doc.kernel === 'sdf') {
+    const hollow = doc.groups.some((g) => doc.shell.enabled && doc.objects.some((o) => o.groupId === g.id && o.mode === 'shell'));
+    const exact = currentGrids().some(Boolean) || !hollow;
+    chips.push(`<span class="chip ${busy ? 'busy' : 'ok'}">SDF · live${hollow ? (exact && !busy ? ' · exact walls' : ' · refining walls') : ''}</span>`);
+  } else {
+    const kernelName = doc.meshMethod === 'minkowski' ? 'Mesh · Minkowski' : 'Mesh';
+    chips.push(`<span class="chip ${busy ? 'busy' : 'ok'}">${kernelName}${busy ? ' · building' : s ? ` · ${fmtMs(s.totalMs)}` : ''}</span>`);
+  }
   const bb = view.bounds();
   if (bb) {
     const sz = bb.getSize(new THREE.Vector3());
     chips.push(`<span class="chip">${Math.round(Math.max(sz.x, sz.z))} × ${Math.round(sz.y)} cm</span>`);
   }
-  if (doc.shell.enabled) chips.push(`<span class="chip">wall ${doc.shell.thickness.toFixed(2)} cm</span>`);
+  if (doc.shell.enabled && doc.groups.length === 1) chips.push(`<span class="chip">wall ${doc.groups[0].thickness.toFixed(2)} cm</span>`);
   if (s && !busy) {
     if (s.boundaryEdges) chips.push(`<span class="chip warn">${s.boundaryEdges} open edges</span>`);
     for (const w of s.warnings.slice(0, 2)) chips.push(`<span class="chip warn">${escapeHtml(w)}</span>`);
@@ -259,9 +320,10 @@ function editPanel() {
   if (o) {
     const t = o.transform;
     body = `
-    <div class="section"><h3>${TYPE_LABEL[o.type]} · how it combines</h3>
-      ${seg<ObjectMode>('mode', o.mode, [['join', 'Join'], ['solid', 'Solid'], ['cut', 'Cut']])}
-      <p class="hint">${o.mode === 'join' ? 'Part of the form. It gets hollowed with everything it touches.' : o.mode === 'solid' ? 'Added after hollowing, so it stays solid (sticks, handles).' : 'Carved out of the form before hollowing.'}</p>
+    <div class="section"><h3>${TYPE_LABEL[o.type]} · role in its group</h3>
+      ${seg<ObjectMode>('mode', o.mode, [['shell', 'Shell'], ['solid', 'Solid'], ['subtract', 'Subtract']])}
+      <p class="hint">${o.mode === 'shell' ? 'Forms the hollow body. The cavity grows inward from the outside of all Shell objects in the group.' : o.mode === 'solid' ? 'Never hollowed itself, but cut where the group\'s cavity passes through it.' : 'Carved out of its group together with the cavity. No wall forms around it.'}</p>
+      ${doc.groups.length > 1 ? `<div class="row">${doc.groups.map((g) => `<button class="face-chip" data-move-group="${g.id}" aria-pressed="${g.id === o.groupId}">${escapeHtml(g.name)}</button>`).join('')}</div>` : ''}
     </div>
     <div class="section"><h3>Shape</h3>
       ${PARAMS[o.type].map(([k, l, mn, mx, st]) => slider(`p.${k}`, l, (o.params as Record<string, number>)[k], mn, mx, st)).join('')}
@@ -281,11 +343,22 @@ function editPanel() {
 
 function shellPanel() {
   const holes = doc.objects.flatMap((o) => o.holes.map((h) => ({ o, h })));
-  return `<div class="section"><h3>Hollow the piece</h3>
-      <label class="toggle"><input type="checkbox" id="shell-on" data-act="shell-toggle" ${doc.shell.enabled ? 'checked' : ''}> Shell everything that is joined</label>
-      ${slider('shell', 'Wall cm', doc.shell.thickness, 0.1, 4, 0.05)}
-      <p class="hint">Walls grow inward from the outside surface, so the outside stays exactly as modelled. Where the piece is thinner than two walls it stays solid.</p>
+  const groupRows = doc.groups.map((g: Group, i) => {
+    const members = doc.objects.filter((o) => o.groupId === g.id);
+    const count = (m: ObjectMode) => members.filter((o) => o.mode === m).length;
+    return `<div class="section group-card">
+      <div class="row"><input class="group-name" id="gname-${g.id}" data-group-name="${g.id}" value="${escapeHtml(g.name)}" aria-label="Group name">
+        ${doc.groups.length > 1 ? `<button class="btn danger" data-del-group="${g.id}" aria-label="Delete group">Delete</button>` : ''}</div>
+      ${slider(`wall.${i}`, 'Wall cm', g.thickness, 0.05, 4, 0.01)}
+      <p class="hint">${count('shell')} shell · ${count('solid')} solid · ${count('subtract')} subtract</p>
+    </div>`;
+  }).join('');
+  return `<div class="section"><h3>Hollowing</h3>
+      <label class="toggle"><input type="checkbox" id="shell-on" data-act="shell-toggle" ${doc.shell.enabled ? 'checked' : ''}> Hollow Shell objects</label>
+      <p class="hint">In each group, walls grow inward from the outside of the Shell objects. The cavity and any Subtract objects are carved from the whole group, Solid objects included. Groups never cut each other.</p>
     </div>
+    ${groupRows}
+    <div class="row"><button class="btn" data-act="add-group">Add group</button></div>
     <div class="section"><h3>Openings</h3>
       <p class="hint">${holes.length + doc.pins.length ? `${holes.length} face opening${holes.length === 1 ? '' : 's'}, ${doc.pins.length} pin hole${doc.pins.length === 1 ? '' : 's'}.` : 'No openings yet: the shell is fully closed.'} Add them in the Holes tab.</p>
     </div>`;
@@ -314,16 +387,20 @@ function viewPanel() {
   return `<div class="section"><h3>Shelling kernel</h3>
       ${seg('kernel', doc.kernel, [['sdf', 'SDF'], ['mesh', 'Mesh']])}
       ${doc.kernel === 'mesh' ? seg('meshMethod', doc.meshMethod, [['offset', 'Fast offset'], ['minkowski', 'Exact (slow)']]) : ''}
-      <p class="hint">${doc.kernel === 'sdf' ? 'Distance fields: any union, openings on any surface, exact wall thickness. Detail depends on quality.' : doc.meshMethod === 'offset' ? 'Exact surfaces and very fast. Each form is hollowed separately, so walls come out thicker where forms meet, and narrow joins can stay closed.' : 'Exact erosion of the whole union. Correct at joins, but can take minutes.'}</p>
+      <p class="hint">${doc.kernel === 'sdf' ? 'Distance fields drawn directly on the GPU: exact outer surfaces and joins at any zoom, exact wall thickness, openings on any surface. Quality sets the cavity detail.' : doc.meshMethod === 'offset' ? 'Exact surfaces and very fast. Each form is hollowed separately, so walls come out thicker where forms meet, and narrow joins can stay closed.' : 'Exact erosion of the whole union. Correct at joins, but can take minutes.'}</p>
       ${seg<Quality>('quality', ui.quality, [['draft', 'Draft'], ['normal', 'Normal'], ['fine', 'Fine']])}
     </div>
     <div class="section"><h3>Look inside</h3>
       <label class="toggle"><input type="checkbox" id="sec-on" data-act="section-toggle" ${ui.section.on ? 'checked' : ''}> Section cut</label>
       ${ui.section.on ? `${seg('axis', ui.section.axis, [['x', 'X'], ['y', 'Y'], ['z', 'Z']])}${slider('section', 'Position', ui.section.t, 0, 1, 0.005)}` : ''}
-      <label class="toggle"><input type="checkbox" id="wire-on" data-act="wire-toggle" ${ui.wire ? 'checked' : ''}> Show triangles</label>
+      ${doc.kernel === 'mesh' ? `<label class="toggle"><input type="checkbox" id="wire-on" data-act="wire-toggle" ${ui.wire ? 'checked' : ''}> Show triangles</label>` : ''}
       <label class="toggle"><input type="checkbox" id="hand-on" data-act="hand-toggle" ${ui.hand ? 'checked' : ''}> Hand for scale (adult hand, ${HAND_LENGTH_CM} cm)</label>
     </div>
-    <div class="section"><h3>Last build</h3><div class="stats">${s ? escapeHtml([
+    ${doc.kernel === 'sdf' ? `<div class="section"><h3>Rendering</h3><div class="stats">${escapeHtml([
+      'Raymarched on the GPU: no triangles.',
+      ...currentGrids().map((c, i) => c ? `${doc.groups[i].name}: cavity grid ${c.dims.join('×')}, ${c.h.toFixed(2)} cm texels` : ''),
+      cavityMs ? `last cavity build ${fmtMs(cavityMs)}` : '',
+    ].filter(Boolean).join('\n'))}</div></div>` : `<div class="section"><h3>Last build</h3><div class="stats">${s ? escapeHtml([
       `kernel     ${s.kernel}`,
       `time       ${fmtMs(s.totalMs)}`,
       `triangles  ${s.triangles.toLocaleString()}`,
@@ -331,7 +408,7 @@ function viewPanel() {
       `open edges ${s.boundaryEdges}   non-manifold ${s.nonManifoldEdges}`,
       ...Object.entries(s.timings).map(([k, v]) => `  ${k.padEnd(10)} ${v} ms`),
       ...s.warnings.map((w) => `! ${w}`),
-    ].filter(Boolean).join('\n')) : 'building…'}</div></div>
+    ].filter(Boolean).join('\n')) : 'building…'}</div></div>`}
     <div class="row"><button class="btn danger" data-act="new">New empty scene</button></div>`;
 }
 
@@ -378,7 +455,10 @@ function selectObject(id: string | null) {
 
 function setNum(key: string, v: number, interactive: boolean) {
   if (Number.isNaN(v)) return;
-  if (key === 'shell') return update((d) => { d.shell.thickness = Math.max(0.05, v); }, interactive);
+  if (key.startsWith('wall.')) {
+    const gi = Number(key.slice(5));
+    return update((d) => { d.groups[gi].thickness = Math.max(0.02, v); }, interactive);
+  }
   if (key === 'pin') { ui.pinRadius = Math.max(0.02, v); return; }
   if (key === 'section') { ui.section.t = v; view.setSection(true, ui.section.axis, v); return; }
   const o = selected();
@@ -422,6 +502,11 @@ panel.addEventListener('change', (e) => {
     if (key.startsWith('tf.scale') && ui.lockScale) renderPanel();
     return;
   }
+  if (el.dataset.groupName) {
+    const gid = el.dataset.groupName;
+    update((d) => { d.groups.find((g) => g.id === gid)!.name = el.value.trim() || 'Group'; });
+    return;
+  }
   const act = el.dataset.act;
   if (act === 'shell-toggle') update((d) => { d.shell.enabled = el.checked; });
   if (act === 'section-toggle') { ui.section.on = el.checked; view.setSection(el.checked, ui.section.axis, ui.section.t); renderPanel(); }
@@ -445,6 +530,20 @@ panel.addEventListener('click', (e) => {
   if (d.unhole) {
     const [oid, fid] = d.unhole.split('|');
     return toggleHole(oid, fid);
+  }
+  if (d.moveGroup) {
+    update((doc2) => { doc2.objects.find((x) => x.id === ui.selectedId)!.groupId = d.moveGroup!; });
+    renderPanel();
+    return;
+  }
+  if (d.delGroup) {
+    update((doc2) => {
+      const keepId = doc2.groups.find((g) => g.id !== d.delGroup)!.id;
+      doc2.groups = doc2.groups.filter((g) => g.id !== d.delGroup);
+      for (const o of doc2.objects) if (o.groupId === d.delGroup) o.groupId = keepId;
+    });
+    renderPanel();
+    return;
   }
   if (d.unpin) { update((doc2) => { doc2.pins = doc2.pins.filter((p) => p.id !== d.unpin); }); renderPanel(); return; }
   switch (d.act) {
@@ -475,6 +574,13 @@ panel.addEventListener('click', (e) => {
     case 'profile-corner': profileEditor?.toggleCorner(); break;
     case 'profile-delete': profileEditor?.deleteSelected(); break;
     case 'close-examples': ui.showExamples = false; renderPanel(); break;
+    case 'add-group': {
+      const id = newId('g');
+      update((doc2) => { doc2.groups.push({ id, name: `Group ${doc2.groups.length + 1}`, thickness: DEFAULT_WALL }); });
+      toast('Group added. Move objects into it from the Edit tab.');
+      renderPanel();
+      break;
+    }
     case 'new':
       update((doc2) => { Object.assign(doc2, emptyDoc(), { kernel: doc2.kernel }); });
       ui.selectedId = null; ui.tab = 'add'; refreshGhost(); renderPanel();
@@ -489,7 +595,7 @@ function onSeg(name: string, value: string) {
     case 'holeMode': ui.holeMode = value as 'face' | 'pin'; break;
     case 'kernel': update((d) => { d.kernel = value as SceneDoc['kernel']; }); break;
     case 'meshMethod': update((d) => { d.meshMethod = value as SceneDoc['meshMethod']; }); break;
-    case 'quality': ui.quality = value as Quality; builder.schedule(doc, ui.quality, false); break;
+    case 'quality': ui.quality = value as Quality; sync(false); break;
     case 'axis': ui.section.axis = value as 'x' | 'y' | 'z'; view.setSection(true, ui.section.axis, ui.section.t); break;
   }
   renderPanel();
@@ -505,7 +611,7 @@ function toggleHole(oid: string, fid: string) {
 }
 
 function addObject(type: PrimitiveType) {
-  const o = makeObject(type);
+  const o = makeObject(type, { groupId: selected()?.groupId ?? doc.groups[0].id });
   const n = doc.objects.filter((x) => x.type === type).length;
   if (n) o.name = `${TYPE_LABEL[type]} ${n + 1}`;
   update((d) => { d.objects.push(o); });
@@ -581,11 +687,11 @@ view.onTap = (hit) => {
   }
   const objs = compileScene(doc.objects);
   const p = hit.point;
-  const c = classifyPoint(objs, p.x, p.y, p.z, ['join', 'solid', 'cut']);
+  const c = classifyPoint(objs, p.x, p.y, p.z, ['shell', 'solid', 'subtract']);
   if (!c) return;
   const oid = c.obj.obj.id;
   if (ui.tab === 'holes' && ui.holeMode === 'face') {
-    if (c.obj.obj.mode !== 'join') { toast('Openings go on joined forms'); return; }
+    if (c.obj.obj.mode !== 'shell') { toast('Openings go on Shell objects'); return; }
     ui.selectedId = oid;
     toggleHole(oid, c.face);
     toast(`${c.obj.obj.holes.includes(c.face) ? 'Closed' : 'Opened'} ${c.obj.obj.name} · ${faceLabel(c.obj.obj, c.face)}`);
@@ -638,4 +744,15 @@ function toast(msg: string) {
 // ---------- start
 renderAll();
 refreshGhost();
-builder.schedule(doc, ui.quality, false);
+sync(false);
+
+// test hook (used by the Playwright checks)
+(window as unknown as { __clay: unknown }).__clay = {
+  view,
+  get doc() { return doc; },
+  project(x: number, y: number, z: number) {
+    const v = new THREE.Vector3(x, y, z).project(view.camera);
+    const r = view.renderer.domElement.getBoundingClientRect();
+    return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+  },
+};

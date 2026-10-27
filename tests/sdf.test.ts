@@ -23,7 +23,7 @@ describe('sdf kernel', () => {
     console.log('sphere', r.stats.totalMs, r.stats.triangles, r.stats.timings);
   });
   it("open box shell volume", { timeout: 60000 }, () => {
-    const d = emptyDoc(); d.shell.thickness = 0.4;
+    const d = emptyDoc(); d.groups[0].thickness = 0.4;
     const box = makeObject('box', { params: { x: 6, y: 6, z: 6 }, holes: ['py'] });
     d.objects.push(box);
     const r = buildSDF(d, 'normal');

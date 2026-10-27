@@ -182,3 +182,9 @@ input[type="number"] {
   position: absolute; left: 50%; transform: translateX(-50%); bottom: 12px; z-index: 7; background: var(--fg); color: var(--bg);
   padding: 8px 14px; border-radius: 10px; font-size: 13px; max-width: calc(100% - 32px); box-shadow: var(--shadow);
 }
+.group-card { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--surface-2); }
+.group-name {
+  flex: 1; min-width: 0; height: 34px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+  font: 600 14px var(--font-body); padding: 0 10px;
+}
+.obj-chip .dot.subtract { background: var(--danger); }

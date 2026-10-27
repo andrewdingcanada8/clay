@@ -10,7 +10,13 @@ import type { BuildResult } from '../engine/kernel';
 import { DEG } from '../engine/math';
 import { revolveOutline } from '../engine/primitives';
 import { sampleCurve } from '../engine/profile';
+import type { CavityGrid } from '../engine/cavity';
+import type { SceneDoc } from '../engine/document';
+import { sampleCavity } from '../engine/cavity';
+import { type CompiledGroup, approxDepth, traceScene } from '../engine/scene';
+import type { Vec3 } from '../engine/math';
 import { HandReference } from './hand';
+import { SdfRenderer } from './raymarch';
 
 export type GizmoMode = 'translate' | 'rotate' | 'scale' | 'off';
 
@@ -35,6 +41,11 @@ export class Viewport {
   onGizmoChange: (t: { position: [number, number, number]; rotation: [number, number, number]; scale: [number, number, number] }, done: boolean) => void = () => {};
   onTap: (hit: { point: THREE.Vector3; normal: THREE.Vector3 } | null) => void = () => {};
   private needsRender = true;
+  /** SDF kernel: drawn by raymarching on the GPU. Mesh kernel: triangles. */
+  sdf = new SdfRenderer();
+  private mode: 'sdf' | 'mesh' = 'sdf';
+  private basePixelRatio = Math.min(window.devicePixelRatio, 2);
+  private settleTimer = 0;
 
   constructor(private host: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
@@ -46,6 +57,10 @@ export class Viewport {
     this.orbit = new OrbitControls(this.camera, this.renderer.domElement);
     this.orbit.enableDamping = true;
     this.orbit.addEventListener('change', () => this.invalidate());
+    // Raymarching costs per pixel: render at reduced resolution while moving,
+    // then one full-resolution frame once the view settles.
+    this.orbit.addEventListener('start', () => this.interacting(true));
+    this.orbit.addEventListener('end', () => this.interacting(false));
 
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x5a5048, 2.0));
     const key = new THREE.DirectionalLight(0xffffff, 1.7);
@@ -62,6 +77,7 @@ export class Viewport {
     this.back = new THREE.MeshBasicMaterial({ color: 0x8c3b2a, side: THREE.BackSide, clippingPlanes: this.clipPlanes });
     this.wire = new THREE.MeshBasicMaterial({ color: 0x222222, wireframe: true, transparent: true, opacity: 0.25, clippingPlanes: this.clipPlanes });
     this.scene.add(this.result);
+    this.scene.add(this.sdf.mesh);
     this.scene.add(this.ghost);
 
     this.gizmo = new TransformControls(this.camera, this.renderer.domElement);
@@ -69,6 +85,7 @@ export class Viewport {
     this.gizmo.setSize(1.1);
     this.gizmo.addEventListener('dragging-changed', (e) => {
       this.dragging = !!e.value;
+      this.interacting(!!e.value);
       this.orbit.enabled = !e.value;
       if (!e.value) this.emitGizmo(true);
     });
@@ -93,9 +110,69 @@ export class Viewport {
     this.needsRender = true;
   }
 
+  /** Lower the render resolution during camera moves and drags (SDF mode). */
+  interacting(on: boolean) {
+    clearTimeout(this.settleTimer);
+    const apply = (ratio: number) => {
+      if (Math.abs(this.renderer.getPixelRatio() - ratio) < 1e-3) return;
+      this.renderer.setPixelRatio(ratio);
+      this.resize();
+    };
+    if (on && this.mode === 'sdf') apply(Math.max(0.5, this.basePixelRatio * 0.5));
+    else this.settleTimer = window.setTimeout(() => apply(this.basePixelRatio), on ? 0 : 180);
+  }
+
+  setMode(mode: 'sdf' | 'mesh') {
+    this.mode = mode;
+    this.result.visible = mode === 'mesh';
+    this.sdf.mesh.visible = mode === 'sdf' && !this.sdf.bounds.isEmpty();
+    this.invalidate();
+  }
+
+  /** SDF kernel: show the document directly (no build needed for the outer form). */
+  setSdfDoc(doc: SceneDoc) {
+    this.sdf.setDoc(doc);
+    this.sdf.mesh.visible = this.mode === 'sdf' && !this.sdf.bounds.isEmpty();
+    if (this.mode === 'sdf') this.placeGround();
+    this.invalidate();
+  }
+
+  setSdfGrids(grids: (CavityGrid | null)[]) {
+    this.sdf.setGrids(grids);
+    this.invalidate();
+  }
+
+  private placeGround() {
+    const box = this.bounds();
+    if (!box) { this.hand.object.visible = false; return; }
+    this.grid.position.y = box.min.y - 0.01;
+    this.hand.place(box);
+    this.hand.object.visible = this.showHand;
+  }
+
+  /** CPU sphere tracing of the same field the GPU draws (for taps). */
+  private sdfPick(ro: THREE.Vector3, rd: THREE.Vector3): { point: THREE.Vector3; normal: THREE.Vector3 } | null {
+    const groups = this.sdf.compiledGroups();
+    const grids = this.sdf.grids();
+    const depth = (g: CompiledGroup, x: number, y: number, z: number) => {
+      const c = grids[g.index];
+      return c ? sampleCavity(c, x, y, z) : approxDepth(g, x, y, z);
+    };
+    const box = this.sdf.bounds.clone().expandByScalar(0.5);
+    const ray = new THREE.Ray(ro, rd);
+    const enter = ray.intersectBox(box, new THREE.Vector3());
+    if (!enter) return null;
+    const t0 = box.containsPoint(ro) ? 0 : enter.distanceTo(ro);
+    const clip = this.clipPlanes[0];
+    const hit = traceScene(groups, depth, ro.toArray() as Vec3, rd.toArray() as Vec3, t0, t0 + box.getSize(new THREE.Vector3()).length() + 1,
+      clip ? { n: clip.normal.toArray() as Vec3, c: clip.constant } : undefined);
+    return hit ? { point: new THREE.Vector3(...hit.p), normal: new THREE.Vector3(...hit.n) } : null;
+  }
+
   setTheme(dark: boolean) {
     this.scene.background = new THREE.Color(dark ? 0x1d1b19 : 0xf3efe9);
     this.hand.setDark(dark);
+    this.setTheme2(dark);
     this.invalidate();
   }
 
@@ -134,11 +211,16 @@ export class Viewport {
       const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       const rc = new THREE.Raycaster();
       rc.setFromCamera(ndc, this.camera);
+      if (this.mode === 'sdf') { this.onTap(this.sdfPick(rc.ray.origin.clone(), rc.ray.direction.clone())); return; }
       const hits = this.resultMesh ? rc.intersectObject(this.resultMesh, false) : [];
       const hit = hits.find((h) => !this.clipPlanes.length || this.clipPlanes[0].distanceToPoint(h.point) >= 0);
       if (hit && hit.face) this.onTap({ point: hit.point.clone(), normal: hit.face.normal.clone() });
       else this.onTap(null);
     });
+  }
+
+  setTheme2(dark: boolean) {
+    this.sdf.setStyle({ clay: dark ? 0xb9a593 : 0xc8b6a4 });
   }
 
   setResult(r: BuildResult, wireframe: boolean) {
@@ -162,6 +244,7 @@ export class Viewport {
   }
 
   bounds(): THREE.Box3 | null {
+    if (this.mode === 'sdf') return this.sdf.bounds.isEmpty() ? null : this.sdf.bounds.clone();
     if (!this.resultMesh) return null;
     this.resultMesh.geometry.computeBoundingBox();
     return this.resultMesh.geometry.boundingBox!.clone();
@@ -169,7 +252,7 @@ export class Viewport {
 
   setHandVisible(on: boolean) {
     this.showHand = on;
-    this.hand.object.visible = on && !!this.resultMesh;
+    this.hand.object.visible = on && !!this.bounds();
     this.invalidate();
   }
 
@@ -195,6 +278,7 @@ export class Viewport {
       this.clip.set(n, lo + (hi - lo) * t);
       this.clipPlanes.push(this.clip);
     }
+    this.sdf.setClip(on ? this.clip : null);
     this.front.needsUpdate = this.back.needsUpdate = this.wire.needsUpdate = true;
     this.invalidate();
   }
@@ -207,7 +291,7 @@ export class Viewport {
     this.ghost.clear();
     if (!obj) { this.invalidate(); return; }
     const geo = ghostGeometry(obj);
-    const color = obj.mode === 'cut' ? 0xd04040 : obj.mode === 'solid' ? 0x3a7bd5 : 0xff8a1f;
+    const color = obj.mode === 'subtract' ? 0xd04040 : obj.mode === 'solid' ? 0x3a7bd5 : 0xff8a1f;
     const fill = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.12, depthWrite: false }));
     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 }));
     fill.renderOrder = edges.renderOrder = 2;

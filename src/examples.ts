@@ -15,9 +15,10 @@ export interface Example {
 }
 
 function obj(type: PrimitiveType, params: SceneObject['params'], o: {
-  pos?: Vec3; rot?: Vec3; scale?: Vec3; mode?: ObjectMode; holes?: string[]; name?: string; id?: string;
+  pos?: Vec3; rot?: Vec3; scale?: Vec3; mode?: ObjectMode; holes?: string[]; name?: string; id?: string; group?: string;
 } = {}): SceneObject {
-  const so = makeObject(type, { params, mode: o.mode ?? 'join', holes: o.holes ?? [] });
+  const so = makeObject(type, { params, mode: o.mode ?? 'shell', holes: o.holes ?? [] });
+  if (o.group) so.groupId = o.group;
   so.transform = { position: o.pos ?? [0, 0, 0], rotation: o.rot ?? [0, 0, 0], scale: o.scale ?? [1, 1, 1] };
   if (o.name) so.name = o.name;
   so.id = o.id ?? so.id;
@@ -25,7 +26,9 @@ function obj(type: PrimitiveType, params: SceneObject['params'], o: {
 }
 
 function doc(objects: SceneObject[], thickness: number, extra: Partial<SceneDoc> = {}): SceneDoc {
-  return { ...emptyDoc(), objects, shell: { enabled: true, thickness }, ...extra };
+  const d = { ...emptyDoc(), objects, ...extra };
+  d.groups = d.groups.map((g) => ({ ...g, thickness }));
+  return d;
 }
 
 const vase: ProfilePoint[] = [
@@ -138,7 +141,7 @@ export function examples(): Example[] {
   });
 
   list.push({
-    id: 'vase-solid-sticks', title: 'Vase with solid sticks', notes: 'Same vase; the sticks are "solid" objects added after shelling.',
+    id: 'vase-solid-sticks', title: 'Vase with solid sticks', notes: 'Same vase; the sticks are Solid: never hollowed, but cut where they pass through the vase\'s cavity.',
     doc: doc([
       obj('revolve', { points: vase }, { holes: ['top'] }),
       obj('cylinder', { r: 0.5, h: 11 }, { rot: [0, 0, 90], pos: [0, -2.5, 0], mode: 'solid' }),
@@ -210,10 +213,10 @@ export function examples(): Example[] {
   });
 
   list.push({
-    id: 'cut-sphere', title: 'Sphere with a cut', notes: 'Sphere with a box carved out (cut mode) before shelling; the cut face follows the shell.',
+    id: 'cut-sphere', title: 'Sphere with a cut', notes: 'Sphere with a Subtract box: it joins the cavity, so it carves an open notch with no wall around it.',
     doc: doc([
       obj('sphere', { r: 3.5 }, { holes: [] }),
-      obj('box', { x: 4, y: 4, z: 4 }, { pos: [2.6, 2.6, 0], rot: [0, 0, 15], mode: 'cut' }),
+      obj('box', { x: 4, y: 4, z: 4 }, { pos: [2.6, 2.6, 0], rot: [0, 0, 15], mode: 'subtract' }),
       obj('cylinder', { r: 1.2, h: 2 }, { pos: [0, -3.6, 0], holes: ['bottom'] }),
     ], 0.35),
     probes: [[-1, -1, 0]],
@@ -233,7 +236,7 @@ export function examples(): Example[] {
     obj('cylinder', { r: 1.1, h: 14 }, { pos: [-1.2, 2, 0], rot: [0, 0, -12], name: 'Stick' }),
   ], t);
   list.push({
-    id: 'mug-stick', title: 'Mug, handle, stick', notes: 'Hollow mug with a solid torus handle and a joined stick through it, 0.6 cm wall.',
+    id: 'mug-stick', title: 'Mug, handle, stick', notes: 'Hollow mug with a Solid torus handle and a Shell stick through it, 0.6 cm wall.',
     doc: mug(0.25), probes: [[1, -3, 1.5]],
   });
   list.push({
@@ -241,12 +244,28 @@ export function examples(): Example[] {
     doc: mug(0.08), probes: [[1, -3, 1.5]],
   });
 
+  {
+    // Two groups: a cup on a saucer. The saucer's Subtract groove overlaps the cup
+    // but cannot cut it, because subtractions stay inside their own group.
+    const d = doc([
+      obj('revolve', { points: cup }, { holes: ['top'], name: 'Cup', pos: [0, 4.3, 0] }),
+      obj('cylinder', { r: 5.5, h: 0.8 }, { name: 'Saucer', group: 'g2', mode: 'solid' }),
+      obj('torus', { R: 2.8, r: 0.45 }, { name: 'Groove', group: 'g2', mode: 'subtract', pos: [0, 0.45, 0] }),
+    ], 0.3);
+    d.groups.push({ id: 'g2', name: 'Saucer', thickness: 0.3 });
+    list.push({
+      id: 'two-groups', title: 'Cup on a saucer (2 groups)', notes: 'Group 1: hollow cup. Group 2: solid saucer with a Subtract groove that overlaps the cup but does not cut it.',
+      doc: d, probes: [[0, 3, 1]],
+    });
+  }
+
   // Scenes are authored small, then scaled to hand size (a vase ~19 cm across).
   // Walls are set per scene in real clay terms; the thin cases stay extreme.
   for (const e of list) {
     scaleDoc(e.doc, SIZE);
     e.probes = e.probes.map((p) => p.map((v) => v * SIZE) as Vec3);
-    e.doc.shell.thickness = WALLS[e.id] ?? e.doc.shell.thickness;
+    const w = WALLS[e.id];
+    if (w) e.doc.groups = e.doc.groups.map((g) => ({ ...g, thickness: w }));
   }
   return list;
 }
@@ -258,5 +277,5 @@ const WALLS: Record<string, number> = {
   'open-box': 0.8, 'sphere-cube': 0.8, 'chain-30': 0.6, vase: 0.7, bowl: 0.8, 'cylinder-pins': 0.7,
   'cup-stick': 0.6, 'vase-sticks': 0.6, 'vase-solid-sticks': 0.6, torus: 0.6, lattice: 0.5,
   'vase-thin': 0.2, 'chain-thin': 0.2, transformed: 0.7, 'rotated-box': 0.7, tower: 0.6,
-  'thick-wall': 2.5, 'cut-sphere': 0.7, 'mug-stick': 0.6, 'mug-thin': 0.08,
+  'thick-wall': 2.5, 'cut-sphere': 0.7, 'mug-stick': 0.6, 'mug-thin': 0.08, 'two-groups': 0.6,
 };

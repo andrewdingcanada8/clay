@@ -8,6 +8,15 @@ Last updated: 2026-10-27. Benchmark numbers come from `bench/REPORT.md`, which `
 
 | | Item | Notes |
 |---|---|---|
+| ✅ | Groups, each object has a role: Shell / Solid / Subtract | Per group: (shell ∪ solid) − (cavity ∪ subtract ∪ pins). The cavity grows inward from the Shell objects' outer surface. Groups never cut each other. Wall thickness is per group. |
+| ✅ | SDF kernel drawn by GPU raymarching (no triangles) | Exact outer surfaces and joins at any zoom. The inner wall comes from a cavity-depth texture: a smooth distance field, so walls thinner than a texel stay clean. Fixed data-driven shader, so edits never recompile. |
+| ✅ | Real-time edits | Moving, resizing and wall thickness are uniform/data updates. Only the cavity texture rebuilds (in a worker, ~0.3–1 s) after shell geometry changes, with an analytic approximation in the meantime. Resolution drops while the camera moves. |
+| 🟡 | Cavity approximation while dragging | It's a union of per-object depths, so walls look thicker at joins for a moment until the exact texture arrives. |
+
+### Earlier items
+
+| | Item | Notes |
+|---|---|---|
 | ✅ | Shell any union inward to a chosen wall thickness | SDF kernel: exact wall distance on the true union, including across joins. |
 | ✅ | Arbitrary number of joined shapes (30-sphere chain) | One connected hollow. SDF ~0.7 s, mesh ~3.4 s. |
 | ✅ | Whole-face openings ("face disappears") | Removed face; walls run full height to that face's plane with a flat rim. |

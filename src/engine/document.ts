@@ -7,8 +7,21 @@ import type { Vec3 } from './math';
 
 export type PrimitiveType = 'sphere' | 'box' | 'cylinder' | 'cone' | 'torus' | 'capsule' | 'prism' | 'revolve';
 
-/** join: part of the shelled form. solid: added after shelling. cut: carved out before shelling. */
-export type ObjectMode = 'join' | 'solid' | 'cut';
+/**
+ * Role of an object within its group:
+ *  shell    — forms the hollow body; the group's cavity is grown inward from the
+ *             outer surface of all shell objects together.
+ *  solid    — never hollowed itself, but still cut by its group's cavity.
+ *  subtract — joins the cavity: carved out of its group (no wall around it).
+ */
+export type ObjectMode = 'shell' | 'solid' | 'subtract';
+
+export interface Group {
+  id: string;
+  name: string;
+  /** Wall thickness (cm) for this group's shell. */
+  thickness: number;
+}
 
 export interface Transform {
   position: Vec3;
@@ -35,6 +48,7 @@ export interface SceneObject {
   params: PrimitiveParams;
   transform: Transform;
   mode: ObjectMode;
+  groupId: string;
   /** Face ids of this object that become openings when shelled. */
   holes: string[];
   hidden?: boolean;
@@ -53,10 +67,12 @@ export type KernelName = 'sdf' | 'mesh';
 export type Quality = 'draft' | 'normal' | 'fine';
 
 export interface SceneDoc {
-  version: 1;
+  version: 2;
+  groups: Group[];
   objects: SceneObject[];
   pins: PinHole[];
-  shell: { enabled: boolean; thickness: number };
+  /** Global shelling switch; thickness is per group. */
+  shell: { enabled: boolean };
   kernel: KernelName;
   /** SDF kernel: exact (redistanced) wall thickness vs raw min() field. */
   sdfExactDistance: boolean;
@@ -125,18 +141,23 @@ export function makeObject(type: PrimitiveType, opts: Partial<SceneObject> = {})
     type,
     params: defaultParams(type),
     transform: identityTransform(),
-    mode: 'join',
+    mode: 'shell',
+    groupId: DEFAULT_GROUP,
     holes: [],
     ...opts,
   };
 }
 
+export const DEFAULT_GROUP = 'g1';
+export const DEFAULT_WALL = 0.6;
+
 export function emptyDoc(): SceneDoc {
   return {
-    version: 1,
+    version: 2,
+    groups: [{ id: DEFAULT_GROUP, name: 'Group 1', thickness: DEFAULT_WALL }],
     objects: [],
     pins: [],
-    shell: { enabled: true, thickness: 0.6 },
+    shell: { enabled: true },
     kernel: 'sdf',
     sdfExactDistance: true,
     meshMethod: 'offset',
@@ -147,14 +168,26 @@ export function cloneDoc(d: SceneDoc): SceneDoc {
   return JSON.parse(JSON.stringify(d));
 }
 
-/** Fill in fields added after a document was saved. */
-export function normalizeDoc(d: Partial<SceneDoc>): SceneDoc {
+/** Fill in fields added after a document was saved, and migrate v1 documents. */
+export function normalizeDoc(d: Partial<SceneDoc> & { shell?: { enabled?: boolean; thickness?: number } }): SceneDoc {
   const base = emptyDoc();
+  const legacyWall = d.shell?.thickness;
+  const groups = d.groups?.length ? d.groups : [{ ...base.groups[0], thickness: legacyWall ?? DEFAULT_WALL }];
+  const groupIds = new Set(groups.map((g) => g.id));
+  const modeMap: Record<string, ObjectMode> = { join: 'shell', cut: 'subtract', solid: 'solid', shell: 'shell', subtract: 'subtract' };
   return {
     ...base,
     ...d,
-    shell: { ...base.shell, ...(d.shell ?? {}) },
-    objects: (d.objects ?? []).map((o) => ({ ...makeObject(o.type), ...o, holes: o.holes ?? [] })),
+    version: 2,
+    groups,
+    shell: { enabled: d.shell?.enabled ?? true },
+    objects: (d.objects ?? []).map((o) => ({
+      ...makeObject(o.type),
+      ...o,
+      mode: modeMap[o.mode as string] ?? 'shell',
+      groupId: o.groupId && groupIds.has(o.groupId) ? o.groupId : groups[0].id,
+      holes: o.holes ?? [],
+    })),
     pins: d.pins ?? [],
   } as SceneDoc;
 }

@@ -72,7 +72,6 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
   };
   const segs = SEGMENTS[quality];
   const shell = doc.shell.enabled;
-  const t = Math.max(0.01, doc.shell.thickness);
   const objs = compileScene(doc.objects);
 
   // Placement without scale (scale is baked into the profiles where exact).
@@ -101,7 +100,8 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
     const mirrored = keep(half.mirror([1, 0]));
     const full = keep(half.add(mirrored));
     const bb = full.bounds();
-    const rightHalf = (cs: CrossSection) => keep(cs.intersect(keep(CrossSection.square([bb.max[0] + 10 * t + 10, (bb.max[1] - bb.min[1]) + 20 * t + 20]).translate([0, bb.min[1] - 10 * t - 10]))));
+    const M = 50; // generous margin for offsets
+    const rightHalf = (cs: CrossSection) => keep(cs.intersect(keep(CrossSection.square([bb.max[0] + M, (bb.max[1] - bb.min[1]) + 2 * M]).translate([0, bb.min[1] - M]))));
     const mat = uniformXZ ? placeMat(c) : placeMat(c, sx, sy, sz);
     const make = (cs: CrossSection) => {
       if (cs.isEmpty()) return null;
@@ -147,87 +147,85 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
   for (const c of objs) built.set(c.obj.id, build(c));
   timer.lap('primitives');
 
-  const of = (mode: string) => objs.filter((c) => c.obj.mode === mode);
   const union = (ms: (Manifold | null)[]): Manifold | null => {
     const list = ms.filter((m): m is Manifold => !!m && !m.isEmpty());
     if (!list.length) return null;
     return list.length === 1 ? list[0] : keep(Manifold.union(list));
   };
-  const joins = of('join'), cuts = of('cut'), solids = of('solid');
-  let form = union(joins.map((c) => built.get(c.obj.id)!.solid));
-  const cutU = union(cuts.map((c) => built.get(c.obj.id)!.solid));
-  if (form && cutU) form = keep(form.subtract(cutU));
-  timer.lap('union');
-
-  let result: Manifold | null = form;
-  if (form && shell) {
-    let cavity: Manifold | null;
-    if (doc.meshMethod === 'minkowski') {
-      const ball = keep(Manifold.sphere(t, Math.max(12, Math.round(segs / 3))));
-      cavity = keep(form.minkowskiDifference(ball));
-    } else {
-      cavity = union(joins.map((c) => built.get(c.obj.id)!.cavity(-t)));
-      const dil = union(cuts.map((c) => built.get(c.obj.id)!.cavity(t)));
-      if (cavity && dil) cavity = keep(cavity.subtract(dil));
-    }
-    timer.lap('cavity');
-    for (const c of joins) if (built.get(c.obj.id)!.approx) warnings.push(`${c.obj.name}: X/Z scale differs, wall thickness approximate`);
-
-    // Openings: extrude the cavity next to each hole face straight out through it.
-    const exts: Manifold[] = [];
-    if (cavity && !cavity.isEmpty()) {
-      for (const c of joins) {
-        for (const fid of c.obj.holes) {
-          const face = c.faces.find((f) => f.id === fid);
-          if (!face?.plane) {
-            warnings.push(`${c.obj.name}: opening on curved face "${fid}" not supported by the mesh kernel`);
-            continue;
-          }
-          const n = normalToWorld(c, ...face.plane.n);
-          const p: Vec3 = [0, 0, 0];
-          toWorld(c, face.plane.p[0], face.plane.p[1], face.plane.p[2], p);
-          const delta = 0.3 * t + 0.02;
-          const own = doc.meshMethod === 'minkowski'
-            ? keep(cavity.intersect(built.get(c.obj.id)!.solid))
-            : built.get(c.obj.id)!.cavity(-t);
-          if (!own) continue;
-          const slab = keep(own.trimByPlane(n, n[0] * p[0] + n[1] * p[1] + n[2] * p[2] - t - delta));
-          if (slab.isEmpty()) continue;
-          const d = 2 * (t + delta);
-          exts.push(keep(Manifold.hull([slab, keep(slab.translate([n[0] * d, n[1] * d, n[2] * d]))])));
-        }
-      }
-    }
-    const hollow = union([cavity, ...exts]);
-    if (hollow) result = keep(form.subtract(hollow));
-    timer.lap('shell');
-  }
-
-  // Solid additions, then pin holes through everything.
-  const solidU = union(solids.map((c) => built.get(c.obj.id)!.solid));
-  if (solidU) result = result ? keep(result.add(solidU)) : solidU;
   const byId = new Map(objs.map((o) => [o.obj.id, o]));
-  const pins: Manifold[] = [];
-  for (const pin of doc.pins) {
+  const pinCylinder = (pin: SceneDoc['pins'][number], t: number, hollow: boolean): Manifold | null => {
     const o = byId.get(pin.objectId);
-    if (!o) continue;
+    if (!o) return null;
     const c: Vec3 = [0, 0, 0];
     toWorld(o, pin.point[0], pin.point[1], pin.point[2], c);
     const n = normalToWorld(o, pin.normal[0], pin.normal[1], pin.normal[2]);
     const out = Math.max(0.5, pin.radius);
-    const depth = (shell ? t : pin.radius * 4) * 1.6 + 0.05;
-    const len = out + depth;
+    const depth = (hollow ? t : pin.radius * 4) * 1.6 + 0.05;
     // cylinder along +Z from 0..len, then align +Z with -n and start outside
-    const cyl = keep(Manifold.cylinder(len, pin.radius, pin.radius, Math.max(16, Math.round(segs / 2))));
+    const cyl = keep(Manifold.cylinder(out + depth, pin.radius, pin.radius, Math.max(16, Math.round(segs / 2))));
     const z: Vec3 = [-n[0], -n[1], -n[2]];
     const a: Vec3 = Math.abs(z[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
     const xv = norm(cross(a, z));
     const yv = cross(z, xv);
     const start: Vec3 = [c[0] + n[0] * out, c[1] + n[1] * out, c[2] + n[2] * out];
-    pins.push(keep(cyl.transform([...xv, 0, ...yv, 0, ...z, 0, ...start, 1] as never)));
+    return keep(cyl.transform([...xv, 0, ...yv, 0, ...z, 0, ...start, 1] as never));
+  };
+
+  // Each group: (shell ∪ solid) − (cavity ∪ subtract ∪ pins). Groups never cut each other.
+  const groupResults: Manifold[] = [];
+  for (const g of doc.groups) {
+    const members = objs.filter((c) => c.obj.groupId === g.id);
+    const shells = members.filter((c) => c.obj.mode === 'shell');
+    const solids = members.filter((c) => c.obj.mode === 'solid');
+    const subs = members.filter((c) => c.obj.mode === 'subtract');
+    const t = Math.max(0.01, g.thickness);
+    const shellU = union(shells.map((c) => built.get(c.obj.id)!.solid));
+    const material = union([shellU, ...solids.map((c) => built.get(c.obj.id)!.solid)]);
+    if (!material) continue;
+    const cuts: (Manifold | null)[] = subs.map((c) => built.get(c.obj.id)!.solid);
+    const hollow = shell && !!shellU;
+    if (hollow && shellU) {
+      let cavity: Manifold | null;
+      if (doc.meshMethod === 'minkowski') {
+        const ball = keep(Manifold.sphere(t, Math.max(12, Math.round(segs / 3))));
+        cavity = keep(shellU.minkowskiDifference(ball));
+      } else {
+        cavity = union(shells.map((c) => built.get(c.obj.id)!.cavity(-t)));
+      }
+      for (const c of shells) if (built.get(c.obj.id)!.approx) warnings.push(`${c.obj.name}: X/Z scale differs, wall thickness approximate`);
+      // Openings: extrude the cavity next to each hole face straight out through it.
+      if (cavity && !cavity.isEmpty()) {
+        for (const c of shells) {
+          for (const fid of c.obj.holes) {
+            const face = c.faces.find((f) => f.id === fid);
+            if (!face?.plane) {
+              warnings.push(`${c.obj.name}: opening on curved face "${fid}" not supported by the mesh kernel`);
+              continue;
+            }
+            const n = normalToWorld(c, ...face.plane.n);
+            const p: Vec3 = [0, 0, 0];
+            toWorld(c, face.plane.p[0], face.plane.p[1], face.plane.p[2], p);
+            const delta = 0.3 * t + 0.02;
+            const own = doc.meshMethod === 'minkowski'
+              ? keep(cavity.intersect(built.get(c.obj.id)!.solid))
+              : built.get(c.obj.id)!.cavity(-t);
+            if (!own) continue;
+            const slab = keep(own.trimByPlane(n, n[0] * p[0] + n[1] * p[1] + n[2] * p[2] - t - delta));
+            if (slab.isEmpty()) continue;
+            const d = 2 * (t + delta);
+            cuts.push(keep(Manifold.hull([slab, keep(slab.translate([n[0] * d, n[1] * d, n[2] * d]))])));
+          }
+        }
+      }
+      cuts.push(cavity);
+    }
+    const memberIds = new Set(members.map((c) => c.obj.id));
+    for (const pin of doc.pins) if (memberIds.has(pin.objectId)) cuts.push(pinCylinder(pin, t, hollow));
+    const cutU = union(cuts);
+    groupResults.push(cutU ? keep(material.subtract(cutU)) : material);
   }
-  const pinU = union(pins);
-  if (result && pinU) result = keep(result.subtract(pinU));
+  timer.lap('groups');
+  const result = union(groupResults);
   timer.lap('finish');
 
   let positions = new Float32Array(0);
