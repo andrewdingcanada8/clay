@@ -110,19 +110,28 @@ export class Viewport {
     this.needsRender = true;
   }
 
-  /** Square JPEG thumbnail of the current view (without the gizmo and ghost). */
-  snapshot(size = 240): string {
+  /** Portrait (3:4) JPEG thumbnail, framed on the piece (without the gizmo and
+   *  ghost); the camera goes back to where it was afterwards. */
+  snapshot(w = 240, h = 320): string {
+    const saved = this.cameraState();
     const hidden = [this.gizmo.getHelper(), this.ghost].filter((o) => o.visible);
     for (const o of hidden) o.visible = false;
-    this.renderer.render(this.scene, this.camera);
     const src = this.renderer.domElement;
-    const c = document.createElement('canvas');
-    c.width = c.height = size;
-    const s = Math.min(src.width, src.height);
-    c.getContext('2d')!.drawImage(src, (src.width - s) / 2, (src.height - s) / 2, s, s, 0, 0, size, size);
+    const cw = Math.min(src.width, (src.height * w) / h), ch = (cw * h) / w;
+    // frame() fits the canvas's narrower side; widen the box so the piece also fits the crop
+    const box = this.bounds();
+    if (box) {
+      const k = Math.max(1, Math.min(src.width, src.height) / cw) * 0.92;
+      const c = box.getCenter(new THREE.Vector3());
+      this.frame(box.clone().translate(c.clone().negate()).applyMatrix4(new THREE.Matrix4().makeScale(k, k, k)).translate(c));
+    }
+    this.renderer.render(this.scene, this.camera);
+    const out = document.createElement('canvas');
+    out.width = w; out.height = h;
+    out.getContext('2d')!.drawImage(src, (src.width - cw) / 2, (src.height - ch) / 2, cw, ch, 0, 0, w, h);
     for (const o of hidden) o.visible = true;
-    this.invalidate();
-    return c.toDataURL('image/jpeg', 0.75);
+    this.setCameraState(saved);
+    return out.toDataURL('image/jpeg', 0.78);
   }
 
   cameraState(): { pos: [number, number, number]; target: [number, number, number] } {
