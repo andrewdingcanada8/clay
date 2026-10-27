@@ -132,9 +132,17 @@ const tmp: Vec3 = [0, 0, 0];
  * Depth (world cm) below one object's surface, ignoring its faces that are openings.
  * Infinity when every face is an opening; <= 0 outside the object.
  */
-export function holeDepth(c: CompiledObject, holes: Set<string>, x: number, y: number, z: number): number {
+export function holeDepth(c: CompiledObject, holes: Set<string>, x: number, y: number, z: number, tau = 0.02): number {
   const sdf = sdfWorld(c, x, y, z);
-  if (sdf > 0) return -sdf;
+  if (!c.obj.holes.length) return -sdf;
+  // Through an opening the depth carries on as if the face weren't there (as the
+  // grid stores it), so there is no jump at the face; elsewhere outside, -sdf.
+  const hd = openDepth(c, holes, x, y, z, sdf);
+  return sdf <= 0 || hd > sdf + tau ? hd : -sdf;
+}
+
+/** Distance below the object's non-opening faces (also evaluated outside it). */
+function openDepth(c: CompiledObject, holes: Set<string>, x: number, y: number, z: number, sdf: number): number {
   const id = c.obj.id;
   const isHole = (f: string) => holes.has(`${id}|${f}`);
   const p = c.obj.params;
@@ -202,19 +210,22 @@ export function baseDepth(g: CompiledGroup, x: number, y: number, z: number, cla
   // Smooth max: where the deepest object switches, A gets a crease the trilinear
   // correction can't follow; rounding it (over two texels, plus the blend radius in
   // blended groups) keeps D = A + C smooth.
-  const k = 2 * h + g.k;
+  const k = 2 * h;
   // The two deepest terms only (as the shader; see there for the skip test).
-  const lb = -shellSDF(g, x, y, z) - 0.25 * g.k * (g.shells.length - 1);
+  const fs = shellSDF(g, x, y, z);
+  const lb = -fs - 0.25 * g.k * (g.shells.length - 1);
   let t1 = -Infinity, t2 = -Infinity;
   for (const o of g.shells) {
     if (!o.obj.holes.length) {
       const [cx, cy, cz, r] = o.bsphere ??= boundSphere(o);
       if (r - Math.hypot(x - cx, y - cy, z - cz) < Math.max(lb, t1) - k) continue;
     }
-    const v = holeDepth(o, g.holes, x, y, z);
+    const v = holeDepth(o, g.holes, x, y, z, 0.5 * h);
     if (v > t1) { t2 = t1; t1 = v; } else if (v > t2) t2 = v;
   }
-  const d = t2 === -Infinity ? t1 : -smin(-t1, -t2, k);
+  let d = t2 === -Infinity ? t1 : -smin(-t1, -t2, k);
+  // inside a blend the blended field itself is the better depth estimate (as the shader)
+  if (g.k > 0) d = -smin(-d, fs, k);
   return Math.max(-clampV, Math.min(clampV, d));
 }
 

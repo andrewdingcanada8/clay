@@ -13,7 +13,7 @@
 
 import type { Quality } from './document';
 import { type CompiledGroup, baseDepth, shellSDF } from './scene';
-import { faceAtWorld, sdfWorld } from './primitives';
+import { type CompiledObject, faceAtWorld, normalToWorld, sdfWorld, toWorld } from './primitives';
 
 export interface CavityGrid {
   groupIndex: number;
@@ -87,15 +87,19 @@ export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid 
     return [gx / l, gy / l, gz / l];
   };
   const seedAt = (q0: number, q1: number, x: number, y: number, z: number) => {
-    // Newton step onto the exact surface
+    // Newton steps onto the exact surface (one is exact for true distance fields;
+    // blended fields aren't, so iterate until the point sits on the surface)
     let n = grad(x, y, z);
-    const f = shellSDF(g, x, y, z);
-    x -= n[0] * f; y -= n[1] * f; z -= n[2] * f;
-    n = grad(x, y, z);
+    for (let it = 0; it < 4; it++) {
+      const f = shellSDF(g, x, y, z);
+      x -= n[0] * f; y -= n[1] * f; z -= n[2] * f;
+      n = grad(x, y, z);
+      if (Math.abs(f) < 1e-4 * h || g.k <= 0) break;
+    }
     // which shell object this bit of surface belongs to
     let best = 0, bd = Infinity;
     g.shells.forEach((o, i) => { const d = Math.abs(sdfWorld(o, x, y, z)); if (d < bd) { bd = d; best = i; } });
-    if (g.holes.size && g.holes.has(`${g.shells[best].obj.id}|${faceAtWorld(g.shells[best], x, y, z)}`)) return;
+    if (g.holes.size && isOpening(g.shells[best], x, y, z, n)) return;
     const s = sx.length;
     sObj.push(best);
     sx.push(x); sy.push(y); sz.push(z); snx.push(n[0]); sny.push(n[1]); snz.push(n[2]);
@@ -103,6 +107,27 @@ export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid 
       const cur = nearest[q];
       if (cur < 0 || dist2(q, s) < dist2(q, cur)) nearest[q] = s;
     }
+  };
+  // Is this surface point (unit normal n) part of an opening of object o? Without a
+  // blend the surface is the objects' own, and the nearest face decides. A blend
+  // shifts the surface off the objects and rounds their edges, so the nearest face
+  // is ambiguous at a rim; there a point also belongs to an open planar face when it
+  // faces the same way and lies near that face's plane.
+  const slack = h + g.k / 4;
+  const isOpening = (o: CompiledObject, x: number, y: number, z: number, n: number[]) => {
+    const id = o.obj.id;
+    const near = faceAtWorld(o, x, y, z);
+    if (g.k <= 0) return g.holes.has(`${id}|${near}`);
+    for (const f of o.faces) {
+      if (!g.holes.has(`${id}|${f.id}`)) continue;
+      if (!f.plane) { if (f.id === near) return true; continue; }
+      const wn = normalToWorld(o, ...f.plane.n);
+      const wp: [number, number, number] = [0, 0, 0];
+      toWorld(o, f.plane.p[0], f.plane.p[1], f.plane.p[2], wp);
+      const off = (x - wp[0]) * wn[0] + (y - wp[1]) * wn[1] + (z - wp[2]) * wn[2];
+      if (n[0] * wn[0] + n[1] * wn[1] + n[2] * wn[2] > 0.7 && Math.abs(off) < slack) return true;
+    }
+    return false;
   };
   const qx = (q: number) => posX(q % nx), qy = (q: number) => posY(Math.floor(q / nx) % ny), qz = (q: number) => posZ(Math.floor(q / (nx * ny)));
   const dist2 = (q: number, s: number) => {

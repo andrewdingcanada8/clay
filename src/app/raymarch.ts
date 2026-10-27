@@ -135,7 +135,8 @@ float sdObj(int i, vec3 p) {
 // lower bound from the object's bounding sphere
 float bound(int i, vec3 p) { vec4 b = row(i, 5); return length(p - b.xyz) - b.w; }
 
-// depth (world units) below this object's surface, ignoring faces that are openings
+// depth (world units) below this object's surface, ignoring faces that are openings;
+// outside the object it is the distance to its non-opening faces (signed or not)
 float holeDepth(int i, vec3 p) {
   vec3 q = toLocal(i, p);
   vec4 P = row(i, 3), S = row(i, 4), meta = row(i, 6);
@@ -241,20 +242,30 @@ float map(vec3 p) {
       // correction to A, which only matters near joins, blends and shared openings.
       // (smooth max over two texels where the deepest object switches; see scene.baseDepth)
       bool useGrid = g < ${MAX_GRIDS} && uUseGrid[min(g, ${MAX_GRIDS - 1})] == 1;
-      float kA = useGrid ? 2.0 * uCavH[min(g, ${MAX_GRIDS - 1})] + kb : 0.0;
+      float kA = useGrid ? 2.0 * uCavH[min(g, ${MAX_GRIDS - 1})] : 0.0;
       // The smooth max takes the two deepest terms only, so it doesn't depend on
       // object order and terms far below the deepest can be skipped exactly. -fs
       // (less the blend bulge: up to k/4 per sequential smooth min) is a lower bound
       // on the deepest term; an object
       // without openings can't be deeper than -bound.
+      float tau = useGrid ? 0.5 * uCavH[min(g, ${MAX_GRIDS - 1})] : 0.02;
       float t1 = -1e5, t2 = -1e5, lb = -fs - 0.25 * kb * float(R.y - R.x - 1);
       for (int i = R.x; i < R.y; i++) {
         if (int(row(i, 6).z) == 0 && -bound(i, p) < max(lb, t1) - kA) continue;
         float d = sdObj(i, p);
-        d = d > 0.0 ? -d : holeDepth(i, p);
+        if (int(row(i, 6).z) == 0) d = -d;
+        else {
+          // Through an opening the depth carries on as if the face weren't there
+          // (as the grid stores it): no jump at the face, so the rim stays clean
+          // and the cavity passes the face instead of leaving a skin.
+          float hd = holeDepth(i, p);
+          d = d <= 0.0 || hd > d + tau ? hd : -d;
+        }
         if (d > t1) { t2 = t1; t1 = d; } else t2 = max(t2, d);
       }
       float D = -smin(-t1, -t2, kA);
+      // inside a blend the blended field itself is the better depth estimate
+      if (kb > 0.0) D = -smin(-D, fs, kA);
       if (useGrid) D = gridDepth(g, p, uT[g], D);
       cav = max(fs - ${OPENING_EPS.toFixed(3)}, uT[g] - D);
       cut = cav;

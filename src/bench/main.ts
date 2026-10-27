@@ -28,6 +28,9 @@ async function main() {
   const ex = examples().find((e) => e.id === caseId);
   if (!ex) throw new Error(`unknown case ${caseId}`);
   const doc = { ...ex.doc, kernel, meshMethod: kernelParam === 'mesh-mk' ? 'minkowski' as const : 'offset' as const };
+  // overrides for reproducing app states: ?wall=cm&blend=cm&nogrid=1
+  if (params.get('wall')) doc.groups = doc.groups.map((g) => ({ ...g, thickness: Number(params.get('wall')) }));
+  if (params.get('blend')) doc.groups = doc.groups.map((g) => ({ ...g, blend: Number(params.get('blend')) }));
   // SDF: raymarched exactly as in the app (cavity grids + GPU field); the mesher
   // runs too, only for topology statistics. Mesh kernels: triangles.
   const sdf = kernel === 'sdf';
@@ -39,7 +42,7 @@ async function main() {
     const t0 = performance.now();
     const groups = compileGroups(doc);
     gridArr = [];
-    for (const g of groups) gridArr[g.index] = g.hollow ? buildCavityGrid(g, quality) : null;
+    for (const g of groups) gridArr[g.index] = g.hollow && !params.get('nogrid') ? buildCavityGrid(g, quality) : null;
     cavityMs = performance.now() - t0;
     sdfR = new SdfRenderer();
     sdfR.setDoc(doc);
@@ -63,7 +66,7 @@ async function main() {
   // Close-up: one large section tile through a point (?closeup=x,y,z,radius)
   const cu = params.get('closeup');
   if (cu) {
-    const [cx, cy, cz, cr, ax] = cu.split(',').map(Number); // ax: 0 = cut along Z (default), 1 = cut along Y
+    const [cx, cy, cz, cr, ax] = cu.split(',').map(Number); // ax: 0 = cut along Z (default), 1 = cut along Y, 2 = no cut
     const S = 900;
     const r2 = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     r2.setPixelRatio(1);
@@ -76,7 +79,7 @@ async function main() {
     dl2.position.set(3, 5, 4);
     sc.add(dl2);
     const plane = ax === 1 ? new THREE.Plane(new THREE.Vector3(0, -1, 0), cy) : new THREE.Plane(new THREE.Vector3(0, 0, -1), cz);
-    if (sdfR) { sc.add(sdfR.mesh); sdfR.setClip(plane); }
+    if (sdfR) { sc.add(sdfR.mesh); if (ax !== 2) sdfR.setClip(plane); }
     else {
       const mf = new THREE.MeshStandardMaterial({ color: 0xb8b2aa, roughness: 0.9, clippingPlanes: [plane] });
       const mb = new THREE.MeshBasicMaterial({ color: 0x8a1c1c, side: THREE.BackSide, clippingPlanes: [plane] });
@@ -85,7 +88,8 @@ async function main() {
     }
     const cam = new THREE.PerspectiveCamera(35, 1, 0.05, 1000);
     const c = new THREE.Vector3(cx, cy, cz);
-    const viewDir = ax === 1 ? new THREE.Vector3(0.15, 1, 0.25) : new THREE.Vector3(0.35, 0.25, 1);
+    const vp = params.get('view')?.split(',').map(Number);
+    const viewDir = vp ? new THREE.Vector3(vp[0], vp[1], vp[2]) : ax === 1 ? new THREE.Vector3(0.15, 1, 0.25) : new THREE.Vector3(0.35, 0.25, 1);
     if (ax === 1) cam.up.set(0, 0, -1);
     cam.position.copy(c).add(viewDir.normalize().multiplyScalar(cr / Math.tan((17.5 * Math.PI) / 180)));
     cam.lookAt(c);
