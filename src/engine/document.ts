@@ -2,7 +2,7 @@
 // document and the kernels rebuild from scratch, so any object can be edited later
 // without undo/redo.
 
-import type { ProfilePoint } from './profile';
+import type { FootStyle, ProfilePoint, RimStyle } from './profile';
 import type { Vec3 } from './math';
 
 export type PrimitiveType = 'sphere' | 'box' | 'cylinder' | 'cone' | 'torus' | 'capsule' | 'prism' | 'revolve';
@@ -40,6 +40,8 @@ export interface PrimitiveParams {
   n?: number; // prism sides
   r2?: number; // prism top circumradius (0 = point)
   points?: ProfilePoint[]; // revolve
+  rim?: RimStyle; // revolve rim style
+  foot?: FootStyle; // revolve foot style
 }
 
 export interface SceneObject {
@@ -107,11 +109,11 @@ export function defaultParams(type: PrimitiveType): PrimitiveParams {
 
 export function defaultVaseProfile(): ProfilePoint[] {
   return [
-    { r: 6, y: -12, corner: true },
-    { r: 9, y: -7 },
-    { r: 8.5, y: 0 },
-    { r: 4.5, y: 7 },
-    { r: 6, y: 12, corner: true },
+    { r: 6, y: -12, t: 0.3 },
+    { r: 9, y: -7, t: 1 },
+    { r: 8.5, y: 0, t: 1 },
+    { r: 4.5, y: 7, t: 1 },
+    { r: 6, y: 12, t: 0.3 },
   ];
 }
 

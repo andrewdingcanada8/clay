@@ -559,7 +559,7 @@ export class SdfRenderer {
       const g = groups.find((x) => x.shells.includes(o) || x.solids.includes(o) || x.subs.includes(o))!;
       const isHole = (f: string) => g.holes.has(`${o.obj.id}|${f}`);
       const prof = o.profile!;
-      const key = JSON.stringify([o.obj.params.points, prof.faces.filter(isHole)]);
+      const key = JSON.stringify([o.obj.params.points, o.obj.params.rim, o.obj.params.foot, prof.faces.filter(isHole)]);
       keep.add(key);
       let pt = this.profiles.get(key);
       if (!pt) {
