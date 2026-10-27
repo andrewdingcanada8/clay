@@ -11,8 +11,7 @@
 import * as THREE from 'three';
 import type { CavityGrid } from '../engine/cavity';
 import type { SceneDoc } from '../engine/document';
-import { polygonSDF } from '../engine/math';
-import { sampleProfile } from '../engine/profile';
+import { buildProfileTable } from '../engine/profileTable';
 import type { CompiledObject } from '../engine/primitives';
 import { type CompiledGroup, OPENING_EPS, compileGroups } from '../engine/scene';
 
@@ -21,8 +20,6 @@ const MAX_GRIDS = 4;
 const MAX_PROFILES = 8;
 const MAX_PINS = 32;
 const ROWS = 8; // texels per object in the data texture
-const PROFILE_RES: [number, number] = [160, 320];
-const PROFILE_SAMPLES = 64; // curve samples per profile span for the tables
 const TYPE_CODE: Record<string, number> = { sphere: 0, box: 1, cylinder: 2, cone: 3, torus: 4, capsule: 5, prism: 6, revolve: 7 };
 
 interface ProfileTex { tex: THREE.DataTexture; min: [number, number]; max: [number, number] }
@@ -89,7 +86,9 @@ float profileLookup(sampler2D tex, vec2 lo, vec2 hi, vec2 q, int ch) {
   vec2 o = q - c;
   o.x = max(o.x, 0.0); // r below the first texel centre is still inside the table
   float outside = length(o);
-  float v = texture(tex, (c - lo) / (hi - lo))[ch];
+  // lo/hi are the first/last texel centres
+  vec2 sz = vec2(textureSize(tex, 0));
+  float v = texture(tex, (0.5 + (c - lo) / (hi - lo) * (sz - 1.0)) / sz)[ch];
   if (ch == 1) return v;
   return outside > 0.0 ? max(outside, v) : v; // the table has margin around the shape
 }
@@ -245,8 +244,9 @@ float map(vec3 p) {
       float kA = useGrid ? 2.0 * uCavH[min(g, ${MAX_GRIDS - 1})] + kb : 0.0;
       float D = -1e5;
       for (int i = R.x; i < R.y; i++) {
-        // (exact for every shell, no bounding-sphere shortcut: a jump in any term
-        // would show through the smooth max)
+        // An object can add at most -bound to the max; skip it only when that can't
+        // reach into the smooth max's window (exact: the term would have no effect).
+        if (-bound(i, p) < D - kA) continue;
         float d = sdObj(i, p);
         d = d > 0.0 ? -d : holeDepth(i, p);
         D = -smin(-D, -d, kA);
@@ -574,42 +574,21 @@ export class SdfRenderer {
       if (o.obj.type !== 'revolve' || slot >= MAX_PROFILES) continue;
       const g = groups.find((x) => x.shells.includes(o) || x.solids.includes(o) || x.subs.includes(o))!;
       const isHole = (f: string) => g.holes.has(`${o.obj.id}|${f}`);
-      // Finer than the CPU profile: the inner wall is an offset of this polyline, and
-      // coarse segments show as flat bands inside a large pot.
-      const prof = sampleProfile(o.obj.params.points ?? [], PROFILE_SAMPLES);
-      const key = JSON.stringify([o.obj.params.points, prof.faces.filter(isHole)]);
+      const key = JSON.stringify([o.obj.params.points, o.profile!.faces.filter(isHole)]);
       keep.add(key);
       let pt = this.profiles.get(key);
       if (!pt) {
-        const m = Math.max(1, 0.15 * Math.max(prof.rMax, prof.yMax - prof.yMin));
-        const lo: [number, number] = [0, prof.yMin - m], hi: [number, number] = [prof.rMax + m, prof.yMax + m];
-        const [W, H] = PROFILE_RES;
-        const data = new Uint16Array(W * H * 2);
-        for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
-          const r = lo[0] + ((i + 0.5) / W) * (hi[0] - lo[0]);
-          const y = lo[1] + ((j + 0.5) / H) * (hi[1] - lo[1]);
-          const sd = polygonSDF(prof.pts, prof.n, r, y, prof.axisSeg).d;
-          let dh = 6e4;
-          for (let s = 0; s < prof.n; s++) {
-            const f = prof.segFace[s];
-            if (f === 'axis' || isHole(f)) continue;
-            const t2 = (s + 1) % prof.n;
-            const ax = prof.pts[2 * s], ay = prof.pts[2 * s + 1], bx = prof.pts[2 * t2], by = prof.pts[2 * t2 + 1];
-            const ex = bx - ax, ey = by - ay, wx = r - ax, wy = y - ay;
-            const tt = Math.min(1, Math.max(0, (wx * ex + wy * ey) / (ex * ex + ey * ey || 1)));
-            dh = Math.min(dh, Math.hypot(wx - ex * tt, wy - ey * tt));
-          }
-          const q = 2 * (i + W * j);
-          data[q] = THREE.DataUtils.toHalfFloat(sd);
-          data[q + 1] = THREE.DataUtils.toHalfFloat(dh);
+        const t = buildProfileTable(o.obj.params.points ?? [], isHole);
+        const data = new Uint16Array(t.W * t.H * 2);
+        for (let q = 0; q < t.W * t.H; q++) {
+          data[2 * q] = THREE.DataUtils.toHalfFloat(t.sd[q]);
+          data[2 * q + 1] = THREE.DataUtils.toHalfFloat(t.dh[q]);
         }
-        const tex = new THREE.DataTexture(data, W, H, THREE.RGFormat, THREE.HalfFloatType);
+        const tex = new THREE.DataTexture(data, t.W, t.H, THREE.RGFormat, THREE.HalfFloatType);
         tex.minFilter = tex.magFilter = THREE.LinearFilter;
         tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
         tex.needsUpdate = true;
-        // lookups map [min, max] onto the first/last texel centres
-        const hx = (hi[0] - lo[0]) / W / 2, hy = (hi[1] - lo[1]) / H / 2;
-        pt = { tex, min: [lo[0] + hx, lo[1] + hy], max: [hi[0] - hx, hi[1] - hy] };
+        pt = { tex, min: t.min, max: t.max };
         this.profiles.set(key, pt);
       }
       u[`uProf${slot}`].value = pt.tex;

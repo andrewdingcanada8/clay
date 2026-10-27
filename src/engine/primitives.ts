@@ -4,6 +4,7 @@
 import type { PrimitiveType, SceneObject } from './document';
 import { type AABB, type Vec3, clamp, emptyAABB, eulerXYZ, growAABB, mulMat3TVec, mulMat3Vec, polygonSDF } from './math';
 import { type SampledProfile, sampleProfile } from './profile';
+import type { ProfileTable } from './profileTable';
 
 export interface FaceInfo {
   id: string;
@@ -30,6 +31,10 @@ export interface CompiledObject {
   extrusion?: { poly: Float64Array; h: number };
   /** Prism: regular n-gon frustum (bottom/top circumradius). */
   frustum?: { n: number; r1: number; r2: number; h: number };
+  /** Cached revolve depth tables, by opening faces (see scene.holeDepth). */
+  depthTables?: Map<string, ProfileTable>;
+  /** Cached bounding sphere (see scene.boundSphere). */
+  bsphere?: [number, number, number, number];
 }
 
 const tmp: Vec3 = [0, 0, 0];

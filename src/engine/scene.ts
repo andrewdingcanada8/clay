@@ -19,6 +19,7 @@
 
 import type { SceneDoc } from './document';
 import { type AABB, type Vec3, emptyAABB, growAABB } from './math';
+import { buildProfileTable, tableDepth } from './profileTable';
 import { type CompiledObject, compileObject, normalToWorld, prismFrustum, sdfWorld, toLocal, toWorld } from './primitives';
 
 export interface CompiledPin {
@@ -127,13 +128,6 @@ export function shellSDF(g: CompiledGroup, x: number, y: number, z: number): num
 
 const tmp: Vec3 = [0, 0, 0];
 
-function segDist(ax: number, ay: number, bx: number, by: number, px: number, py: number): number {
-  const ex = bx - ax, ey = by - ay, wx = px - ax, wy = py - ay;
-  const ee = ex * ex + ey * ey;
-  const t = ee > 0 ? Math.min(1, Math.max(0, (wx * ex + wy * ey) / ee)) : 0;
-  return Math.hypot(wx - ex * t, wy - ey * t);
-}
-
 /**
  * Depth (world cm) below one object's surface, ignoring its faces that are openings.
  * Infinity when every face is an opening; <= 0 outside the object.
@@ -173,17 +167,13 @@ export function holeDepth(c: CompiledObject, holes: Set<string>, x: number, y: n
       return d;
     }
     default: {
-      // revolve family: distance to allowed profile segments in the (r, y) plane
-      const prof = c.profile!;
-      const rr = Math.hypot(lx, lz);
-      let d = Infinity;
-      for (let i = 0; i < prof.n; i++) {
-        const f = prof.segFace[i];
-        if (f === 'axis' || isHole(f)) continue;
-        const j = (i + 1) % prof.n;
-        d = Math.min(d, segDist(prof.pts[2 * i], prof.pts[2 * i + 1], prof.pts[2 * j], prof.pts[2 * j + 1], rr, ly));
-      }
-      return d * c.minScale;
+      // revolve family: depth below the allowed profile segments, from the same
+      // table the shader samples
+      const key = c.profile!.faces.filter(isHole).join(',');
+      const tables = c.depthTables ??= new Map();
+      let t = tables.get(key);
+      if (!t) { t = buildProfileTable(p.points ?? [], isHole); tables.set(key, t); }
+      return tableDepth(t, Math.hypot(lx, lz), ly) * c.minScale;
     }
   }
 }
@@ -193,6 +183,13 @@ export function approxDepth(g: CompiledGroup, x: number, y: number, z: number): 
   let d = -Infinity;
   for (const o of g.shells) d = Math.max(d, holeDepth(o, g.holes, x, y, z));
   return d;
+}
+
+/** Bounding sphere of an object (centre, radius); the shader uses the same one. */
+export function boundSphere(o: CompiledObject): [number, number, number, number] {
+  const b = o.worldBounds;
+  return [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2,
+    Math.hypot(b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]) / 2 + 0.01];
 }
 
 /**
@@ -207,7 +204,12 @@ export function baseDepth(g: CompiledGroup, x: number, y: number, z: number, cla
   // blended groups) keeps D = A + C smooth.
   const k = 2 * h + g.k;
   let d = -Infinity;
-  for (const o of g.shells) d = -smin(-d, -holeDepth(o, g.holes, x, y, z), k);
+  for (const o of g.shells) {
+    // skip objects that can't reach the smooth max's window (exact, as in the shader)
+    const [cx, cy, cz, r] = o.bsphere ??= boundSphere(o);
+    if (r - Math.hypot(x - cx, y - cy, z - cz) < d - k) continue;
+    d = -smin(-d, -holeDepth(o, g.holes, x, y, z), k);
+  }
   return Math.max(-clampV, Math.min(clampV, d));
 }
 
