@@ -51,7 +51,10 @@ Last updated: 2026-10-27. Benchmark numbers come from `bench/REPORT.md`, which `
 | ✅ | Primitives: sphere, box, cylinder, cone, torus, capsule, n-gon prism | |
 | ✅ | Revolve: 2D spline profile, full 360° | Centripetal Catmull–Rom with sharp/smooth points; editor zooms and pans (pinch, scroll, −/Fit/+) with a grid that follows the zoom. |
 | ⬜ | Partial revolve (< 360°) | |
-| ⬜ | Sweep a profile along a path | |
+| ⬜ | Sweep a section along a drawn path | Queued (3). Path drawn on a chosen plane; section drawn or preset circle/square; section size editable afterwards. |
+| ⬜ | Parametric sweep: height-over-length graph | Queued (4). Graph editor: arc length s horizontally, offset along the plane normal vertically (flat by default); e.g. a circle in XZ + rising line = spiral. |
+| ⬜ | Saves: save, new, gallery, duplicate | Queued (1). |
+| ⬜ | Parts: save a group as a reusable part | Queued (2). Added like a primitive and behaves as final geometry; its own subtractions/cavity don't affect the new piece. |
 | ⬜ | Extrude an arbitrary 2D outline | |
 | ✅ | Smooth blends between joined shapes (per-group Blend cm) | SDF only (smooth min); the Mesh kernel shows a sharp union and warns. |
 | ✅ | SDF inner wall exact away from joins | Cavity grid stores only the correction to the analytic per-object depth (D = A + C), so rims and openings on large pieces stay round; the grid matters only at joins/blends. |
