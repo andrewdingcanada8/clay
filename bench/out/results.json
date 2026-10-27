@@ -1,0 +1,1448 @@
+{
+ "open-box|sdf": {
+  "id": "open-box",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 265984,
+   "vertices": 132994,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.05,
+   "activeCells": 1585152,
+   "warnings": [],
+   "timings": {
+    "activate": 23.4,
+    "sampleF": 88.8,
+    "seeds": 130.4,
+    "propagate": 405.6,
+    "sampleS": 91.6,
+    "vertices": 311.6,
+    "faces": 38.6,
+    "check": 65
+   },
+   "totalMs": 1155.1
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.42248520710059173,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "open-box|mesh": {
+  "id": "open-box",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 40,
+   "vertices": 22,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 13.8,
+    "primitives": 4.4,
+    "union": 0.4,
+    "cavity": 0.8,
+    "shell": 4.1,
+    "finish": 0.1,
+    "extract": 2
+   },
+   "totalMs": 25.6
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.4175147928994083,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "sphere-cube|sdf": {
+  "id": "sphere-cube",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 152324,
+   "vertices": 76164,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.07333333333333333,
+   "activeCells": 640512,
+   "warnings": [],
+   "timings": {
+    "activate": 7.2,
+    "sampleF": 58,
+    "seeds": 66.3,
+    "propagate": 575.2,
+    "sampleS": 45.3,
+    "vertices": 216.4,
+    "faces": 21.9,
+    "check": 31.9
+   },
+   "totalMs": 1022.2
+  },
+  "whiteFrac": [
+   [
+    0.10309171597633136,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    0.6616420118343195,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1300
+ },
+ "sphere-cube|mesh": {
+  "id": "sphere-cube",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 18516,
+   "vertices": 9260,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 17.7,
+    "primitives": 16,
+    "union": 2.6,
+    "cavity": 10,
+    "shell": 21.1,
+    "finish": 0,
+    "extract": 40.3
+   },
+   "totalMs": 110.6
+  },
+  "whiteFrac": [
+   [
+    0.1043491124260355,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    0.6648520710059171,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1300
+ },
+ "chain-30|sdf": {
+  "id": "chain-30",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 100960,
+   "vertices": 50418,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 60,
+   "cellSize": 0.12,
+   "activeCells": 273408,
+   "warnings": [],
+   "timings": {
+    "activate": 8.1,
+    "sampleF": 48.1,
+    "seeds": 51.2,
+    "propagate": 269.2,
+    "sampleS": 31,
+    "vertices": 222.6,
+    "faces": 16.5,
+    "check": 22.6
+   },
+   "totalMs": 669.4
+  },
+  "whiteFrac": [
+   [
+    0,
+    0.11566568047337278,
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0.055828402366863907,
+    0,
+    0,
+    0
+   ],
+   [
+    0.11968934911242604,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1560
+ },
+ "chain-30|mesh": {
+  "id": "chain-30",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 577264,
+   "vertices": 288688,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 5.9,
+    "primitives": 203.8,
+    "union": 39.2,
+    "cavity": 237.1,
+    "shell": 214.6,
+    "finish": 7,
+    "extract": 2379.4
+   },
+   "totalMs": 3350.2
+  },
+  "whiteFrac": [
+   [
+    0,
+    0.10847633136094674,
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0.05153846153846154,
+    0,
+    0,
+    0
+   ],
+   [
+    0.10847633136094674,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1560
+ },
+ "vase|sdf": {
+  "id": "vase",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 137516,
+   "vertices": 68760,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.1,
+   "activeCells": 429056,
+   "warnings": [],
+   "timings": {
+    "activate": 7.8,
+    "sampleF": 151.7,
+    "seeds": 136.7,
+    "propagate": 431.5,
+    "sampleS": 37.8,
+    "vertices": 426,
+    "faces": 20.3,
+    "check": 29.3
+   },
+   "totalMs": 1241.1
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.020606508875739647,
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0.1623372781065089,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1300
+ },
+ "vase|mesh": {
+  "id": "vase",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 21168,
+   "vertices": 10586,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 16.5,
+    "primitives": 6.6,
+    "union": 0.9,
+    "cavity": 10.7,
+    "shell": 14.6,
+    "finish": 0,
+    "extract": 45.8
+   },
+   "totalMs": 98.3
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.020650887573964497,
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0.14931952662721892,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1300
+ },
+ "bowl|sdf": {
+  "id": "bowl",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 110616,
+   "vertices": 55310,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.10333333333333333,
+   "activeCells": 491520,
+   "warnings": [],
+   "timings": {
+    "activate": 10.2,
+    "sampleF": 134,
+    "seeds": 93.2,
+    "propagate": 391.5,
+    "sampleS": 44.2,
+    "vertices": 281.5,
+    "faces": 20.2,
+    "check": 22.6
+   },
+   "totalMs": 997.4
+  },
+  "whiteFrac": [
+   [
+    0.18242603550295858,
+    0.18242603550295858,
+    1,
+    0,
+    0.18244082840236686,
+    0.1825
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "bowl|mesh": {
+  "id": "bowl",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 11110,
+   "vertices": 5557,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 6.3,
+    "primitives": 4.4,
+    "union": 0.4,
+    "cavity": 4.4,
+    "shell": 11.9,
+    "finish": 0,
+    "extract": 23.7
+   },
+   "totalMs": 53
+  },
+  "whiteFrac": [
+   [
+    0.17488165680473372,
+    0.17488165680473372,
+    1,
+    0,
+    0.17488165680473372,
+    0.17488165680473372
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "cylinder-pins|sdf": {
+  "id": "cylinder-pins",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 212832,
+   "vertices": 106406,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.058333333333333334,
+   "activeCells": 998912,
+   "warnings": [],
+   "timings": {
+    "activate": 12.4,
+    "sampleF": 72.9,
+    "seeds": 89.5,
+    "propagate": 1178,
+    "sampleS": 74,
+    "vertices": 287.1,
+    "faces": 36.4,
+    "check": 60.4
+   },
+   "totalMs": 1810.8
+  },
+  "whiteFrac": [
+   [
+    0.0075887573964497045,
+    0.0027958579881656805,
+    0.22857988165680473,
+    0,
+    0.038727810650887574,
+    0.030088757396449704
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "cylinder-pins|mesh": {
+  "id": "cylinder-pins",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 1982,
+   "vertices": 981,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 6.4,
+    "primitives": 0.8,
+    "union": 0.1,
+    "cavity": 0.2,
+    "shell": 1.9,
+    "finish": 0.8,
+    "extract": 13.9
+   },
+   "totalMs": 24.6
+  },
+  "whiteFrac": [
+   [
+    0.007322485207100592,
+    0.002485207100591716,
+    0.22789940828402366,
+    0,
+    0.03763313609467456,
+    0.029349112426035502
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "cup-stick|sdf": {
+  "id": "cup-stick",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 121924,
+   "vertices": 60964,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.09166666666666666,
+   "activeCells": 468480,
+   "warnings": [],
+   "timings": {
+    "activate": 59.2,
+    "sampleF": 123.5,
+    "seeds": 110,
+    "propagate": 487.9,
+    "sampleS": 39.3,
+    "vertices": 306,
+    "faces": 19.6,
+    "check": 27.4
+   },
+   "totalMs": 1172.9
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.2141715976331361,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "cup-stick|mesh": {
+  "id": "cup-stick",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 12424,
+   "vertices": 6214,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 7.1,
+    "primitives": 4.6,
+    "union": 0.8,
+    "cavity": 4.9,
+    "shell": 12.9,
+    "finish": 0.1,
+    "extract": 31.1
+   },
+   "totalMs": 63.6
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.21059171597633136,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "vase-sticks|sdf": {
+  "id": "vase-sticks",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 149156,
+   "vertices": 74576,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 4,
+   "cellSize": 0.1,
+   "activeCells": 460288,
+   "warnings": [],
+   "timings": {
+    "activate": 7.5,
+    "sampleF": 178.6,
+    "seeds": 154.3,
+    "propagate": 485.9,
+    "sampleS": 39.5,
+    "vertices": 496.7,
+    "faces": 23,
+    "check": 38.1
+   },
+   "totalMs": 1423.6
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.015310650887573964,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "vase-sticks|mesh": {
+  "id": "vase-sticks",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 24698,
+   "vertices": 12351,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 6.7,
+    "primitives": 7.5,
+    "union": 1.2,
+    "cavity": 10.3,
+    "shell": 142.6,
+    "finish": 0,
+    "extract": 163
+   },
+   "totalMs": 335.5
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.01529585798816568,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "vase-solid-sticks|sdf": {
+  "id": "vase-solid-sticks",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 154524,
+   "vertices": 77255,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 3,
+   "cellSize": 0.1,
+   "activeCells": 492032,
+   "warnings": [],
+   "timings": {
+    "activate": 8.7,
+    "sampleF": 170.6,
+    "seeds": 133.8,
+    "propagate": 402.2,
+    "sampleS": 57.6,
+    "vertices": 454.1,
+    "faces": 21,
+    "check": 37.1
+   },
+   "totalMs": 1285.2
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.015310650887573964,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "vase-solid-sticks|mesh": {
+  "id": "vase-solid-sticks",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 22948,
+   "vertices": 11472,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 6.3,
+    "primitives": 7.7,
+    "union": 1,
+    "cavity": 9.8,
+    "shell": 13.1,
+    "finish": 0.1,
+    "extract": 67.3
+   },
+   "totalMs": 108.8
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.01529585798816568,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "torus|sdf": {
+  "id": "torus",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 148152,
+   "vertices": 74074,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.08166666666666668,
+   "activeCells": 450048,
+   "warnings": [],
+   "timings": {
+    "activate": 6.8,
+    "sampleF": 39.9,
+    "seeds": 66.1,
+    "propagate": 500.3,
+    "sampleS": 48.7,
+    "vertices": 214.5,
+    "faces": 22.6,
+    "check": 31.6
+   },
+   "totalMs": 930.6
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "torus|mesh": {
+  "id": "torus",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 41620,
+   "vertices": 20808,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 6.5,
+    "primitives": 17.5,
+    "union": 2.2,
+    "cavity": 17.8,
+    "shell": 0,
+    "finish": 0.3,
+    "extract": 74.4
+   },
+   "totalMs": 124.4
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "lattice|sdf": {
+  "id": "lattice",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 178020,
+   "vertices": 89020,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.075,
+   "activeCells": 778240,
+   "warnings": [],
+   "timings": {
+    "activate": 10.6,
+    "sampleF": 72,
+    "seeds": 98.3,
+    "propagate": 291.8,
+    "sampleS": 51.4,
+    "vertices": 257.2,
+    "faces": 25,
+    "check": 46.6
+   },
+   "totalMs": 853
+  },
+  "whiteFrac": [
+   [
+    0,
+    0.005621301775147929,
+    0,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "lattice|mesh": {
+  "id": "lattice",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 372,
+   "vertices": 196,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 7.6,
+    "primitives": 1.5,
+    "union": 0.1,
+    "cavity": 0.5,
+    "shell": 2.4,
+    "finish": 0,
+    "extract": 3
+   },
+   "totalMs": 15.2
+  },
+  "whiteFrac": [
+   [
+    0,
+    0.005917159763313609,
+    0,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "vase-thin|sdf": {
+  "id": "vase-thin",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 221940,
+   "vertices": 110972,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.08,
+   "activeCells": 671232,
+   "warnings": [],
+   "timings": {
+    "activate": 11,
+    "sampleF": 240.9,
+    "seeds": 193.4,
+    "propagate": 504.9,
+    "sampleS": 50,
+    "vertices": 662.3,
+    "faces": 27.1,
+    "check": 61.6
+   },
+   "totalMs": 1751.3
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.026198224852071007,
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0.2034319526627219,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1300
+ },
+ "vase-thin|mesh": {
+  "id": "vase-thin",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 21938,
+   "vertices": 10971,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 8.2,
+    "primitives": 6.9,
+    "union": 0.8,
+    "cavity": 10.4,
+    "shell": 13.7,
+    "finish": 0,
+    "extract": 53.5
+   },
+   "totalMs": 96.9
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.026153846153846153,
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0.20242603550295857,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1300
+ },
+ "chain-thin|sdf": {
+  "id": "chain-thin",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 90800,
+   "vertices": 45363,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 39,
+   "cellSize": 0.08,
+   "activeCells": 261632,
+   "warnings": [],
+   "timings": {
+    "activate": 5.4,
+    "sampleF": 37,
+    "seeds": 55.8,
+    "propagate": 252.9,
+    "sampleS": 27.8,
+    "vertices": 176.9,
+    "faces": 15,
+    "check": 17.5
+   },
+   "totalMs": 588.3
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1300
+ },
+ "chain-thin|mesh": {
+  "id": "chain-thin",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 230292,
+   "vertices": 115162,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [
+    "Sphere 1: opening on curved face \"surface\" not supported by the mesh kernel"
+   ],
+   "timings": {
+    "wasm": 22.7,
+    "primitives": 94.7,
+    "union": 16.7,
+    "cavity": 96.4,
+    "shell": 203.7,
+    "finish": 0,
+    "extract": 450.2
+   },
+   "totalMs": 950.8
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1300
+ },
+ "transformed|sdf": {
+  "id": "transformed",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 140952,
+   "vertices": 70425,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 53,
+   "cellSize": 0.07309101903905081,
+   "activeCells": 629760,
+   "warnings": [],
+   "timings": {
+    "activate": 8,
+    "sampleF": 75.3,
+    "seeds": 75.2,
+    "propagate": 656.9,
+    "sampleS": 47,
+    "vertices": 222.1,
+    "faces": 22.8,
+    "check": 30.2
+   },
+   "totalMs": 1137.5
+  },
+  "whiteFrac": [
+   [
+    0.08187869822485207,
+    0.20705621301775148,
+    0.6772633136094675,
+    0,
+    0.4061094674556213,
+    0
+   ],
+   [
+    0,
+    0.12884615384615383,
+    0.22920118343195267,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1300
+ },
+ "transformed|mesh": {
+  "id": "transformed",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 14970,
+   "vertices": 7487,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [
+    "Sphere: X/Z scale differs, wall thickness approximate"
+   ],
+   "timings": {
+    "wasm": 19.2,
+    "primitives": 8.1,
+    "union": 1.2,
+    "cavity": 8.4,
+    "shell": 13.5,
+    "finish": 0.1,
+    "extract": 43.5
+   },
+   "totalMs": 96.4
+  },
+  "whiteFrac": [
+   [
+    0.0816715976331361,
+    0.20673076923076922,
+    0.6765532544378698,
+    0,
+    0.40588757396449704,
+    0
+   ],
+   [
+    0,
+    0.12088757396449704,
+    0.22004437869822485,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1300
+ },
+ "rotated-box|sdf": {
+  "id": "rotated-box",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 157816,
+   "vertices": 78851,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 59,
+   "cellSize": 0.08172497298481103,
+   "activeCells": 550912,
+   "warnings": [],
+   "timings": {
+    "activate": 7,
+    "sampleF": 40.1,
+    "seeds": 64.1,
+    "propagate": 425.5,
+    "sampleS": 47.3,
+    "vertices": 218.2,
+    "faces": 20.3,
+    "check": 38.9
+   },
+   "totalMs": 861.4
+  },
+  "whiteFrac": [
+   [
+    0,
+    0.060488165680473376,
+    0.49421597633136094,
+    0,
+    0.1614940828402367,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "rotated-box|mesh": {
+  "id": "rotated-box",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 50,
+   "vertices": 27,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 6.5,
+    "primitives": 0.4,
+    "union": 0.1,
+    "cavity": 0,
+    "shell": 0.4,
+    "finish": 0,
+    "extract": 0.9
+   },
+   "totalMs": 8.3
+  },
+  "whiteFrac": [
+   [
+    0,
+    0.06047337278106509,
+    0.49409763313609467,
+    0,
+    0.16187869822485207,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "tower|sdf": {
+  "id": "tower",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 103040,
+   "vertices": 51522,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.09291666666666668,
+   "activeCells": 390656,
+   "warnings": [],
+   "timings": {
+    "activate": 5.8,
+    "sampleF": 59.4,
+    "seeds": 74.2,
+    "propagate": 372.8,
+    "sampleS": 34,
+    "vertices": 195.9,
+    "faces": 16.6,
+    "check": 19.9
+   },
+   "totalMs": 778.6
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0,
+    0.5111686390532545,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0,
+    0.10782544378698225,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1300
+ },
+ "tower|mesh": {
+  "id": "tower",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 408,
+   "vertices": 210,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 17.5,
+    "primitives": 0.9,
+    "union": 0.5,
+    "cavity": 0.4,
+    "shell": 0.5,
+    "finish": 0,
+    "extract": 6.2
+   },
+   "totalMs": 26.1
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0,
+    0.5050591715976331,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1300
+ },
+ "thick-wall|sdf": {
+  "id": "thick-wall",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 65916,
+   "vertices": 32956,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 4,
+   "cellSize": 0.10083333333333334,
+   "activeCells": 301056,
+   "warnings": [],
+   "timings": {
+    "activate": 4.7,
+    "sampleF": 37.8,
+    "seeds": 46.6,
+    "propagate": 451.5,
+    "sampleS": 32.2,
+    "vertices": 128.6,
+    "faces": 13.3,
+    "check": 10.3
+   },
+   "totalMs": 725
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.0028994082840236688,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "thick-wall|mesh": {
+  "id": "thick-wall",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 24202,
+   "vertices": 12105,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 7.9,
+    "primitives": 16.2,
+    "union": 3.1,
+    "cavity": 12,
+    "shell": 7.3,
+    "finish": 0,
+    "extract": 49.2
+   },
+   "totalMs": 99.7
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "cut-sphere|sdf": {
+  "id": "cut-sphere",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 193732,
+   "vertices": 96865,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 3,
+   "cellSize": 0.06749999999999999,
+   "activeCells": 673792,
+   "warnings": [],
+   "timings": {
+    "activate": 9.1,
+    "sampleF": 75.1,
+    "seeds": 105.5,
+    "propagate": 884.5,
+    "sampleS": 55.2,
+    "vertices": 289,
+    "faces": 26.1,
+    "check": 50
+   },
+   "totalMs": 1494.6
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0,
+    0.0422189349112426,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "cut-sphere|mesh": {
+  "id": "cut-sphere",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 16788,
+   "vertices": 8396,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 8.2,
+    "primitives": 8.2,
+    "union": 1.2,
+    "cavity": 8.6,
+    "shell": 21.2,
+    "finish": 0,
+    "extract": 48.4
+   },
+   "totalMs": 98.4
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0,
+    0.04140532544378698,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ }
+}
