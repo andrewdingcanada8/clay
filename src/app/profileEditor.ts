@@ -1,18 +1,21 @@
 // 2D profile editor for revolve objects. The right half is the editable profile
 // (radius ≥ 0); the left half mirrors it so the silhouette reads as the pot.
-// Tap empty space to insert a point, drag points to move them, tap a point to
-// select it (then toggle corner / delete). Pinch or scroll to zoom and two
-// fingers to pan, so the canvas can cover small or large pieces.
+// Tap empty space to insert a point, tap a point to select it. Dragging near a
+// point moves it; dragging anywhere else moves the selected point, so the finger
+// never has to cover it. Points follow the finger's motion (no jump to the
+// touch). Pinch or scroll to zoom and two fingers to pan, so the canvas can
+// cover small or large pieces.
 
 import type { ProfilePoint } from '../engine/profile';
-import { sampleCurve } from '../engine/profile';
+import { sampleCurve, smoothOf } from '../engine/profile';
 
 export class ProfileEditor {
   private ctx: CanvasRenderingContext2D;
   private pts: ProfilePoint[];
   selected = -1;
   private drag = -1;
-  private downAt: { x: number; y: number; moved: boolean } | null = null;
+  private hit = -1;
+  private downAt: { x: number; y: number; moved: boolean; r: number; py: number } | null = null;
   private view = { cx: 0, cy: 0, s: 20 };
   private zoom = 1;
   private pan = { r: 0, y: 0 };
@@ -42,10 +45,17 @@ export class ProfileEditor {
     return this.pts.map((p) => ({ ...p }));
   }
 
-  toggleCorner() {
+  /** Smoothness of the selected point: 0 sharp … 1 smooth. */
+  smooth(): number {
+    return this.selected < 0 ? 1 : smoothOf(this.pts[this.selected]);
+  }
+
+  setSmooth(v: number, done: boolean) {
     if (this.selected < 0) return;
-    this.pts[this.selected].corner = !this.pts[this.selected].corner;
-    this.emit(true);
+    const p = this.pts[this.selected];
+    delete p.corner;
+    p.smooth = v;
+    this.emit(done);
   }
 
   deleteSelected() {
@@ -119,11 +129,14 @@ export class ProfileEditor {
   }
 
   private hitPoint(x: number, y: number): number {
-    let best = -1, bd = 24;
+    let best = -1, bd = 28;
     this.pts.forEach((p, i) => {
-      const [sx, sy] = this.toScreen(p.r, p.y);
-      const d = Math.hypot(sx - x, sy - y);
-      if (d < bd) { bd = d; best = i; }
+      // either half of the silhouette grabs the point
+      for (const sgn of [1, -1]) {
+        const [sx, sy] = this.toScreen(sgn * p.r, p.y);
+        const d = Math.hypot(sx - x, sy - y);
+        if (d < bd) { bd = d; best = i; }
+      }
     });
     return best;
   }
@@ -142,8 +155,10 @@ export class ProfileEditor {
       return;
     }
     if (this.pointers.size > 2) return;
-    this.downAt = { x, y, moved: false };
-    this.drag = this.hitPoint(x, y);
+    this.hit = this.hitPoint(x, y);
+    this.drag = this.hit >= 0 ? this.hit : this.selected;
+    const p = this.pts[this.drag];
+    this.downAt = { x, y, moved: false, r: p?.r ?? 0, py: p?.y ?? 0 };
   }
 
   private move(e: PointerEvent) {
@@ -161,8 +176,11 @@ export class ProfileEditor {
     if (!this.downAt) return;
     if (Math.hypot(x - this.downAt.x, y - this.downAt.y) > 4) this.downAt.moved = true;
     if (this.drag >= 0 && this.downAt.moved) {
-      const [r, wy] = this.toWorld(x, y);
-      this.pts[this.drag] = { ...this.pts[this.drag], r: snap(Math.max(0, r)), y: snap(wy) };
+      if (this.drag !== this.selected) { this.selected = this.drag; this.onSelect(this.drag); }
+      // follow the finger's motion relative to where it went down
+      // (on the mirrored left half, moving left grows the radius)
+      const s = this.view.s, d = this.downAt, side = d.x < this.view.cx ? -1 : 1;
+      this.pts[this.drag] = { ...this.pts[this.drag], r: snap(Math.max(0, d.r + side * (x - d.x) / s)), y: snap(d.py - (y - d.y) / s) };
       this.emit(false);
     }
   }
@@ -172,10 +190,11 @@ export class ProfileEditor {
     if (this.pointers.size < 2) this.pinch = null;
     if (!this.downAt) return;
     const [x, y] = this.local(e);
-    if (this.drag >= 0) {
-      if (this.downAt.moved) this.emit(true);
-      else { this.selected = this.drag; this.onSelect(this.selected); this.draw(); }
-    } else if (!this.downAt.moved) {
+    if (this.downAt.moved) {
+      if (this.drag >= 0) this.emit(true);
+    } else if (this.hit >= 0) {
+      this.selected = this.hit; this.onSelect(this.selected); this.draw();
+    } else {
       const [r, wy] = this.toWorld(x, y);
       this.insert(Math.max(0, snap(r)), snap(wy));
     }
@@ -275,7 +294,7 @@ export class ProfileEditor {
       ctx.strokeStyle = accent;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      if (p.corner) ctx.rect(sx - 7, sy - 7, 14, 14);
+      if (smoothOf(p) < 0.5) ctx.rect(sx - 7, sy - 7, 14, 14);
       else ctx.arc(sx, sy, 7.5, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
     });

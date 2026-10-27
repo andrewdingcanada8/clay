@@ -428,22 +428,29 @@ function renderProfilePanel() {
       <button class="btn" data-act="profile-zoom-in" aria-label="Zoom in">+</button>
       <button class="btn primary" data-act="profile-done">Done</button></div>
     <canvas class="profile-canvas" id="profile-canvas"></canvas>
+    <label class="field"><span>Smoothness</span>
+      <input type="range" id="profile-smooth" min="0" max="1" step="0.01" value="1" ${ui.profilePoint < 0 ? 'disabled' : ''}></label>
     <div class="row">
-      <button class="btn" data-act="profile-corner" ${ui.profilePoint < 0 ? 'disabled' : ''}>Sharp / smooth</button>
       <button class="btn danger" data-act="profile-delete" ${ui.profilePoint < 0 ? 'disabled' : ''}>Delete point</button>
     </div>
-    <p class="hint">Drag points to reshape. Tap empty space to add a point. Tap a point to select it. Squares are sharp corners. Pinch or scroll to zoom, two fingers to pan. The curve spins a full 360° around the dashed axis.</p></div>`;
-  profileEditor = new ProfileEditor(document.getElementById('profile-canvas') as HTMLCanvasElement, o.params.points ?? []);
-  profileEditor.onChange = (pts, done) => {
+    <p class="hint">Tap empty space to add a point, tap a point to select it. Drag near a point to move it, or anywhere else to move the selected one. Squares are sharp corners. Pinch or scroll to zoom, two fingers to pan. The curve spins a full 360° around the dashed axis.</p></div>`;
+  const ed = new ProfileEditor(document.getElementById('profile-canvas') as HTMLCanvasElement, o.params.points ?? []);
+  profileEditor = ed;
+  const smooth = document.getElementById('profile-smooth') as HTMLInputElement;
+  ed.onChange = (pts, done) => {
     // While dragging only the wireframe ghost follows; the shape rebuilds on release.
     if (!done) { view.setGhost({ ...o, params: { ...o.params, points: pts } }, 'off'); return; }
     update((d) => { d.objects.find((x) => x.id === o.id)!.params.points = pts; });
     view.setGhost(selected(), 'off');
   };
-  profileEditor.onSelect = (i) => {
+  ed.onSelect = (i) => {
     ui.profilePoint = i;
-    panel.querySelectorAll<HTMLButtonElement>('[data-act="profile-corner"],[data-act="profile-delete"]').forEach((b) => { b.disabled = i < 0; });
+    smooth.disabled = i < 0;
+    smooth.value = String(ed.smooth());
+    panel.querySelectorAll<HTMLButtonElement>('[data-act="profile-delete"]').forEach((b) => { b.disabled = i < 0; });
   };
+  smooth.addEventListener('input', () => ed.setSmooth(Number(smooth.value), false));
+  smooth.addEventListener('change', () => ed.setSmooth(Number(smooth.value), true));
 }
 
 function renderAll() {
@@ -577,7 +584,6 @@ panel.addEventListener('click', (e) => {
     }
     case 'edit-profile': ui.profileEditing = ui.selectedId; ui.profilePoint = -1; view.setGhost(selected(), 'off'); renderPanel(); break;
     case 'profile-done': ui.profileEditing = null; refreshGhost(); renderPanel(); break;
-    case 'profile-corner': profileEditor?.toggleCorner(); break;
     case 'profile-delete': profileEditor?.deleteSelected(); break;
     case 'profile-zoom-in': profileEditor?.zoomBy(1.4); break;
     case 'profile-zoom-out': profileEditor?.zoomBy(1 / 1.4); break;

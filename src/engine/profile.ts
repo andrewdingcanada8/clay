@@ -1,11 +1,18 @@
 // Revolve profiles: control points in the (r, y) half-plane, interpolated with a
-// centripetal Catmull–Rom spline. Points flagged `corner` break the spline so the
-// curve has a sharp kink there (useful for lips, rims and foot rings).
+// centripetal Catmull–Rom spline. Each point has a smoothness from 0 (sharp kink,
+// useful for lips, rims and foot rings) to 1 (fully smooth).
 
 export interface ProfilePoint {
   r: number;
   y: number;
+  /** 0 = sharp corner, 1 = smooth (default). */
+  smooth?: number;
+  /** legacy: same as smooth = 0 */
   corner?: boolean;
+}
+
+export function smoothOf(p: ProfilePoint): number {
+  return p.smooth ?? (p.corner ? 0 : 1);
 }
 
 export interface SampledProfile {
@@ -51,10 +58,14 @@ export function sampleCurve(points: ProfilePoint[], samplesPerSpan = SAMPLES_PER
   xy.push(Math.max(0, points[0].r), points[0].y);
   for (let i = 0; i < n - 1; i++) {
     const p1 = points[i], p2 = points[i + 1];
-    // Neighbours for tangents; a corner (or the ends) mirrors the segment so the
-    // tangent there is taken from this span only.
-    const p0 = i === 0 || p1.corner ? { r: 2 * p1.r - p2.r, y: 2 * p1.y - p2.y } : points[i - 1];
-    const p3 = i + 2 >= n || p2.corner ? { r: 2 * p2.r - p1.r, y: 2 * p2.y - p1.y } : points[i + 2];
+    // Neighbours for tangents. A sharp point (or an end) mirrors the segment so the
+    // tangent there comes from this span only; partial smoothness blends the mirrored
+    // phantom toward the real neighbour, turning the kink gradually into a curve.
+    const m0 = { r: 2 * p1.r - p2.r, y: 2 * p1.y - p2.y }, m3 = { r: 2 * p2.r - p1.r, y: 2 * p2.y - p1.y };
+    const mix = (m: ProfilePoint, q: ProfilePoint | undefined, k: number): ProfilePoint =>
+      q ? { r: m.r + (q.r - m.r) * k, y: m.y + (q.y - m.y) * k } : m;
+    const p0 = mix(m0, points[i - 1], smoothOf(p1));
+    const p3 = mix(m3, points[i + 2], smoothOf(p2));
     const straight = Math.hypot(p2.r - p1.r, p2.y - p1.y) < 1e-9;
     const S = straight ? 1 : samplesPerSpan;
     for (let s = 1; s <= S; s++) {
