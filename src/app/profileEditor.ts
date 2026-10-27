@@ -47,7 +47,7 @@ export class ProfileEditor {
   }
 
   private fit() {
-    let rMax = 4, yMin = -4, yMax = 4;
+    let rMax = 6, yMin = -6, yMax = 6;
     for (const p of this.pts) {
       rMax = Math.max(rMax, p.r);
       yMin = Math.min(yMin, p.y);
@@ -162,15 +162,17 @@ export class ProfileEditor {
     ctx.font = '500 10px "IBM Plex Mono", monospace';
     ctx.fillStyle = muted;
     const [x0, y0] = this.toWorld(0, h), [x1, y1] = this.toWorld(w, 0);
-    for (let gx = Math.ceil(x0); gx <= x1; gx++) {
+    // 1 cm grid, or 2 cm when the piece is large, with bolder lines every 10 cm
+    const step = this.extent.rMax > 16 ? 2 : 1;
+    for (let gx = Math.ceil(x0 / step) * step; gx <= x1; gx += step) {
       const [sx] = this.toScreen(gx, 0);
       ctx.strokeStyle = line;
-      ctx.globalAlpha = gx % 5 === 0 ? 0.9 : 0.45;
+      ctx.globalAlpha = gx % 10 === 0 ? 0.9 : 0.45;
       ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, h); ctx.stroke();
     }
-    for (let gy = Math.ceil(y0); gy <= y1; gy++) {
+    for (let gy = Math.ceil(y0 / step) * step; gy <= y1; gy += step) {
       const [, sy] = this.toScreen(0, gy);
-      ctx.globalAlpha = gy % 5 === 0 ? 0.9 : 0.45;
+      ctx.globalAlpha = gy % 10 === 0 ? 0.9 : 0.45;
       ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(w, sy); ctx.stroke();
     }
     ctx.globalAlpha = 1;
@@ -180,7 +182,7 @@ export class ProfileEditor {
     ctx.beginPath(); ctx.moveTo(this.view.cx, 0); ctx.lineTo(this.view.cx, h); ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillText('axis', this.view.cx + 4, 12);
-    ctx.fillText('1 cm grid', 6, h - 6);
+    ctx.fillText(`${step} cm grid`, 6, h - 6);
 
     const { xy } = sampleCurve(this.pts, 16);
     const path = (mirror: number) => {

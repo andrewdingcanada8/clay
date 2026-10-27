@@ -10,6 +10,7 @@ import type { BuildResult } from '../engine/kernel';
 import { DEG } from '../engine/math';
 import { revolveOutline } from '../engine/primitives';
 import { sampleCurve } from '../engine/profile';
+import { HandReference } from './hand';
 
 export type GizmoMode = 'translate' | 'rotate' | 'scale' | 'off';
 
@@ -22,6 +23,8 @@ export class Viewport {
   private result: THREE.Group = new THREE.Group();
   private ghost: THREE.Group = new THREE.Group();
   private grid: THREE.GridHelper;
+  private hand = new HandReference();
+  private showHand = true;
   private clip = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);
   private clipPlanes: THREE.Plane[] = [];
   private front: THREE.MeshStandardMaterial;
@@ -38,8 +41,8 @@ export class Viewport {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.localClippingEnabled = true;
     host.appendChild(this.renderer.domElement);
-    this.camera = new THREE.PerspectiveCamera(40, 1, 0.05, 2000);
-    this.camera.position.set(14, 11, 18);
+    this.camera = new THREE.PerspectiveCamera(40, 1, 0.1, 5000);
+    this.camera.position.set(38, 30, 50);
     this.orbit = new OrbitControls(this.camera, this.renderer.domElement);
     this.orbit.enableDamping = true;
     this.orbit.addEventListener('change', () => this.invalidate());
@@ -49,10 +52,11 @@ export class Viewport {
     key.position.set(6, 10, 7);
     this.camera.add(key); // light follows the camera so the form always reads
     this.scene.add(this.camera);
-    this.grid = new THREE.GridHelper(40, 40, 0x888888, 0x888888);
+    this.grid = new THREE.GridHelper(200, 40, 0x888888, 0x888888); // 5 cm squares
     (this.grid.material as THREE.Material).transparent = true;
     (this.grid.material as THREE.Material).opacity = 0.18;
     this.scene.add(this.grid);
+    this.scene.add(this.hand.object);
 
     this.front = new THREE.MeshStandardMaterial({ color: 0xc8b6a4, roughness: 0.85, metalness: 0, clippingPlanes: this.clipPlanes });
     this.back = new THREE.MeshBasicMaterial({ color: 0x8c3b2a, side: THREE.BackSide, clippingPlanes: this.clipPlanes });
@@ -91,6 +95,7 @@ export class Viewport {
 
   setTheme(dark: boolean) {
     this.scene.background = new THREE.Color(dark ? 0x1d1b19 : 0xf3efe9);
+    this.hand.setDark(dark);
     this.invalidate();
   }
 
@@ -151,6 +156,8 @@ export class Viewport {
     if (wireframe) this.result.add(new THREE.Mesh(geo, this.wire));
     geo.computeBoundingBox();
     this.grid.position.y = geo.boundingBox!.min.y - 0.01;
+    this.hand.place(geo.boundingBox!);
+    this.hand.object.visible = this.showHand;
     this.invalidate();
   }
 
@@ -160,8 +167,15 @@ export class Viewport {
     return this.resultMesh.geometry.boundingBox!.clone();
   }
 
+  setHandVisible(on: boolean) {
+    this.showHand = on;
+    this.hand.object.visible = on && !!this.resultMesh;
+    this.invalidate();
+  }
+
   frame(box: THREE.Box3 | null = this.bounds()) {
     if (!box) return;
+    if (this.showHand) box = box.clone().union(this.hand.bounds());
     const c = box.getCenter(new THREE.Vector3());
     const r = box.getSize(new THREE.Vector3()).length() / 2;
     const dir = this.camera.position.clone().sub(this.orbit.target).normalize();

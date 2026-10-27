@@ -10,6 +10,7 @@ import { classifyPoint, compileScene, sdfWorld, toLocal } from '../engine/primit
 import { examples } from '../examples';
 import { Builder } from './builder';
 import { ProfileEditor } from './profileEditor';
+import { HAND_LENGTH_CM } from './hand';
 import { type GizmoMode, Viewport } from './viewport';
 
 type Tab = 'add' | 'edit' | 'shell' | 'holes' | 'view';
@@ -43,13 +44,14 @@ interface UIState {
   quality: Quality;
   section: { on: boolean; axis: 'x' | 'y' | 'z'; t: number };
   wire: boolean;
+  hand: boolean;
   lockScale: boolean;
   profileEditing: string | null;
   profilePoint: number;
   showExamples: boolean;
 }
 
-const STORAGE_KEY = 'clay.doc.v1';
+const STORAGE_KEY = 'clay.doc.v2'; // v2: hand-scale defaults
 
 function loadSaved(): SceneDoc | null {
   try {
@@ -70,8 +72,8 @@ let committed = JSON.stringify(doc);
 const past: string[] = [];
 const future: string[] = [];
 const ui: UIState = {
-  tab: 'edit', sheetOpen: true, selectedId: doc.objects[0]?.id ?? null, gizmo: 'translate', holeMode: 'face', pinRadius: 0.3,
-  quality: 'normal', section: { on: false, axis: 'z', t: 0.5 }, wire: false, lockScale: false,
+  tab: 'edit', sheetOpen: true, selectedId: doc.objects[0]?.id ?? null, gizmo: 'translate', holeMode: 'face', pinRadius: 0.5,
+  quality: 'normal', section: { on: false, axis: 'z', t: 0.5 }, wire: false, hand: true, lockScale: false,
   profileEditing: null, profilePoint: -1, showExamples: false,
 };
 let lastResult: BuildResult | null = null;
@@ -176,6 +178,11 @@ function renderStatus() {
   const s = lastResult?.stats;
   const kernelName = doc.kernel === 'sdf' ? 'SDF' : doc.meshMethod === 'minkowski' ? 'Mesh · Minkowski' : 'Mesh';
   chips.push(`<span class="chip ${busy ? 'busy' : 'ok'}">${kernelName}${busy ? ' · building' : s ? ` · ${fmtMs(s.totalMs)}` : ''}</span>`);
+  const bb = view.bounds();
+  if (bb) {
+    const sz = bb.getSize(new THREE.Vector3());
+    chips.push(`<span class="chip">${Math.round(Math.max(sz.x, sz.z))} × ${Math.round(sz.y)} cm</span>`);
+  }
   if (doc.shell.enabled) chips.push(`<span class="chip">wall ${doc.shell.thickness.toFixed(2)} cm</span>`);
   if (s && !busy) {
     if (s.boundaryEdges) chips.push(`<span class="chip warn">${s.boundaryEdges} open edges</span>`);
@@ -209,13 +216,13 @@ function xyz(key: string, label: string, v: Vec3, step: number, lock = false) {
 }
 
 const PARAMS: Record<PrimitiveType, [string, string, number, number, number][]> = {
-  sphere: [['r', 'Radius', 0.2, 15, 0.05]],
-  box: [['x', 'Width', 0.2, 30, 0.05], ['y', 'Height', 0.2, 30, 0.05], ['z', 'Depth', 0.2, 30, 0.05]],
-  cylinder: [['r', 'Radius', 0.1, 15, 0.05], ['h', 'Height', 0.1, 30, 0.05]],
-  cone: [['r', 'Radius', 0.1, 15, 0.05], ['h', 'Height', 0.1, 30, 0.05]],
-  torus: [['R', 'Ring', 0.5, 15, 0.05], ['r', 'Tube', 0.1, 8, 0.05]],
-  capsule: [['r', 'Radius', 0.1, 10, 0.05], ['h', 'Length', 0, 30, 0.05]],
-  prism: [['n', 'Sides', 3, 12, 1], ['r', 'Radius', 0.2, 15, 0.05], ['h', 'Height', 0.1, 30, 0.05]],
+  sphere: [['r', 'Radius', 0.5, 40, 0.1]],
+  box: [['x', 'Width', 0.5, 80, 0.1], ['y', 'Height', 0.5, 80, 0.1], ['z', 'Depth', 0.5, 80, 0.1]],
+  cylinder: [['r', 'Radius', 0.2, 40, 0.1], ['h', 'Height', 0.2, 80, 0.1]],
+  cone: [['r', 'Radius', 0.2, 40, 0.1], ['h', 'Height', 0.2, 80, 0.1]],
+  torus: [['R', 'Ring', 1, 40, 0.1], ['r', 'Tube', 0.2, 20, 0.1]],
+  capsule: [['r', 'Radius', 0.2, 25, 0.1], ['h', 'Length', 0, 80, 0.1]],
+  prism: [['n', 'Sides', 3, 12, 1], ['r', 'Radius', 0.5, 40, 0.1], ['h', 'Height', 0.2, 80, 0.1]],
   revolve: [],
 };
 
@@ -276,7 +283,7 @@ function shellPanel() {
   const holes = doc.objects.flatMap((o) => o.holes.map((h) => ({ o, h })));
   return `<div class="section"><h3>Hollow the piece</h3>
       <label class="toggle"><input type="checkbox" id="shell-on" data-act="shell-toggle" ${doc.shell.enabled ? 'checked' : ''}> Shell everything that is joined</label>
-      ${slider('shell', 'Wall cm', doc.shell.thickness, 0.1, 3, 0.05)}
+      ${slider('shell', 'Wall cm', doc.shell.thickness, 0.1, 4, 0.05)}
       <p class="hint">Walls grow inward from the outside surface, so the outside stays exactly as modelled. Where the piece is thinner than two walls it stays solid.</p>
     </div>
     <div class="section"><h3>Openings</h3>
@@ -294,7 +301,7 @@ function holesPanel() {
   });
   return `<div class="section"><h3>Tap the model to</h3>
       ${seg('holeMode', ui.holeMode, [['face', 'Open a face'], ['pin', 'Drill a pin hole']])}
-      ${ui.holeMode === 'pin' ? slider('pin', 'Radius cm', ui.pinRadius, 0.05, 2, 0.05) : ''}
+      ${ui.holeMode === 'pin' ? slider('pin', 'Radius cm', ui.pinRadius, 0.1, 4, 0.05) : ''}
       <p class="hint">${ui.holeMode === 'face' ? 'Tapping a face removes it from the shell. Only the part of the face that is on the outside opens.' : 'Tapping places a round hole through the wall, on flat or curved surfaces.'}</p>
     </div>
     ${o ? `<div class="section"><h3>Faces of ${escapeHtml(o.name)}</h3><div class="row">${faces.map((f) => `<button class="face-chip" data-face="${f.id}" aria-pressed="${o.holes.includes(f.id)}">${escapeHtml(f.label)}</button>`).join('')}</div></div>` : ''}
@@ -314,6 +321,7 @@ function viewPanel() {
       <label class="toggle"><input type="checkbox" id="sec-on" data-act="section-toggle" ${ui.section.on ? 'checked' : ''}> Section cut</label>
       ${ui.section.on ? `${seg('axis', ui.section.axis, [['x', 'X'], ['y', 'Y'], ['z', 'Z']])}${slider('section', 'Position', ui.section.t, 0, 1, 0.005)}` : ''}
       <label class="toggle"><input type="checkbox" id="wire-on" data-act="wire-toggle" ${ui.wire ? 'checked' : ''}> Show triangles</label>
+      <label class="toggle"><input type="checkbox" id="hand-on" data-act="hand-toggle" ${ui.hand ? 'checked' : ''}> Hand for scale (adult hand, ${HAND_LENGTH_CM} cm)</label>
     </div>
     <div class="section"><h3>Last build</h3><div class="stats">${s ? escapeHtml([
       `kernel     ${s.kernel}`,
@@ -417,6 +425,7 @@ panel.addEventListener('change', (e) => {
   const act = el.dataset.act;
   if (act === 'shell-toggle') update((d) => { d.shell.enabled = el.checked; });
   if (act === 'section-toggle') { ui.section.on = el.checked; view.setSection(el.checked, ui.section.axis, ui.section.t); renderPanel(); }
+  if (act === 'hand-toggle') { ui.hand = el.checked; view.setHandVisible(el.checked); renderStatus(); }
   if (act === 'wire-toggle') { ui.wire = el.checked; if (lastResult) view.setResult(lastResult, ui.wire); }
 });
 
@@ -446,7 +455,7 @@ panel.addEventListener('click', (e) => {
       const c: SceneObject = JSON.parse(JSON.stringify(o));
       c.id = newId();
       c.name = `${o.name} copy`;
-      c.transform.position = [o.transform.position[0] + 1.5, o.transform.position[1], o.transform.position[2]];
+      c.transform.position = [o.transform.position[0] + 4, o.transform.position[1], o.transform.position[2]];
       update((doc2) => { doc2.objects.push(c); });
       selectObject(c.id);
       break;

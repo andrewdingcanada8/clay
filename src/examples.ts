@@ -2,7 +2,7 @@
 // Units are centimetres. `probes` are points inside the hollow used by the
 // benchmark's interior 360° camera.
 
-import { type ObjectMode, type PrimitiveType, type SceneDoc, type SceneObject, emptyDoc, makeObject } from './engine/document';
+import { type ObjectMode, type PrimitiveType, type SceneDoc, type SceneObject, emptyDoc, makeObject, scaleDoc } from './engine/document';
 import type { Vec3 } from './engine/math';
 import type { ProfilePoint } from './engine/profile';
 
@@ -80,7 +80,7 @@ export function examples(): Example[] {
   const list: Example[] = [];
 
   list.push({
-    id: 'open-box', title: 'Open box', notes: 'Cube with its top face removed, 0.4 cm walls.',
+    id: 'open-box', title: 'Open box', notes: 'Cube with its top face removed, 0.8 cm walls.',
     doc: doc([obj('box', { x: 6, y: 6, z: 6 }, { holes: ['py'] })], 0.4), probes: [[0, -1, 0]],
   });
 
@@ -200,7 +200,7 @@ export function examples(): Example[] {
   });
 
   list.push({
-    id: 'thick-wall', title: 'Wall thicker than cavity', notes: 'A 1.2 cm wall: the thin capsule arm is too narrow for a cavity and stays solid; the big sphere is hollow.',
+    id: 'thick-wall', title: 'Wall thicker than cavity', notes: 'A 2.5 cm wall: the thin capsule arm is too narrow for a cavity and stays solid; the big sphere is hollow.',
     doc: doc([
       obj('sphere', { r: 3.2 }),
       obj('capsule', { r: 0.9, h: 6 }, { rot: [0, 0, 90], pos: [5, 0, 0] }),
@@ -233,7 +233,7 @@ export function examples(): Example[] {
     obj('cylinder', { r: 1.1, h: 14 }, { pos: [-1.2, 2, 0], rot: [0, 0, -12], name: 'Stick' }),
   ], t);
   list.push({
-    id: 'mug-stick', title: 'Mug, handle, stick', notes: 'Hollow mug with a solid torus handle and a joined stick through it, 0.25 cm wall.',
+    id: 'mug-stick', title: 'Mug, handle, stick', notes: 'Hollow mug with a solid torus handle and a joined stick through it, 0.6 cm wall.',
     doc: mug(0.25), probes: [[1, -3, 1.5]],
   });
   list.push({
@@ -241,5 +241,22 @@ export function examples(): Example[] {
     doc: mug(0.08), probes: [[1, -3, 1.5]],
   });
 
+  // Scenes are authored small, then scaled to hand size (a vase ~19 cm across).
+  // Walls are set per scene in real clay terms; the thin cases stay extreme.
+  for (const e of list) {
+    scaleDoc(e.doc, SIZE);
+    e.probes = e.probes.map((p) => p.map((v) => v * SIZE) as Vec3);
+    e.doc.shell.thickness = WALLS[e.id] ?? e.doc.shell.thickness;
+  }
   return list;
 }
+
+/** Geometry scale applied to every scene. */
+export const SIZE = 2.5;
+
+const WALLS: Record<string, number> = {
+  'open-box': 0.8, 'sphere-cube': 0.8, 'chain-30': 0.6, vase: 0.7, bowl: 0.8, 'cylinder-pins': 0.7,
+  'cup-stick': 0.6, 'vase-sticks': 0.6, 'vase-solid-sticks': 0.6, torus: 0.6, lattice: 0.5,
+  'vase-thin': 0.2, 'chain-thin': 0.2, transformed: 0.7, 'rotated-box': 0.7, tower: 0.6,
+  'thick-wall': 2.5, 'cut-sphere': 0.7, 'mug-stick': 0.6, 'mug-thin': 0.08,
+};

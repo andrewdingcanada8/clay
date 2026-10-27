@@ -14,7 +14,7 @@ function signedVolume(p: Float32Array, idx: Uint32Array) {
 describe('sdf kernel', () => {
   it('solid sphere is closed with correct volume', () => {
     const d = emptyDoc(); d.shell.enabled = false;
-    d.objects.push(makeObject('sphere'));
+    d.objects.push(makeObject('sphere', { params: { r: 3 } }));
     const r = buildSDF(d, 'normal');
     expect(r.stats.boundaryEdges).toBe(0);
     const v = signedVolume(r.positions, r.indices);

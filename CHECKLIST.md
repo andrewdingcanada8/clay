@@ -16,7 +16,9 @@ Last updated: 2026-10-27. Benchmark numbers come from `bench/REPORT.md`, which `
 | ✅ | Openings on curved faces (SDF kernel) | e.g. a sphere's whole surface. The mesh kernel only supports planar faces (it warns). |
 | ✅ | Pin holes on flat or curved surfaces | Tap to drill. The pin is stored in the object's own frame, so it moves with the object. |
 | ⬜ | Openings smaller than a face, drawn freely | Next step after pins: closed curves drawn on a surface, then oval or slot cutters. |
+| ✅ | Hand-scale defaults and examples (pieces ~19–30 cm), hand silhouette on the ground for scale | Toggle under View; status chip shows the piece's size in cm. |
 | ✅ | Walls down to 0.2 cm | Cell size is forced to ≤ wall/2.5. Thin vase and thin chain benchmarks are leak-free. |
+| 🟡 | Very thin walls on large pieces (SDF) | A 0.08 cm wall on a 20 cm mug needs ~17M cells. The kernel now draws the thinnest wall it can resolve (~0.25 cm) and says so instead of tearing. The Mesh kernel gives the exact wall. Real fix: adaptive (octree) grid near the surface. |
 | 🟡 | Mesh quality at sharp inner creases (SDF) | A few non-manifold edges, max ~60 per model, at sphere necks and rotated-box inner edges. They're invisible in renders; the fix would be manifold dual contouring. |
 | 🟡 | Rim edges of rotated boxes (SDF) | Small zig-zag along an off-axis opening rim, at the ~1 grid-cell level. Could improve with sharper feature handling. |
 

@@ -76,25 +76,41 @@ export function identityTransform(): Transform {
 
 export function defaultParams(type: PrimitiveType): PrimitiveParams {
   switch (type) {
-    case 'sphere': return { r: 3 };
-    case 'box': return { x: 5, y: 5, z: 5 };
-    case 'cylinder': return { r: 2.5, h: 6 };
-    case 'cone': return { r: 3, h: 6 };
-    case 'torus': return { R: 3, r: 1 };
-    case 'capsule': return { r: 1.5, h: 4 };
-    case 'prism': return { n: 6, r: 3, h: 5 };
+    // Hand-scale defaults (cm): a typical adult hand is ~19 cm long, 9 cm wide.
+    case 'sphere': return { r: 9 };
+    case 'box': return { x: 16, y: 16, z: 16 };
+    case 'cylinder': return { r: 8, h: 18 };
+    case 'cone': return { r: 9, h: 18 };
+    case 'torus': return { R: 9, r: 3 };
+    case 'capsule': return { r: 4.5, h: 12 };
+    case 'prism': return { n: 6, r: 9, h: 15 };
     case 'revolve': return { points: defaultVaseProfile() };
   }
 }
 
 export function defaultVaseProfile(): ProfilePoint[] {
   return [
-    { r: 2.5, y: -5, corner: true },
-    { r: 3.6, y: -3 },
-    { r: 3.4, y: 0 },
-    { r: 1.8, y: 2.8 },
-    { r: 2.4, y: 5, corner: true },
+    { r: 6, y: -12, corner: true },
+    { r: 9, y: -7 },
+    { r: 8.5, y: 0 },
+    { r: 4.5, y: 7 },
+    { r: 6, y: 12, corner: true },
   ];
+}
+
+/** Uniformly scale a document's geometry (not its wall thickness). */
+export function scaleDoc(d: SceneDoc, k: number): SceneDoc {
+  for (const o of d.objects) {
+    const p = o.params as Record<string, unknown>;
+    for (const key of ['r', 'x', 'y', 'z', 'h', 'R']) if (typeof p[key] === 'number') p[key] = (p[key] as number) * k;
+    if (o.params.points) o.params.points = o.params.points.map((q) => ({ ...q, r: q.r * k, y: q.y * k }));
+    o.transform.position = o.transform.position.map((v) => v * k) as Vec3;
+  }
+  for (const pin of d.pins) {
+    pin.point = pin.point.map((v) => v * k) as Vec3;
+    pin.radius *= k;
+  }
+  return d;
 }
 
 export const TYPE_LABEL: Record<PrimitiveType, string> = {
@@ -120,7 +136,7 @@ export function emptyDoc(): SceneDoc {
     version: 1,
     objects: [],
     pins: [],
-    shell: { enabled: true, thickness: 0.4 },
+    shell: { enabled: true, thickness: 0.6 },
     kernel: 'sdf',
     sdfExactDistance: true,
     meshMethod: 'offset',

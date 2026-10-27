@@ -18,6 +18,8 @@ import { type CompiledObject, classifyPoint, compileScene, normalToWorld, sdfWor
 
 const B = 8; // cells per block edge
 const B1 = B + 1;
+/** Thinnest wall, in grid cells, that meshes without tearing. */
+const MIN_WALL_CELLS = 2.4;
 
 interface Pin {
   ax: number; ay: number; az: number; // outside end
@@ -73,7 +75,7 @@ export function buildSDF(doc: SceneDoc, quality: Quality): BuildResult {
   const cuts = objs.filter((o) => o.obj.mode === 'cut');
   const solids = objs.filter((o) => o.obj.mode === 'solid');
   const shell = doc.shell.enabled;
-  const t = Math.max(0.01, doc.shell.thickness);
+  let t = Math.max(0.01, doc.shell.thickness);
   const exact = doc.sdfExactDistance;
 
   const empty = (): BuildResult => ({
@@ -85,6 +87,7 @@ export function buildSDF(doc: SceneDoc, quality: Quality): BuildResult {
   // Pins: capped cylinders through the wall, placed in their object's frame.
   const byId = new Map(objs.map((o) => [o.obj.id, o]));
   const pins: Pin[] = [];
+  const pinFrames: [Vec3, Vec3][] = [];
   for (const pin of doc.pins) {
     const o = byId.get(pin.objectId);
     if (!o) continue;
@@ -98,6 +101,7 @@ export function buildSDF(doc: SceneDoc, quality: Quality): BuildResult {
       bx: c[0] - n[0] * depth, by: c[1] - n[1] * depth, bz: c[2] - n[2] * depth,
       r: pin.radius,
     });
+    pinFrames.push([c, n]);
   }
 
   // Bounds and resolution
@@ -120,6 +124,7 @@ export function buildSDF(doc: SceneDoc, quality: Quality): BuildResult {
 
   // Block activation; coarsen h if over the cell budget.
   const signOf = new Map<number, number>(); // inactive block sign (default +1)
+  let wallClamped = false;
   for (let attempt = 0; ; attempt++) {
     const pad = 3 * h;
     // Irrational sub-cell offset: keeps axis-aligned faces off the grid planes, where
@@ -163,11 +168,26 @@ export function buildSDF(doc: SceneDoc, quality: Quality): BuildResult {
       }
     }
     const cells = blocks.size * B * B * B;
-    if (cells <= QUALITY_BUDGET[quality] || attempt >= 6) break;
-    h *= Math.cbrt(cells / QUALITY_BUDGET[quality]) * 1.05;
-  }
-  if (shell && t < 2 * h) {
-    warnings.push(`Wall ${t.toFixed(2)} cm is under 2 cells (cell ${h.toFixed(3)} cm): raise quality or thicken the wall.`);
+    if (wallClamped) break;
+    if (cells > QUALITY_BUDGET[quality] && attempt < 6) {
+      // Band cells scale roughly with 1/h^2 (surface area / cell face).
+      h *= Math.sqrt(cells / QUALITY_BUDGET[quality]) * 1.03;
+      continue;
+    }
+    // A wall thinner than ~2 cells would tear into holes. Never output that:
+    // draw the thinnest wall this grid resolves cleanly, and say so.
+    if (shell && t < MIN_WALL_CELLS * h) {
+      warnings.push(`Wall drawn at ${(MIN_WALL_CELLS * h).toFixed(2)} cm, not ${t.toFixed(2)} cm: the SDF grid can't resolve it at this size. Use Fine quality, or the Mesh kernel for the exact wall.`);
+      t = MIN_WALL_CELLS * h;
+      wallClamped = true;
+      pins.forEach((p, i) => { // drill through the thicker wall
+        const [c, n] = pinFrames[i];
+        const depth = t * 1.6 + 0.05;
+        p.bx = c[0] - n[0] * depth; p.by = c[1] - n[1] * depth; p.bz = c[2] - n[2] * depth;
+      });
+      continue; // re-activate with the band for the new wall
+    }
+    break;
   }
   timer.lap('activate');
 
@@ -283,11 +303,27 @@ export function buildSDF(doc: SceneDoc, quality: Quality): BuildResult {
       }
     }
     const lo = -(t + margin()) - h, hi = margin() + h;
+    // Only revisit blocks next to something that changed in the last sweep.
+    const changedAt = new Map<Block, number>();
+    const neighbours = new Map<Block, Block[]>();
+    for (const b of blockList) {
+      changedAt.set(b, 0);
+      const ns: Block[] = [];
+      for (let dk = -1; dk <= 1; dk++) for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        const nb = blocks!.get(bkey(b.bi + di, b.bj + dj, b.bk + dk));
+        if (nb) ns.push(nb);
+      }
+      neighbours.set(b, ns);
+    }
     for (let iter = 0; iter < 64; iter++) {
       let changed = 0;
       const fwd = iter % 2 === 0;
       for (let bn = 0; bn < blockList.length; bn++) {
         const b = blockList[fwd ? bn : blockList.length - 1 - bn];
+        let live = false;
+        for (const nb of neighbours.get(b)!) if (changedAt.get(nb)! >= iter - 1) { live = true; break; }
+        if (!live) continue;
+        const before = changed;
         const N = b.nearest!;
         const F = b.fjoin;
         const gi0 = b.bi * B, gj0 = b.bj * B, gk0 = b.bk * B;
@@ -309,6 +345,7 @@ export function buildSDF(doc: SceneDoc, quality: Quality): BuildResult {
             if (s >= 0 && offer(b, idx, s, x, y, z)) changed++;
           }
         }
+        if (changed > before) changedAt.set(b, iter);
       }
       if (!changed) break;
     }
