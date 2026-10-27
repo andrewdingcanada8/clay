@@ -173,11 +173,12 @@ function applyGrids() {
   if (doc.kernel === 'sdf') view.setSdfGrids(currentGrids());
 }
 
-/** Bring the display in line with the document. */
+/** Bring the display in line with the document. While a drag is in progress
+ *  (interactive) only cheap display updates run; worker builds wait for release. */
 function sync(interactive: boolean) {
   if (doc.kernel === 'mesh') {
     view.setMode('mesh');
-    builder.request('mesh', doc, ui.quality, { delay: interactive ? 60 : 0, wait: interactive });
+    if (!interactive) builder.request('mesh', doc, ui.quality);
     return;
   }
   // SDF: the GPU draws the document straight away; only stale cavity grids rebuild.
@@ -191,7 +192,7 @@ function sync(interactive: boolean) {
     const hollow = doc.shell.enabled && doc.objects.some((o) => o.groupId === g.id && o.mode === 'shell' && !o.hidden);
     if (hollow && !grids[i]) { missing.push(i); keys[i] = cavityKey(i); }
   });
-  if (missing.length) builder.request('cavity', doc, ui.quality, { groups: missing, tag: keys, delay: interactive ? 250 : 0 });
+  if (missing.length && !interactive) builder.request('cavity', doc, ui.quality, { groups: missing, tag: keys });
   if (frameOnNext) { view.frame(); frameOnNext = false; }
   renderStatus();
 }
@@ -434,7 +435,9 @@ function renderProfilePanel() {
     <p class="hint">Drag points to reshape. Tap empty space to add a point. Tap a point to select it. Squares are sharp corners. Pinch or scroll to zoom, two fingers to pan. The curve spins a full 360° around the dashed axis.</p></div>`;
   profileEditor = new ProfileEditor(document.getElementById('profile-canvas') as HTMLCanvasElement, o.params.points ?? []);
   profileEditor.onChange = (pts, done) => {
-    update((d) => { d.objects.find((x) => x.id === o.id)!.params.points = pts; }, !done);
+    // While dragging only the wireframe ghost follows; the shape rebuilds on release.
+    if (!done) { view.setGhost({ ...o, params: { ...o.params, points: pts } }, 'off'); return; }
+    update((d) => { d.objects.find((x) => x.id === o.id)!.params.points = pts; });
     view.setGhost(selected(), 'off');
   };
   profileEditor.onSelect = (i) => {
