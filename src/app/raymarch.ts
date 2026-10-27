@@ -627,7 +627,9 @@ function holeMask(o: CompiledObject, g: CompiledGroup): number {
     case 'cylinder': names = ['side', 'top', 'bottom']; break;
     case 'cone': names = ['base', 'side']; break;
     case 'prism': names = ['top', 'bottom', ...range(Math.max(3, Math.round(o.obj.params.n!))).map((i) => `side${i}`)]; break;
-    default: return 0;
+    // revolves: which spans are open lives in the depth table; the mask only says
+    // whether any are (the depth then carries on through the opening)
+    default: return o.profile!.faces.some(h) ? 1 : 0;
   }
   return names.reduce((m, f, i) => (h(f) ? m | (1 << i) : m), 0);
 }

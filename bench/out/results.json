@@ -5,27 +5,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 368224,
-   "vertices": 184114,
+   "triangles": 368200,
+   "vertices": 184102,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.10714285714285714,
    "activeCells": 2006016,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 23.9,
-    "sample": 1092.7,
-    "vertices": 2129.9,
-    "faces": 42.8
+    "cavity": 0.2,
+    "activate": 21.2,
+    "sample": 1182.3,
+    "vertices": 2688,
+    "faces": 43.6
    },
-   "totalMs": 3409
+   "totalMs": 4044.4
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.45597633136094673,
+    0.4478698224852071,
     0,
     0,
     0
@@ -73,25 +73,25 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 210848,
-   "vertices": 105426,
+   "triangles": 210824,
+   "vertices": 105414,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.15714285714285714,
    "activeCells": 865280,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 8,
-    "sample": 456.9,
-    "vertices": 1310.3,
+    "cavity": 0.2,
+    "activate": 8.5,
+    "sample": 600.1,
+    "vertices": 2127.3,
     "faces": 24.6
    },
-   "totalMs": 1849
+   "totalMs": 2822.2
   },
   "whiteFrac": [
    [
-    0.11748520710059171,
+    0.11452662721893492,
     0,
     0,
     0,
@@ -99,7 +99,7 @@
     0
    ],
    [
-    0.7932396449704142,
+    0.7290532544378698,
     0,
     0,
     0,
@@ -166,12 +166,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.2,
-    "activate": 11.9,
-    "sample": 1056.2,
-    "vertices": 5351.2,
-    "faces": 19.2
+    "activate": 14.5,
+    "sample": 1010.6,
+    "vertices": 5177.2,
+    "faces": 23
    },
-   "totalMs": 6476.1
+   "totalMs": 6266.4
   },
   "whiteFrac": [
    [
@@ -266,18 +266,18 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 353.3,
-    "sample": 1329.4,
-    "vertices": 3239.9,
-    "faces": 24.3
+    "activate": 363.7,
+    "sample": 1293.4,
+    "vertices": 3495.4,
+    "faces": 25.8
    },
-   "totalMs": 4992.4
+   "totalMs": 5244.9
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.02316568047337278,
+    0.02319526627218935,
     0,
     0,
     0
@@ -285,7 +285,7 @@
    [
     0,
     0,
-    0.17693786982248522,
+    0.18118343195266273,
     0,
     0,
     0
@@ -350,21 +350,21 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 217,
-    "sample": 1152,
-    "vertices": 1990.7,
-    "faces": 22.1
+    "activate": 219.9,
+    "sample": 1076.8,
+    "vertices": 2120.3,
+    "faces": 23.1
    },
-   "totalMs": 3416.5
+   "totalMs": 3476.2
   },
   "whiteFrac": [
    [
-    0.15745562130177515,
-    0.15745562130177515,
-    0.9279881656804734,
+    0.18653846153846154,
+    0.18655325443786983,
+    1,
     0,
-    0.15745562130177515,
-    0.15745562130177515
+    0.18653846153846154,
+    0.18655325443786983
    ]
   ],
   "width": 1560,
@@ -409,8 +409,8 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 295440,
-   "vertices": 147710,
+   "triangles": 295456,
+   "vertices": 147718,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.125,
@@ -418,18 +418,18 @@
    "warnings": [],
    "timings": {
     "cavity": 0,
-    "activate": 19.9,
-    "sample": 840.3,
-    "vertices": 2076.7,
-    "faces": 33.3
+    "activate": 21.5,
+    "sample": 882.2,
+    "vertices": 2347,
+    "faces": 33
    },
-   "totalMs": 3046.9
+   "totalMs": 3365.9
   },
   "whiteFrac": [
    [
     0.007603550295857988,
     0.004201183431952663,
-    0.25465976331360946,
+    0.24957100591715975,
     0,
     0.04084319526627219,
     0.03321005917159763
@@ -477,8 +477,8 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 169088,
-   "vertices": 84546,
+   "triangles": 169064,
+   "vertices": 84534,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.19642857142857142,
@@ -486,18 +486,18 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 241.7,
-    "sample": 1321,
-    "vertices": 2567.5,
-    "faces": 23.1
+    "activate": 246.1,
+    "sample": 1289.5,
+    "vertices": 2779.1,
+    "faces": 23.4
    },
-   "totalMs": 4188.3
+   "totalMs": 4379.7
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.23068047337278105,
+    0,
     0,
     0,
     0
@@ -545,27 +545,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 206788,
-   "vertices": 103367,
+   "triangles": 206740,
+   "vertices": 103362,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 11,
+   "nonManifoldEdges": 10,
    "cellSize": 0.21428571428571427,
    "activeCells": 683520,
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 376.1,
-    "sample": 1174.1,
-    "vertices": 4774.5,
-    "faces": 23.2
+    "activate": 427,
+    "sample": 1172.5,
+    "vertices": 5202.6,
+    "faces": 23.6
    },
-   "totalMs": 6396.8
+   "totalMs": 6883.8
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.0171301775147929,
+    0,
     0,
     0,
     0
@@ -621,19 +621,19 @@
    "activeCells": 894464,
    "warnings": [],
    "timings": {
-    "cavity": 0.2,
-    "activate": 364.4,
-    "sample": 1426.5,
-    "vertices": 3418.6,
-    "faces": 25.1
+    "cavity": 0.1,
+    "activate": 414.1,
+    "sample": 1462.5,
+    "vertices": 3774.1,
+    "faces": 25.7
    },
-   "totalMs": 5301.5
+   "totalMs": 5728.7
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.017041420118343194,
+    0,
     0,
     0,
     0
@@ -690,12 +690,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0,
-    "activate": 7.3,
-    "sample": 268.4,
-    "vertices": 883.2,
-    "faces": 23.9
+    "activate": 8.4,
+    "sample": 229.1,
+    "vertices": 738.2,
+    "faces": 24.7
    },
-   "totalMs": 1233.1
+   "totalMs": 1054.8
   },
   "whiteFrac": [
    [
@@ -749,8 +749,8 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 254460,
-   "vertices": 127239,
+   "triangles": 254440,
+   "vertices": 127229,
    "boundaryEdges": 0,
    "nonManifoldEdges": 1,
    "cellSize": 0.16071428571428573,
@@ -758,17 +758,17 @@
    "warnings": [],
    "timings": {
     "cavity": 0,
-    "activate": 12.2,
-    "sample": 1153.7,
-    "vertices": 4339.8,
-    "faces": 27.8
+    "activate": 12.9,
+    "sample": 1255.5,
+    "vertices": 5000,
+    "faces": 29.7
    },
-   "totalMs": 5616.1
+   "totalMs": 6374.9
   },
   "whiteFrac": [
    [
     0,
-    0.008476331360946745,
+    0.008520710059171597,
     0,
     0,
     0,
@@ -817,10 +817,10 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 1173448,
-   "vertices": 586726,
+   "triangles": 1173532,
+   "vertices": 586767,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 0,
+   "nonManifoldEdges": 1,
    "cellSize": 0.08806181718224988,
    "activeCells": 3737088,
    "warnings": [
@@ -828,18 +828,18 @@
    ],
    "timings": {
     "cavity": 0,
-    "activate": 492.4,
-    "sample": 5297.1,
-    "vertices": 20050,
-    "faces": 107.3
+    "activate": 497.1,
+    "sample": 5388.2,
+    "vertices": 21799.7,
+    "faces": 110.1
    },
-   "totalMs": 26455.9
+   "totalMs": 28375.4
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.031242603550295858,
+    0,
     0,
     0,
     0
@@ -847,7 +847,7 @@
    [
     0,
     0,
-    0.24071005917159763,
+    0,
     0,
     0,
     0
@@ -903,21 +903,21 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 611428,
-   "vertices": 305526,
-   "boundaryEdges": 12,
-   "nonManifoldEdges": 134,
+   "triangles": 609968,
+   "vertices": 304675,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 207,
    "cellSize": 0.08,
-   "activeCells": 2017280,
+   "activeCells": 2022912,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 38.4,
-    "sample": 2337.9,
-    "vertices": 9245.7,
-    "faces": 61.9
+    "cavity": 0.1,
+    "activate": 39.7,
+    "sample": 2388.4,
+    "vertices": 8931.7,
+    "faces": 63
    },
-   "totalMs": 11894
+   "totalMs": 11638.7
   },
   "whiteFrac": [
    [
@@ -951,35 +951,35 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 194212,
-   "vertices": 97065,
+   "triangles": 194812,
+   "vertices": 97360,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 43,
+   "nonManifoldEdges": 48,
    "cellSize": 0.15662361222653745,
    "activeCells": 872960,
    "warnings": [],
    "timings": {
     "cavity": 0,
-    "activate": 8.9,
-    "sample": 446.6,
-    "vertices": 1379.1,
-    "faces": 25.3
+    "activate": 9.7,
+    "sample": 512.8,
+    "vertices": 1893,
+    "faces": 27.4
    },
-   "totalMs": 1909.2
+   "totalMs": 2496.1
   },
   "whiteFrac": [
    [
-    0.09309171597633135,
-    0.21960059171597632,
-    0.6981065088757397,
+    0.08798816568047338,
+    0.21346153846153845,
+    0.6872041420118343,
     0,
-    0.42436390532544377,
+    0.4149704142011834,
     0
    ],
    [
     0,
-    0.1458136094674556,
-    0.2527810650887574,
+    0.14457100591715977,
+    0.2502810650887574,
     0,
     0,
     0.00020710059171597634
@@ -999,29 +999,29 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 217420,
-   "vertices": 108639,
+   "triangles": 217984,
+   "vertices": 108915,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 73,
+   "nonManifoldEdges": 79,
    "cellSize": 0.17512494211030935,
    "activeCells": 777728,
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 9.6,
-    "sample": 376.2,
-    "vertices": 1383.9,
-    "faces": 24.8
+    "activate": 8.7,
+    "sample": 370.1,
+    "vertices": 1535.5,
+    "faces": 24.4
    },
-   "totalMs": 1846.8
+   "totalMs": 1998.6
   },
   "whiteFrac": [
    [
     0,
-    0.07288461538461538,
-    0.5156952662721893,
+    0.06710059171597633,
+    0.506094674556213,
     0,
-    0.17949704142011835,
+    0.171301775147929,
     0
    ]
   ],
@@ -1039,28 +1039,28 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 142296,
-   "vertices": 71150,
+   "triangles": 142280,
+   "vertices": 71142,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.19910714285714284,
    "activeCells": 647680,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 12.5,
-    "sample": 1143,
-    "vertices": 2820.2,
-    "faces": 22.1
+    "cavity": 0,
+    "activate": 9.7,
+    "sample": 1203.9,
+    "vertices": 3781,
+    "faces": 20.8
    },
-   "totalMs": 4026.3
+   "totalMs": 5043.7
   },
   "whiteFrac": [
    [
     0,
     0,
     0,
-    0.5801331360946745,
+    0.5374260355029585,
     0,
     0
    ],
@@ -1068,7 +1068,7 @@
     0,
     0,
     0,
-    0.11865384615384615,
+    0.11390532544378698,
     0,
     0
    ]
@@ -1131,19 +1131,19 @@
    "activeCells": 458240,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 5.3,
-    "sample": 269.5,
-    "vertices": 650,
-    "faces": 15.3
+    "cavity": 0,
+    "activate": 6.2,
+    "sample": 384.3,
+    "vertices": 1111.6,
+    "faces": 14.9
    },
-   "totalMs": 959.9
+   "totalMs": 1536.1
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.008165680473372782,
+    0.008520710059171597,
     0,
     0,
     0
@@ -1163,28 +1163,28 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 236992,
-   "vertices": 118491,
+   "triangles": 236972,
+   "vertices": 118481,
    "boundaryEdges": 0,
    "nonManifoldEdges": 5,
    "cellSize": 0.14464285714285716,
    "activeCells": 870400,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 12.6,
-    "sample": 469.4,
-    "vertices": 1482.1,
-    "faces": 27.4
+    "cavity": 0,
+    "activate": 15,
+    "sample": 651,
+    "vertices": 2125.6,
+    "faces": 26.7
    },
-   "totalMs": 2069.3
+   "totalMs": 2896.6
   },
   "whiteFrac": [
    [
     0.17026627218934912,
     0,
     0.18340236686390532,
-    0.05514792899408284,
+    0.05062130177514793,
     0,
     0
    ]
@@ -1203,27 +1203,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 164796,
-   "vertices": 82396,
+   "triangles": 165512,
+   "vertices": 82615,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 4,
+   "nonManifoldEdges": 128,
    "cellSize": 0.24,
    "activeCells": 843264,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 230.5,
-    "sample": 1152.3,
-    "vertices": 2482.9,
-    "faces": 22
+    "cavity": 0.2,
+    "activate": 260.3,
+    "sample": 1125.5,
+    "vertices": 2631.2,
+    "faces": 23.3
    },
-   "totalMs": 3929.4
+   "totalMs": 4080.4
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.15650887573964498,
+    0.1706508875739645,
     0,
     0,
     0
@@ -1243,30 +1243,30 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 923602,
-   "vertices": 461897,
-   "boundaryEdges": 254,
-   "nonManifoldEdges": 10,
-   "cellSize": 0.10219700718241802,
-   "activeCells": 3500544,
+   "triangles": 925152,
+   "vertices": 462476,
+   "boundaryEdges": 85,
+   "nonManifoldEdges": 110,
+   "cellSize": 0.10216094361324585,
+   "activeCells": 3502592,
    "warnings": [
     "Mesh wall for Group 1 drawn at 0.25 cm, not 0.08 cm (grid too coarse at this size).",
-    "121 quads skipped at block borders"
+    "44 quads skipped at block borders"
    ],
    "timings": {
     "cavity": 0.1,
-    "activate": 1465.4,
-    "sample": 3975,
-    "vertices": 13807.9,
-    "faces": 117.3
+    "activate": 1445.8,
+    "sample": 4010.7,
+    "vertices": 15111.7,
+    "faces": 109
    },
-   "totalMs": 20016.6
+   "totalMs": 21319.2
   },
   "whiteFrac": [
    [
     0,
-    0.0005473372781065089,
-    0.1951923076923077,
+    0.0005029585798816568,
+    0,
     0,
     0,
     0
@@ -1286,8 +1286,8 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 224836,
-   "vertices": 112420,
+   "triangles": 224816,
+   "vertices": 112410,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.19642857142857142,
@@ -1295,18 +1295,18 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 241.1,
-    "sample": 1285,
-    "vertices": 2343.4,
-    "faces": 32.1
+    "activate": 226.5,
+    "sample": 1276.3,
+    "vertices": 2481.5,
+    "faces": 30
    },
-   "totalMs": 3979.4
+   "totalMs": 4073.3
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.3442751479289941,
+    0.333905325443787,
     0,
     0,
     0
@@ -1326,30 +1326,30 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 213280,
-   "vertices": 106642,
+   "triangles": 213536,
+   "vertices": 106770,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.12857142857142856,
    "activeCells": 806400,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 10.8,
-    "sample": 1154,
-    "vertices": 3678.1,
-    "faces": 26.6
+    "cavity": 0,
+    "activate": 11,
+    "sample": 1061.4,
+    "vertices": 3866.9,
+    "faces": 27
    },
-   "totalMs": 4928.1
+   "totalMs": 5021
   },
   "whiteFrac": [
    [
-    0.0022928994082840235,
-    0.0022928994082840235,
+    0.0003106508875739645,
+    0.0003698224852071006,
     0,
-    0.5961390532544378,
-    0.0022928994082840235,
-    0.002337278106508876
+    0.5361686390532544,
+    0.0003106508875739645,
+    0.0003846153846153846
    ]
   ],
   "width": 1560,
@@ -1394,27 +1394,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 271036,
-   "vertices": 135516,
+   "triangles": 271044,
+   "vertices": 135520,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.14285714285714285,
    "activeCells": 1153024,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
+    "cavity": 0,
     "activate": 15.9,
-    "sample": 650.4,
-    "vertices": 1797.9,
-    "faces": 32.2
+    "sample": 630,
+    "vertices": 1918.8,
+    "faces": 33.6
    },
-   "totalMs": 2571.2
+   "totalMs": 2665.1
   },
   "whiteFrac": [
    [
     0.050355029585798815,
     0,
-    0.23081360946745563,
+    0.22707100591715976,
     0,
     0.05979289940828402,
     0
@@ -1437,13 +1437,13 @@
    "activeCells": 666624,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 6.2,
-    "sample": 310.2,
-    "vertices": 968.2,
-    "faces": 22.8
+    "cavity": 0.1,
+    "activate": 6,
+    "sample": 245.3,
+    "vertices": 711.9,
+    "faces": 23.2
    },
-   "totalMs": 1367.8
+   "totalMs": 1031.1
   },
   "whiteFrac": [
    [
@@ -1473,12 +1473,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0,
-    "activate": 6.8,
-    "sample": 219.8,
-    "vertices": 513.1,
-    "faces": 23.3
+    "activate": 6.7,
+    "sample": 172.2,
+    "vertices": 392.5,
+    "faces": 22.5
    },
-   "totalMs": 795.3
+   "totalMs": 624.4
   },
   "whiteFrac": [
    [
@@ -1499,27 +1499,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 159660,
-   "vertices": 79832,
+   "triangles": 158708,
+   "vertices": 79352,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 0,
+   "nonManifoldEdges": 4,
    "cellSize": 0.19579227496462578,
    "activeCells": 673792,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 11.9,
-    "sample": 631.3,
-    "vertices": 1734.4,
-    "faces": 23.1
+    "cavity": 0.2,
+    "activate": 17.5,
+    "sample": 728.7,
+    "vertices": 2034,
+    "faces": 21.9
    },
-   "totalMs": 2440.4
+   "totalMs": 2839.9
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.012144970414201183,
+    0.017677514792899408,
     0,
     0,
     0
@@ -1534,21 +1534,21 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 345184,
-   "vertices": 172574,
+   "triangles": 345160,
+   "vertices": 172562,
    "boundaryEdges": 0,
    "nonManifoldEdges": 18,
    "cellSize": 0.4,
-   "activeCells": 1126912,
+   "activeCells": 1127424,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 321,
-    "sample": 1609.9,
-    "vertices": 5896.8,
-    "faces": 36.7
+    "cavity": 0.1,
+    "activate": 18.3,
+    "sample": 1252.1,
+    "vertices": 4495.3,
+    "faces": 35.7
    },
-   "totalMs": 7959.9
+   "totalMs": 5899.4
   },
   "whiteFrac": [
    [

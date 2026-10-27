@@ -59,6 +59,7 @@ Last updated: 2026-10-27. Benchmark numbers come from `bench/REPORT.md`, which `
 | ✅ | Smooth blends between joined shapes (per-group Blend cm) | SDF only (smooth min); the Mesh kernel shows a sharp union and warns. |
 | ✅ | SDF inner wall exact away from joins | Cavity grid stores only the correction to the analytic per-object depth (D = A + C), so rims and openings on large pieces stay round; the grid matters only at joins/blends. |
 | ✅ | Examples where SDF beats Mesh | Narrow join (Mesh leaves a sealed wall), stretched pebble (Mesh walls 0.7–1.6× the set thickness), smooth blend (Mesh can't). |
+| ⬜ | Export mesh: mug-stick has 128 non-manifold edges (display is correct) | Investigate the CPU mesher near the rim where the stick crosses the opening. |
 | ✅ | Transform as sliders (move / rotate / scale per axis) | Ranges widen to fit the value; heavy rebuilds happen on release. |
 | ✅ | Object modes: Join (shelled) / Solid (added after shelling) / Cut (carved before) | |
 | ✅ | Move / rotate / scale gizmo; numeric fields | Scale runs along the object's local axes; uniform lock. |
