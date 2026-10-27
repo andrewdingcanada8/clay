@@ -12,7 +12,7 @@ import { revolveOutline } from '../engine/primitives';
 import { sampleCurve } from '../engine/profile';
 import type { CavityGrid } from '../engine/cavity';
 import type { SceneDoc } from '../engine/document';
-import { sampleCavity } from '../engine/cavity';
+import { cavityDepth } from '../engine/cavity';
 import { type CompiledGroup, approxDepth, traceScene } from '../engine/scene';
 import type { Vec3 } from '../engine/math';
 import { HandReference } from './hand';
@@ -156,7 +156,7 @@ export class Viewport {
     const grids = this.sdf.grids();
     const depth = (g: CompiledGroup, x: number, y: number, z: number) => {
       const c = grids[g.index];
-      return c ? sampleCavity(c, x, y, z) : approxDepth(g, x, y, z);
+      return c ? cavityDepth(c, g, x, y, z) : approxDepth(g, x, y, z);
     };
     const box = this.sdf.bounds.clone().expandByScalar(0.5);
     const ray = new THREE.Ray(ro, rd);

@@ -14,6 +14,7 @@ import type { SceneDoc } from '../engine/document';
 import { polygonSDF } from '../engine/math';
 import type { CompiledObject } from '../engine/primitives';
 import { type CompiledGroup, OPENING_EPS, compileGroups } from '../engine/scene';
+import { CREASE_TOL } from '../engine/cavity';
 
 const MAX_GROUPS = 8;
 const MAX_GRIDS = 4;
@@ -26,6 +27,17 @@ const TYPE_CODE: Record<string, number> = { sphere: 0, box: 1, cylinder: 2, cone
 interface ProfileTex { tex: THREE.DataTexture; min: [number, number]; max: [number, number] }
 
 const range = (n: number) => Array.from({ length: n }, (_, i) => i);
+
+// unsigned-integer samplers need a matching texture bound even when unused
+const DUMMY_IDX = (() => {
+  const t = new THREE.Data3DTexture(new Uint8Array([255]), 1, 1, 1);
+  t.format = THREE.RedIntegerFormat;
+  t.type = THREE.UnsignedByteType;
+  t.internalFormat = 'R8UI';
+  t.minFilter = t.magFilter = THREE.NearestFilter;
+  t.needsUpdate = true;
+  return t;
+})();
 
 const FRAG = /* glsl */ `
 precision highp float;
@@ -54,7 +66,7 @@ uniform int uHollow[${MAX_GROUPS}];
 uniform int uUseGrid[${MAX_GRIDS}];
 uniform float uCavH[${MAX_GRIDS}];
 uniform vec4 uPins[${MAX_PINS * 2}];
-${range(MAX_GRIDS).map((i) => `uniform sampler3D uCav${i}; uniform vec3 uCavO${i}; uniform vec3 uCavS${i}; uniform float uCavC${i};`).join('\n')}
+${range(MAX_GRIDS).map((i) => `uniform sampler3D uCav${i}; uniform highp usampler3D uIdx${i}; uniform vec3 uCavO${i}; uniform vec3 uCavS${i}; uniform float uCavC${i};`).join('\n')}
 ${range(MAX_PROFILES).map((i) => `uniform sampler2D uProf${i}; uniform vec2 uProfLo${i}; uniform vec2 uProfHi${i};`).join('\n')}
 
 vec4 row(int obj, int r) { return texelFetch(uData, ivec2(r, obj), 0); }
@@ -170,6 +182,34 @@ ${range(MAX_GRIDS).map((i) => `  if (k == ${i}) {
   return -1e5;
 }
 
+uint idxAt(int k, ivec3 c) {
+${range(MAX_GRIDS).map((i) => `  if (k == ${i}) return texelFetch(uIdx${i}, c, 0).r;`).join('\n')}
+  return 255u;
+}
+vec3 cavOrigin(int k) {
+${range(MAX_GRIDS).map((i) => `  if (k == ${i}) return uCavO${i};`).join('\n')}
+  return vec3(0.0);
+}
+ivec3 cavDims(int k) {
+${range(MAX_GRIDS).map((i) => `  if (k == ${i}) return textureSize(uIdx${i}, 0);`).join('\n')}
+  return ivec3(1);
+}
+// Nearest exposed shell objects around p (from the 8 surrounding texels), as up to
+// three object indices relative to the group's first shell; 255 = none.
+uvec3 creaseCandidates(int k, vec3 p) {
+  vec3 f = (p - cavOrigin(k)) / uCavH[k];
+  ivec3 dims = cavDims(k);
+  uvec3 seen = uvec3(255u);
+  if (any(lessThan(f, vec3(0.0))) || any(greaterThan(f, vec3(dims - 1)))) return seen;
+  ivec3 c0 = min(ivec3(floor(f)), dims - 2);
+  for (int c = 0; c < 8; c++) {
+    uint oi = idxAt(k, c0 + ivec3(c & 1, (c >> 1) & 1, (c >> 2) & 1));
+    if (oi == 255u || oi == seen.x || oi == seen.y || oi == seen.z) continue;
+    if (seen.x == 255u) seen.x = oi; else if (seen.y == 255u) seen.y = oi; else seen.z = oi;
+  }
+  return seen;
+}
+
 int gKind;        // 0 clay, 1 section cap, 2 cavity wall
 float gCavH;
 bool gNoClip = false;
@@ -193,16 +233,32 @@ float map(vec3 p) {
     }
     float G = min(fs, fo);
     if (uHollow[g] == 1 && fs < ${OPENING_EPS.toFixed(3)}) {
+      // Depth below the shell surface. With a grid: the exact analytic distance to
+      // the nearest exposed objects (sharp creases), unless it undercuts the grid
+      // (a face buried in another object). Without: the deepest single-object depth.
       float D = -1e5;
       bool grid = g < ${MAX_GRIDS} && uUseGrid[min(g, ${MAX_GRIDS - 1})] == 1;
-      if (grid) D = gridDepth(g, p);
-      else {
-        for (int i = R.x; i < R.y; i++) {
-          if (bound(i, p) > 0.0) continue;
-          float d = sdObj(i, p);
-          D = max(D, d > 0.0 ? -d : holeDepth(i, p));
-        }
+      float dg = 0.0, h = 1.0;
+      uvec3 cand = uvec3(255u);
+      int n = R.y - R.x;
+      if (grid) {
+        h = uCavH[min(g, ${MAX_GRIDS - 1})];
+        dg = gridDepth(g, p);
+        n = 0;
+        if (abs(dg - uT[g]) < 2.0 * h) { cand = creaseCandidates(g, p); n = 3; }
       }
+      float da = grid ? 1e5 : -1e5;
+      for (int c = 0; c < 64; c++) {
+        if (c >= n) break;
+        int i = R.x + c;
+        if (grid) { uint ci = c == 0 ? cand.x : c == 1 ? cand.y : cand.z; if (ci == 255u) continue; i = R.x + int(ci); }
+        else if (bound(i, p) > 0.0) continue;
+        float d = sdObj(i, p);
+        float dep = d > 0.0 ? (grid ? d : -d) : holeDepth(i, p);
+        da = grid ? min(da, dep) : max(da, dep);
+      }
+      if (grid) D = (da > 9e4 || da < dg - ${CREASE_TOL.toFixed(2)} * h) ? dg : da;
+      else D = da;
       cav = max(fs - ${OPENING_EPS.toFixed(3)}, uT[g] - D);
       cut = cav;
     }
@@ -225,13 +281,18 @@ float map(vec3 p) {
 }
 
 vec3 calcNormal(vec3 p, float e) {
-  const vec2 k = vec2(1.0, -1.0);
-  return normalize(k.xyy * map(p + k.xyy * e) + k.yyx * map(p + k.yyx * e) + k.yxy * map(p + k.yxy * e) + k.xxx * map(p + k.xxx * e));
+  // looped so the compiler emits map() once here (keeps the shader small)
+  vec3 n = vec3(0.0);
+  for (int i = min(uGroupCount, 0); i < 4; i++) {
+    vec3 k = 0.5773 * (2.0 * vec3((((i + 3) >> 1) & 1), ((i >> 1) & 1), (i & 1)) - 1.0);
+    n += k * map(p + k * e);
+  }
+  return normalize(n);
 }
 float calcAO(vec3 p, vec3 n) {
   float occ = 0.0, sca = 1.0;
   gNoClip = true; // occlusion comes from the clay only, not the section plane
-  for (int i = 0; i < 4; i++) {
+  for (int i = min(uGroupCount, 0); i < 4; i++) {
     float h = 0.15 + 0.6 * float(i);
     float d = map(p + n * h);
     occ += (h - d) * sca; sca *= 0.75;
@@ -267,8 +328,7 @@ void main() {
   vec4 clip = uProjView * vec4(p, 1.0);
   gl_FragDepth = clamp((clip.z / clip.w) * 0.5 + 0.5, 0.0, 1.0);
   if (uFlat == 1) { pc_fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
-  map(p);
-  int kind = gKind;
+  int kind = gKind; // set by the last map() call, at p
   // the inner wall comes from an interpolated grid: take its normal over half a
   // texel so texel boundaries don't show as facets
   float ne = max(0.0008, uPixelAngle * t * 0.5);
@@ -293,6 +353,7 @@ export class SdfRenderer {
   private groups: CompiledGroup[] = [];
   private profiles = new Map<string, ProfileTex>();
   private gridTex: (THREE.Data3DTexture | null)[] = [];
+  private idxTex: (THREE.Data3DTexture | null)[] = [];
   private gridSrc: (CavityGrid | null)[] = [];
   private gridsByIndex: (CavityGrid | null)[] = [];
   /** World-space bounds of everything drawn. */
@@ -325,6 +386,7 @@ export class SdfRenderer {
     };
     for (const i of range(MAX_GRIDS)) {
       u[`uCav${i}`] = { value: null };
+      u[`uIdx${i}`] = { value: DUMMY_IDX };
       u[`uCavO${i}`] = { value: new THREE.Vector3() };
       u[`uCavS${i}`] = { value: new THREE.Vector3(1, 1, 1) };
       u[`uCavC${i}`] = { value: 1 };
@@ -433,6 +495,8 @@ export class SdfRenderer {
       if (c !== this.gridSrc[k]) {
         this.gridTex[k]?.dispose();
         this.gridTex[k] = null;
+        this.idxTex[k]?.dispose();
+        this.idxTex[k] = null;
         if (c) {
           const half = new Uint16Array(c.data.length);
           for (let q = 0; q < c.data.length; q++) half[q] = THREE.DataUtils.toHalfFloat(c.data[q]);
@@ -444,10 +508,19 @@ export class SdfRenderer {
           tex.unpackAlignment = 1;
           tex.needsUpdate = true;
           this.gridTex[k] = tex;
+          const it = new THREE.Data3DTexture(c.objIdx, c.dims[0], c.dims[1], c.dims[2]);
+          it.format = THREE.RedIntegerFormat;
+          it.type = THREE.UnsignedByteType;
+          it.internalFormat = 'R8UI';
+          it.minFilter = it.magFilter = THREE.NearestFilter;
+          it.unpackAlignment = 1;
+          it.needsUpdate = true;
+          this.idxTex[k] = it;
         }
         this.gridSrc[k] = c;
       }
       u[`uCav${k}`].value = this.gridTex[k];
+      u[`uIdx${k}`].value = this.idxTex[k] ?? DUMMY_IDX;
       (u.uUseGrid.value as number[])[k] = c ? 1 : 0;
       (u.uCavH.value as number[])[k] = c ? c.h : 0;
       if (c) {

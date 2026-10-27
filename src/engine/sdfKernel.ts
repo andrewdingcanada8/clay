@@ -8,7 +8,7 @@
 // Meshing: sparse 8^3 blocks (skipped only when the surface provably cannot pass
 // through them), dual contouring with a QEF per cell to keep sharp edges.
 
-import { buildCavityGrid, type CavityGrid, sampleCavity } from './cavity';
+import { buildCavityGrid, type CavityGrid, cavityDepth } from './cavity';
 import type { Quality, SceneDoc } from './document';
 import { type BuildResult, Timer } from './kernel';
 import type { Vec3 } from './math';
@@ -31,7 +31,7 @@ export function cavityGrids(groups: CompiledGroup[], quality: Quality): (CavityG
 export function depthFromGrids(grids: (CavityGrid | null)[]) {
   return (g: CompiledGroup, x: number, y: number, z: number) => {
     const c = grids[g.index];
-    return c ? sampleCavity(c, x, y, z) : -Infinity;
+    return c ? cavityDepth(c, g, x, y, z) : -Infinity;
   };
 }
 

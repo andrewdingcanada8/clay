@@ -4,43 +4,45 @@ Quality: normal. Images: `bench/out/<case>-<kernel>.png`.
 
 | case | kernel | build ms | triangles | boundary edges | non-manifold | max interior white % | warnings |
 |---|---|---:|---:|---:|---:|---:|---|
-| open-box | sdf | 991 | 368184 | 0 | 0 | 44.8 |  |
-| open-box | mesh | 33 | 40 | 0 | 0 | 44.8 |  |
-| sphere-cube | sdf | 654 | 210932 | 0 | 0 | 72.9 |  |
-| sphere-cube | mesh | 108 | 18428 | 0 | 0 | 72.9 |  |
-| chain-30 | sdf | 2599 | 165436 | 0 | 63 | 10.9 |  |
-| chain-30 | mesh | 4701 | 576744 | 0 | 0 | 10.8 |  |
-| vase | sdf | 1113 | 139324 | 0 | 0 | 18.1 |  |
-| vase | mesh | 92 | 21612 | 0 | 0 | 17.3 |  |
-| bowl | sdf | 830 | 111672 | 0 | 0 | 100.0 |  |
-| bowl | mesh | 48 | 11088 | 0 | 0 | 100.0 |  |
-| cylinder-pins | sdf | 1057 | 216400 | 0 | 0 | 25.0 |  |
-| cylinder-pins | mesh | 25 | 1980 | 0 | 0 | 24.9 |  |
-| cup-stick | sdf | 908 | 123996 | 0 | 2 | 22.2 |  |
-| cup-stick | mesh | 67 | 12640 | 0 | 0 | 21.9 |  |
-| vase-sticks | sdf | 1364 | 164952 | 0 | 7 | 1.7 |  |
-| vase-sticks | mesh | 353 | 25296 | 0 | 0 | 1.7 |  |
-| vase-solid-sticks | sdf | 1241 | 169628 | 0 | 2 | 1.7 |  |
-| vase-solid-sticks | mesh | 141 | 23544 | 0 | 0 | 1.7 |  |
-| torus | sdf | 724 | 152436 | 0 | 0 | 0.0 |  |
-| torus | mesh | 132 | 41624 | 0 | 0 | 0.0 |  |
-| lattice | sdf | 761 | 187752 | 0 | 2 | 0.7 |  |
-| lattice | mesh | 15 | 372 | 0 | 0 | 0.7 |  |
-| vase-thin | sdf | 9118 | 1169672 | 0 | 0 | 24.1 | Mesh wall for Group 1 drawn at 0.21 cm, not 0.20 cm (grid too coarse at this size). |
-| vase-thin | mesh | 163 | 22070 | 0 | 0 | 24.0 |  |
-| chain-thin | sdf | 2935 | 616112 | 0 | 88 | 0.0 |  |
-| chain-thin | mesh | 968 | 223848 | 0 | 0 | 0.0 | Sphere 1: opening on curved face "surface" not supported by the mesh kernel |
-| transformed | sdf | 878 | 143172 | 0 | 51 | 68.8 |  |
-| transformed | mesh | 110 | 14782 | 0 | 0 | 68.7 | Sphere: X/Z scale differs, wall thickness approximate |
-| rotated-box | sdf | 710 | 160040 | 0 | 61 | 50.6 |  |
-| rotated-box | mesh | 10 | 42 | 0 | 0 | 50.5 |  |
-| tower | sdf | 584 | 104728 | 0 | 1 | 53.4 |  |
-| tower | mesh | 26 | 402 | 0 | 0 | 53.3 |  |
-| thick-wall | sdf | 677 | 69376 | 0 | 2 | 0.9 |  |
-| thick-wall | mesh | 92 | 24198 | 0 | 0 | 0.0 |  |
-| cut-sphere | sdf | 1033 | 197836 | 0 | 5 | 5.0 |  |
-| cut-sphere | mesh | 109 | 16938 | 0 | 0 | 5.0 |  |
-| mug-stick | sdf | 1142 | 171136 | 0 | 1 | 15.1 |  |
-| mug-stick | mesh | 147 | 35158 | 0 | 0 | 15.8 |  |
-| mug-thin | sdf | 7714 | 927328 | 0 | 6 | 16.7 | Wall drawn at 0.25 cm, not 0.08 cm: the SDF grid can't resolve it at this size. Use Fine quality, or the Mesh kernel for the exact wall. |
-| mug-thin | mesh | 216 | 35900 | 0 | 0 | 17.6 |  |
+| open-box | sdf | 1032 | 368184 | 0 | 0 | 44.8 |  |
+| open-box | mesh | 27 | 42 | 0 | 0 | 44.8 |  |
+| sphere-cube | sdf | 650 | 210932 | 0 | 0 | 72.9 |  |
+| sphere-cube | mesh | 103 | 18434 | 0 | 0 | 72.9 |  |
+| chain-30 | sdf | 2632 | 165436 | 0 | 63 | 10.9 |  |
+| chain-30 | mesh | 2749 | 576744 | 0 | 0 | 10.8 |  |
+| vase | sdf | 1666 | 189884 | 0 | 0 | 18.1 |  |
+| vase | mesh | 123 | 21612 | 0 | 0 | 17.3 |  |
+| bowl | sdf | 1130 | 153100 | 0 | 0 | 100.0 |  |
+| bowl | mesh | 94 | 11088 | 0 | 0 | 100.0 |  |
+| cylinder-pins | sdf | 1612 | 295396 | 0 | 0 | 25.0 |  |
+| cylinder-pins | mesh | 70 | 1972 | 0 | 0 | 24.9 |  |
+| cup-stick | sdf | 1165 | 169044 | 0 | 1 | 22.3 |  |
+| cup-stick | mesh | 99 | 12636 | 0 | 0 | 21.9 |  |
+| vase-sticks | sdf | 1803 | 206596 | 0 | 7 | 1.7 |  |
+| vase-sticks | mesh | 383 | 25290 | 0 | 0 | 1.7 |  |
+| vase-solid-sticks | sdf | 1758 | 198432 | 0 | 0 | 1.7 |  |
+| vase-solid-sticks | mesh | 169 | 22932 | 0 | 0 | 1.7 |  |
+| torus | sdf | 1274 | 208552 | 0 | 0 | 0.0 |  |
+| torus | mesh | 149 | 41624 | 0 | 0 | 0.0 |  |
+| lattice | sdf | 3310 | 256308 | 0 | 0 | 0.0 |  |
+| lattice | mesh | 17 | 376 | 0 | 0 | 0.7 |  |
+| vase-thin | sdf | — | — | — | — | — | ERROR: timeout (> 300 s) |
+| vase-thin | mesh | 156 | 22064 | 0 | 0 | 24.0 |  |
+| chain-thin | sdf | 6548 | 654448 | 650 | 490 | 0.0 | 243 quads skipped at block borders |
+| chain-thin | mesh | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| transformed | sdf | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| transformed | mesh | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| rotated-box | sdf | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| rotated-box | mesh | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| tower | sdf | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| tower | mesh | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| thick-wall | sdf | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| thick-wall | mesh | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| cut-sphere | sdf | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| cut-sphere | mesh | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| mug-stick | sdf | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| mug-stick | mesh | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| mug-thin | sdf | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| mug-thin | mesh | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| two-groups | sdf | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| two-groups | mesh | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |

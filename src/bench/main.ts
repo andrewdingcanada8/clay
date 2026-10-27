@@ -6,7 +6,7 @@ import { examples } from '../examples';
 import '../browserSetup';
 import { buildMesh } from '../engine/build';
 import type { KernelName, Quality } from '../engine/document';
-import { buildCavityGrid, type CavityGrid, sampleCavity } from '../engine/cavity';
+import { buildCavityGrid, type CavityGrid, cavityDepth } from '../engine/cavity';
 import { buildSDF } from '../engine/sdfKernel';
 import { approxDepth, compileGroups, traceScene } from '../engine/scene';
 import type { Vec3 } from '../engine/math';
@@ -59,6 +59,38 @@ async function main() {
   geo.computeBoundingBox();
   geo.computeBoundingSphere();
   const bs = sdfR ? sdfR.bounds.getBoundingSphere(new THREE.Sphere()) : geo.boundingSphere ?? new THREE.Sphere(new THREE.Vector3(), 5);
+
+  // Close-up: one large section tile through a point (?closeup=x,y,z,radius)
+  const cu = params.get('closeup');
+  if (cu) {
+    const [cx, cy, cz, cr] = cu.split(',').map(Number);
+    const S = 900;
+    const r2 = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    r2.setPixelRatio(1);
+    r2.setSize(S, S);
+    document.getElementById('sheet')!.appendChild(r2.domElement);
+    const sc = new THREE.Scene();
+    sc.background = new THREE.Color(0xffffff);
+    sc.add(new THREE.HemisphereLight(0xffffff, 0x666666, 2.2));
+    const dl2 = new THREE.DirectionalLight(0xffffff, 1.6);
+    dl2.position.set(3, 5, 4);
+    sc.add(dl2);
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, -1), cz);
+    if (sdfR) { sc.add(sdfR.mesh); sdfR.setClip(plane); }
+    else {
+      const mf = new THREE.MeshStandardMaterial({ color: 0xb8b2aa, roughness: 0.9, clippingPlanes: [plane] });
+      const mb = new THREE.MeshBasicMaterial({ color: 0x8a1c1c, side: THREE.BackSide, clippingPlanes: [plane] });
+      r2.localClippingEnabled = true;
+      sc.add(new THREE.Mesh(geo, mf), new THREE.Mesh(geo, mb));
+    }
+    const cam = new THREE.PerspectiveCamera(35, 1, 0.05, 1000);
+    const c = new THREE.Vector3(cx, cy, cz);
+    cam.position.copy(c).add(new THREE.Vector3(0.35, 0.25, 1).normalize().multiplyScalar(cr / Math.tan((17.5 * Math.PI) / 180)));
+    cam.lookAt(c);
+    r2.render(sc, cam);
+    window.__bench = { id: ex.id, kernel, quality, stats, whiteFrac: [], width: S, height: S };
+    return;
+  }
 
   const probes = ex.probes;
   const cols = 6;
@@ -164,7 +196,7 @@ async function main() {
       const groups = compileGroups(doc);
       const depth = (g: { index: number }, x: number, y: number, z: number) => {
         const c = gridArr[g.index];
-        return c ? sampleCavity(c, x, y, z) : approxDepth(g as never, x, y, z);
+        return c ? cavityDepth(c, g as never, x, y, z) : approxDepth(g as never, x, y, z);
       };
       const h = traceScene(groups, depth, p0.toArray() as Vec3, d.toArray() as Vec3, 0.01, 500);
       if (h) hits.push([name, new THREE.Vector3(...h.p), d]);

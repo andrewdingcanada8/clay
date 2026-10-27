@@ -14,12 +14,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 12.4,
-    "sample": 288.3,
-    "vertices": 520,
-    "faces": 42.9
+    "activate": 14.3,
+    "sample": 341.5,
+    "vertices": 531.6,
+    "faces": 41.8
    },
-   "totalMs": 990.9
+   "totalMs": 1032.3
   },
   "whiteFrac": [
    [
@@ -40,21 +40,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 40,
-   "vertices": 22,
+   "triangles": 42,
+   "vertices": 23,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 19.4,
-    "primitives": 6.3,
-    "union": 0.3,
-    "cavity": 0.9,
-    "shell": 4.3,
-    "finish": 0.1,
-    "extract": 2.1
+    "wasm": 15.6,
+    "primitives": 4.4,
+    "groups": 5.3,
+    "finish": 1.5,
+    "extract": 0.6
    },
-   "totalMs": 33.4
+   "totalMs": 27.4
   },
   "whiteFrac": [
    [
@@ -83,13 +81,13 @@
    "activeCells": 865792,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 6.9,
-    "sample": 179.3,
-    "vertices": 383.4,
-    "faces": 26.2
+    "cavity": 0.1,
+    "activate": 12.2,
+    "sample": 162.2,
+    "vertices": 383.9,
+    "faces": 28.2
    },
-   "totalMs": 654.4
+   "totalMs": 649.5
   },
   "whiteFrac": [
    [
@@ -118,21 +116,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 18428,
-   "vertices": 9216,
+   "triangles": 18434,
+   "vertices": 9219,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 11.9,
-    "primitives": 16.3,
-    "union": 2.7,
-    "cavity": 11.5,
-    "shell": 21.1,
-    "finish": 0,
-    "extract": 41.6
+    "wasm": 7.8,
+    "primitives": 16.2,
+    "groups": 45.5,
+    "finish": 27.9,
+    "extract": 2.6
    },
-   "totalMs": 107.9
+   "totalMs": 102.8
   },
   "whiteFrac": [
    [
@@ -169,13 +165,13 @@
    "activeCells": 496128,
    "warnings": [],
    "timings": {
-    "cavity": 0.2,
-    "activate": 12.3,
-    "sample": 646,
-    "vertices": 1882.8,
-    "faces": 21.4
+    "cavity": 0.1,
+    "activate": 10.1,
+    "sample": 674,
+    "vertices": 1887.6,
+    "faces": 20.3
    },
-   "totalMs": 2599.2
+   "totalMs": 2631.6
   },
   "whiteFrac": [
    [
@@ -218,15 +214,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 6,
-    "primitives": 203.5,
-    "union": 39,
-    "cavity": 446,
-    "shell": 1030.9,
-    "finish": 0.9,
-    "extract": 2682.9
+    "wasm": 15.6,
+    "primitives": 226.6,
+    "groups": 1364.6,
+    "finish": 839.2,
+    "extract": 37.7
    },
-   "totalMs": 4700.8
+   "totalMs": 2749.3
   },
   "whiteFrac": [
    [
@@ -263,30 +257,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 139324,
-   "vertices": 69664,
+   "triangles": 189884,
+   "vertices": 94944,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
-   "cellSize": 0.25,
-   "activeCells": 421376,
+   "cellSize": 0.21428571428571427,
+   "activeCells": 845824,
    "warnings": [],
    "timings": {
-    "activate": 9.1,
-    "sampleF": 159.6,
-    "seeds": 129.7,
-    "propagate": 298.2,
-    "sampleS": 39.1,
-    "vertices": 419.3,
-    "faces": 20.7,
-    "check": 37.1
+    "cavity": 0.1,
+    "activate": 7.7,
+    "sample": 514.4,
+    "vertices": 1066.6,
+    "faces": 25.1
    },
-   "totalMs": 1112.8
+   "totalMs": 1666.1
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.02306213017751479,
+    0.02319526627218935,
     0,
     0,
     0
@@ -294,7 +285,7 @@
    [
     0,
     0,
-    0.18079881656804733,
+    0.18116863905325445,
     0,
     0,
     0
@@ -315,15 +306,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 10.3,
-    "primitives": 6.7,
-    "union": 0.8,
-    "cavity": 10.1,
-    "shell": 13.6,
-    "finish": 0,
-    "extract": 47
+    "wasm": 8.6,
+    "primitives": 13.8,
+    "groups": 37.6,
+    "finish": 55.6,
+    "extract": 3.2
    },
-   "totalMs": 91.6
+   "totalMs": 123.4
   },
   "whiteFrac": [
    [
@@ -352,33 +341,30 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 111672,
-   "vertices": 55838,
+   "triangles": 153100,
+   "vertices": 76552,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
-   "cellSize": 0.25833333333333336,
-   "activeCells": 482304,
+   "cellSize": 0.22142857142857142,
+   "activeCells": 906752,
    "warnings": [],
    "timings": {
-    "activate": 9,
-    "sampleF": 132.3,
-    "seeds": 89.3,
-    "propagate": 241.3,
-    "sampleS": 38.6,
-    "vertices": 280.5,
-    "faces": 17.6,
-    "check": 21.3
+    "cavity": 0.1,
+    "activate": 7.5,
+    "sample": 438.5,
+    "vertices": 628.9,
+    "faces": 23.2
    },
-   "totalMs": 829.9
+   "totalMs": 1129.8
   },
   "whiteFrac": [
    [
-    0.18704142011834318,
+    0.18708579881656806,
     0.18707100591715975,
     1,
     0,
-    0.18695266272189348,
-    0.18696745562130176
+    0.18708579881656806,
+    0.18707100591715975
    ]
   ],
   "width": 1560,
@@ -396,15 +382,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 5.4,
-    "primitives": 4.2,
-    "union": 0.4,
-    "cavity": 4.3,
-    "shell": 6.9,
-    "finish": 0.1,
-    "extract": 24.9
+    "wasm": 18.5,
+    "primitives": 9.9,
+    "groups": 24.7,
+    "finish": 35.8,
+    "extract": 2.1
    },
-   "totalMs": 48
+   "totalMs": 93.6
   },
   "whiteFrac": [
    [
@@ -425,33 +409,30 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 216400,
-   "vertices": 108190,
+   "triangles": 295396,
+   "vertices": 147688,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
-   "cellSize": 0.14583333333333334,
-   "activeCells": 910336,
+   "cellSize": 0.125,
+   "activeCells": 1287680,
    "warnings": [],
    "timings": {
-    "activate": 11.6,
-    "sampleF": 64.2,
-    "seeds": 85.3,
-    "propagate": 440.3,
-    "sampleS": 69.2,
-    "vertices": 292.9,
-    "faces": 32.8,
-    "check": 60.3
+    "cavity": 0,
+    "activate": 11.5,
+    "sample": 472.5,
+    "vertices": 1018.5,
+    "faces": 35.2
    },
-   "totalMs": 1056.6
+   "totalMs": 1612.3
   },
   "whiteFrac": [
    [
-    0.007707100591715976,
-    0.0045118343195266275,
-    0.24970414201183433,
+    0.007603550295857988,
+    0.004201183431952663,
+    0.24997041420118343,
     0,
-    0.04150887573964497,
-    0.033801775147928995
+    0.04084319526627219,
+    0.03321005917159763
    ]
   ],
   "width": 1560,
@@ -463,21 +444,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 1980,
-   "vertices": 980,
+   "triangles": 1972,
+   "vertices": 976,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 6.4,
-    "primitives": 0.8,
-    "union": 0,
-    "cavity": 0.4,
-    "shell": 1.9,
-    "finish": 0.8,
-    "extract": 14.1
+    "wasm": 18.5,
+    "primitives": 5,
+    "groups": 11.1,
+    "finish": 34.2,
+    "extract": 0.9
    },
-   "totalMs": 24.9
+   "totalMs": 70.1
   },
   "whiteFrac": [
    [
@@ -498,30 +477,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 123996,
-   "vertices": 61998,
+   "triangles": 169044,
+   "vertices": 84523,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 2,
-   "cellSize": 0.22916666666666666,
-   "activeCells": 460288,
+   "nonManifoldEdges": 1,
+   "cellSize": 0.19642857142857142,
+   "activeCells": 930304,
    "warnings": [],
    "timings": {
-    "activate": 7.5,
-    "sampleF": 123.4,
-    "seeds": 129.9,
-    "propagate": 249.4,
-    "sampleS": 38.8,
-    "vertices": 314.4,
-    "faces": 19.5,
-    "check": 25.1
+    "cavity": 0,
+    "activate": 8.2,
+    "sample": 411.4,
+    "vertices": 684,
+    "faces": 23.6
    },
-   "totalMs": 908
+   "totalMs": 1165.2
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.22173076923076923,
+    0.22275147928994082,
     0,
     0,
     0
@@ -536,21 +512,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 12640,
-   "vertices": 6322,
+   "triangles": 12636,
+   "vertices": 6320,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 9,
-    "primitives": 4.6,
-    "union": 0.6,
-    "cavity": 4.9,
-    "shell": 13,
-    "finish": 0,
-    "extract": 32.5
+    "wasm": 9.4,
+    "primitives": 10.5,
+    "groups": 44.7,
+    "finish": 29.3,
+    "extract": 2.3
    },
-   "totalMs": 66.7
+   "totalMs": 98.8
   },
   "whiteFrac": [
    [
@@ -571,30 +545,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 164952,
-   "vertices": 82471,
+   "triangles": 206596,
+   "vertices": 103293,
    "boundaryEdges": 0,
    "nonManifoldEdges": 7,
-   "cellSize": 0.24,
-   "activeCells": 504832,
+   "cellSize": 0.21428571428571427,
+   "activeCells": 697856,
    "warnings": [],
    "timings": {
-    "activate": 15.6,
-    "sampleF": 241.4,
-    "seeds": 156.8,
-    "propagate": 293.5,
-    "sampleS": 42.8,
-    "vertices": 555.6,
-    "faces": 23.1,
-    "check": 35.3
+    "cavity": 0.1,
+    "activate": 8.3,
+    "sample": 470.1,
+    "vertices": 1244,
+    "faces": 24.9
    },
-   "totalMs": 1364.2
+   "totalMs": 1803.4
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.016937869822485206,
+    0.017100591715976332,
     0,
     0,
     0
@@ -609,21 +580,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 25296,
-   "vertices": 12650,
+   "triangles": 25290,
+   "vertices": 12647,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 16.9,
-    "primitives": 7.5,
-    "union": 1.1,
-    "cavity": 10.8,
-    "shell": 146.1,
-    "finish": 0,
-    "extract": 166.5
+    "wasm": 12,
+    "primitives": 14.8,
+    "groups": 283.7,
+    "finish": 64.8,
+    "extract": 3.6
    },
-   "totalMs": 352.7
+   "totalMs": 383.4
   },
   "whiteFrac": [
    [
@@ -644,30 +613,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 169628,
-   "vertices": 84808,
+   "triangles": 198432,
+   "vertices": 99218,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 2,
-   "cellSize": 0.24,
-   "activeCells": 538112,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.21428571428571427,
+   "activeCells": 894464,
    "warnings": [],
    "timings": {
-    "activate": 14.5,
-    "sampleF": 193.2,
-    "seeds": 147.2,
-    "propagate": 271.3,
-    "sampleS": 56.3,
-    "vertices": 497.7,
-    "faces": 22.8,
-    "check": 37.7
+    "cavity": 0.1,
+    "activate": 10.7,
+    "sample": 562.7,
+    "vertices": 1107.7,
+    "faces": 26.2
    },
-   "totalMs": 1240.7
+   "totalMs": 1758.1
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.016937869822485206,
+    0.017100591715976332,
     0,
     0,
     0
@@ -682,21 +648,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 23544,
-   "vertices": 11770,
+   "triangles": 22932,
+   "vertices": 11468,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 6.4,
-    "primitives": 7.7,
-    "union": 0.9,
-    "cavity": 10,
-    "shell": 13.2,
-    "finish": 0.1,
-    "extract": 97
+    "wasm": 15.7,
+    "primitives": 20.5,
+    "groups": 46.1,
+    "finish": 77.8,
+    "extract": 3.7
    },
-   "totalMs": 140.9
+   "totalMs": 169.3
   },
   "whiteFrac": [
    [
@@ -717,24 +681,21 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 152436,
-   "vertices": 76216,
+   "triangles": 208552,
+   "vertices": 104274,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
-   "cellSize": 0.20416666666666666,
-   "activeCells": 448512,
+   "cellSize": 0.175,
+   "activeCells": 713728,
    "warnings": [],
    "timings": {
-    "activate": 6.1,
-    "sampleF": 39.7,
-    "seeds": 51.7,
-    "propagate": 305.5,
-    "sampleS": 48.3,
-    "vertices": 211.7,
-    "faces": 22.7,
-    "check": 38.6
+    "cavity": 0.1,
+    "activate": 8.4,
+    "sample": 265.1,
+    "vertices": 914.7,
+    "faces": 25.2
    },
-   "totalMs": 724.3
+   "totalMs": 1274
   },
   "whiteFrac": [
    [
@@ -761,15 +722,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 16.9,
-    "primitives": 15.6,
-    "union": 1.8,
-    "cavity": 16.7,
-    "shell": 0.1,
-    "finish": 0.2,
-    "extract": 75.6
+    "wasm": 11.2,
+    "primitives": 26.8,
+    "groups": 23.2,
+    "finish": 76.9,
+    "extract": 4.7
    },
-   "totalMs": 132.4
+   "totalMs": 148.5
   },
   "whiteFrac": [
    [
@@ -790,29 +749,26 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 187752,
-   "vertices": 93884,
+   "triangles": 256308,
+   "vertices": 128164,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 2,
-   "cellSize": 0.1875,
-   "activeCells": 778240,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.16071428571428573,
+   "activeCells": 1050624,
    "warnings": [],
    "timings": {
-    "activate": 9.8,
-    "sampleF": 66.3,
-    "seeds": 97.2,
-    "propagate": 207.6,
-    "sampleS": 49.4,
-    "vertices": 252.8,
-    "faces": 28.9,
-    "check": 49.1
+    "cavity": 0.1,
+    "activate": 11.9,
+    "sample": 780.3,
+    "vertices": 2415.5,
+    "faces": 29.6
    },
-   "totalMs": 761.1
+   "totalMs": 3310.3
   },
   "whiteFrac": [
    [
     0,
-    0.007130177514792899,
+    0,
     0,
     0,
     0,
@@ -828,21 +784,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 372,
-   "vertices": 196,
+   "triangles": 376,
+   "vertices": 198,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 7.2,
-    "primitives": 1.9,
-    "union": 0.2,
-    "cavity": 0.3,
-    "shell": 2.2,
-    "finish": 0,
-    "extract": 3
+    "wasm": 6.8,
+    "primitives": 1.4,
+    "groups": 7.3,
+    "finish": 0.8,
+    "extract": 0.3
    },
-   "totalMs": 14.9
+   "totalMs": 16.7
   },
   "whiteFrac": [
    [
@@ -860,47 +814,7 @@
  "vase-thin|sdf": {
   "id": "vase-thin",
   "kernel": "sdf",
-  "quality": "normal",
-  "stats": {
-   "kernel": "sdf",
-   "triangles": 1169672,
-   "vertices": 584838,
-   "boundaryEdges": 0,
-   "nonManifoldEdges": 0,
-   "cellSize": 0.08809635219689861,
-   "activeCells": 3738112,
-   "warnings": [
-    "Mesh wall for Group 1 drawn at 0.21 cm, not 0.20 cm (grid too coarse at this size)."
-   ],
-   "timings": {
-    "cavity": 0.1,
-    "activate": 89.3,
-    "sample": 2160.8,
-    "vertices": 6036,
-    "faces": 107
-   },
-   "totalMs": 9118.4
-  },
-  "whiteFrac": [
-   [
-    0,
-    0,
-    0.03118343195266272,
-    0,
-    0,
-    0
-   ],
-   [
-    0,
-    0,
-    0.2405621301775148,
-    0,
-    0,
-    0
-   ]
-  ],
-  "width": 1560,
-  "height": 1300
+  "error": "timeout (> 300 s)"
  },
  "vase-thin|mesh": {
   "id": "vase-thin",
@@ -908,21 +822,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 22070,
-   "vertices": 11037,
+   "triangles": 22064,
+   "vertices": 11034,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 8.3,
-    "primitives": 14.4,
-    "union": 2.2,
-    "cavity": 17.3,
-    "shell": 28,
-    "finish": 0,
-    "extract": 87
+    "wasm": 14.8,
+    "primitives": 18.1,
+    "groups": 41,
+    "finish": 73.9,
+    "extract": 4.1
    },
-   "totalMs": 162.6
+   "totalMs": 156.3
   },
   "whiteFrac": [
    [
@@ -951,24 +863,23 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 616112,
-   "vertices": 307970,
-   "boundaryEdges": 0,
-   "nonManifoldEdges": 88,
+   "triangles": 654448,
+   "vertices": 326973,
+   "boundaryEdges": 650,
+   "nonManifoldEdges": 490,
    "cellSize": 0.08,
-   "activeCells": 1985024,
-   "warnings": [],
+   "activeCells": 2029568,
+   "warnings": [
+    "243 quads skipped at block borders"
+   ],
    "timings": {
-    "activate": 56.9,
-    "sampleF": 146,
-    "seeds": 295.1,
-    "propagate": 1106.2,
-    "sampleS": 111.7,
-    "vertices": 871.2,
-    "faces": 67.4,
-    "check": 280.7
+    "cavity": 0.2,
+    "activate": 37.7,
+    "sample": 1380.1,
+    "vertices": 4822,
+    "faces": 71.8
    },
-   "totalMs": 2935.3
+   "totalMs": 6547.5
   },
   "whiteFrac": [
    [
@@ -994,593 +905,86 @@
  "chain-thin|mesh": {
   "id": "chain-thin",
   "kernel": "mesh",
-  "quality": "normal",
-  "stats": {
-   "kernel": "mesh/offset",
-   "triangles": 223848,
-   "vertices": 111928,
-   "boundaryEdges": 0,
-   "nonManifoldEdges": 0,
-   "warnings": [
-    "Sphere 1: opening on curved face \"surface\" not supported by the mesh kernel"
-   ],
-   "timings": {
-    "wasm": 18.9,
-    "primitives": 90.9,
-    "union": 16.8,
-    "cavity": 94.2,
-    "shell": 229.8,
-    "finish": 0,
-    "extract": 460.9
-   },
-   "totalMs": 968.2
-  },
-  "whiteFrac": [
-   [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-   ],
-   [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-   ]
-  ],
-  "width": 1560,
-  "height": 1300
+  "error": "Error: Error creating WebGL context."
  },
  "transformed|sdf": {
   "id": "transformed",
   "kernel": "sdf",
-  "quality": "normal",
-  "stats": {
-   "kernel": "sdf",
-   "triangles": 143172,
-   "vertices": 71537,
-   "boundaryEdges": 0,
-   "nonManifoldEdges": 51,
-   "cellSize": 0.18272754759762702,
-   "activeCells": 622592,
-   "warnings": [],
-   "timings": {
-    "activate": 7.8,
-    "sampleF": 64.8,
-    "seeds": 71.5,
-    "propagate": 388.4,
-    "sampleS": 43.4,
-    "vertices": 231.6,
-    "faces": 30.3,
-    "check": 40.4
-   },
-   "totalMs": 878.2
-  },
-  "whiteFrac": [
-   [
-    0.08804733727810651,
-    0.2139940828402367,
-    0.6881360946745562,
-    0,
-    0.4162721893491124,
-    0
-   ],
-   [
-    0,
-    0.14116863905325444,
-    0.2467603550295858,
-    0,
-    0,
-    0
-   ]
-  ],
-  "width": 1560,
-  "height": 1300
+  "error": "Error: Error creating WebGL context."
  },
  "transformed|mesh": {
   "id": "transformed",
   "kernel": "mesh",
-  "quality": "normal",
-  "stats": {
-   "kernel": "mesh/offset",
-   "triangles": 14782,
-   "vertices": 7393,
-   "boundaryEdges": 0,
-   "nonManifoldEdges": 0,
-   "warnings": [
-    "Sphere: X/Z scale differs, wall thickness approximate"
-   ],
-   "timings": {
-    "wasm": 15,
-    "primitives": 9.6,
-    "union": 1.2,
-    "cavity": 10,
-    "shell": 18.7,
-    "finish": 0,
-    "extract": 52.6
-   },
-   "totalMs": 110.1
-  },
-  "whiteFrac": [
-   [
-    0.0877810650887574,
-    0.21338757396449703,
-    0.6873224852071006,
-    0,
-    0.41562130177514794,
-    0
-   ],
-   [
-    0,
-    0.13588757396449705,
-    0.24084319526627218,
-    0,
-    0,
-    0
-   ]
-  ],
-  "width": 1560,
-  "height": 1300
+  "error": "Error: Error creating WebGL context."
  },
  "rotated-box|sdf": {
   "id": "rotated-box",
   "kernel": "sdf",
-  "quality": "normal",
-  "stats": {
-   "kernel": "sdf",
-   "triangles": 160040,
-   "vertices": 79961,
-   "boundaryEdges": 0,
-   "nonManifoldEdges": 61,
-   "cellSize": 0.2043124324620276,
-   "activeCells": 538624,
-   "warnings": [],
-   "timings": {
-    "activate": 7.1,
-    "sampleF": 39.5,
-    "seeds": 55.4,
-    "propagate": 312.1,
-    "sampleS": 43.5,
-    "vertices": 197.8,
-    "faces": 21.1,
-    "check": 33.8
-   },
-   "totalMs": 710.3
-  },
-  "whiteFrac": [
-   [
-    0,
-    0.06695266272189349,
-    0.505887573964497,
-    0,
-    0.1706360946745562,
-    0
-   ]
-  ],
-  "width": 1560,
-  "height": 1040
+  "error": "Error: Error creating WebGL context."
  },
  "rotated-box|mesh": {
   "id": "rotated-box",
   "kernel": "mesh",
-  "quality": "normal",
-  "stats": {
-   "kernel": "mesh/offset",
-   "triangles": 42,
-   "vertices": 23,
-   "boundaryEdges": 0,
-   "nonManifoldEdges": 0,
-   "warnings": [],
-   "timings": {
-    "wasm": 8.2,
-    "primitives": 0.5,
-    "union": 0.1,
-    "cavity": 0,
-    "shell": 0.4,
-    "finish": 0,
-    "extract": 0.8
-   },
-   "totalMs": 10
-  },
-  "whiteFrac": [
-   [
-    0,
-    0.0668491124260355,
-    0.5054142011834319,
-    0,
-    0.1707396449704142,
-    0
-   ]
-  ],
-  "width": 1560,
-  "height": 1040
+  "error": "Error: Error creating WebGL context."
  },
  "tower|sdf": {
   "id": "tower",
   "kernel": "sdf",
-  "quality": "normal",
-  "stats": {
-   "kernel": "sdf",
-   "triangles": 104728,
-   "vertices": 52365,
-   "boundaryEdges": 0,
-   "nonManifoldEdges": 1,
-   "cellSize": 0.23229166666666667,
-   "activeCells": 388608,
-   "warnings": [],
-   "timings": {
-    "activate": 6.9,
-    "sampleF": 57.2,
-    "seeds": 60.7,
-    "propagate": 199.6,
-    "sampleS": 38.1,
-    "vertices": 186.2,
-    "faces": 16,
-    "check": 19.5
-   },
-   "totalMs": 584.2
-  },
-  "whiteFrac": [
-   [
-    0,
-    0,
-    0,
-    0.5342011834319527,
-    0,
-    0
-   ],
-   [
-    0,
-    0,
-    0,
-    0.11318047337278106,
-    0,
-    0
-   ]
-  ],
-  "width": 1560,
-  "height": 1300
+  "error": "Error: Error creating WebGL context."
  },
  "tower|mesh": {
   "id": "tower",
   "kernel": "mesh",
-  "quality": "normal",
-  "stats": {
-   "kernel": "mesh/offset",
-   "triangles": 402,
-   "vertices": 207,
-   "boundaryEdges": 0,
-   "nonManifoldEdges": 0,
-   "warnings": [],
-   "timings": {
-    "wasm": 17.8,
-    "primitives": 0.9,
-    "union": 0.1,
-    "cavity": 0.5,
-    "shell": 0.7,
-    "finish": 0,
-    "extract": 6.3
-   },
-   "totalMs": 26.4
-  },
-  "whiteFrac": [
-   [
-    0,
-    0,
-    0,
-    0.5332544378698225,
-    0,
-    0
-   ],
-   [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-   ]
-  ],
-  "width": 1560,
-  "height": 1300
+  "error": "Error: Error creating WebGL context."
  },
  "thick-wall|sdf": {
   "id": "thick-wall",
   "kernel": "sdf",
-  "quality": "normal",
-  "stats": {
-   "kernel": "sdf",
-   "triangles": 69376,
-   "vertices": 34688,
-   "boundaryEdges": 0,
-   "nonManifoldEdges": 2,
-   "cellSize": 0.2520833333333333,
-   "activeCells": 295936,
-   "warnings": [],
-   "timings": {
-    "activate": 4.5,
-    "sampleF": 54.4,
-    "seeds": 55.7,
-    "propagate": 350,
-    "sampleS": 33.3,
-    "vertices": 156.6,
-    "faces": 12.6,
-    "check": 10.2
-   },
-   "totalMs": 677.3
-  },
-  "whiteFrac": [
-   [
-    0,
-    0,
-    0.008520710059171597,
-    0,
-    0,
-    0
-   ]
-  ],
-  "width": 1560,
-  "height": 1040
+  "error": "Error: Error creating WebGL context."
  },
  "thick-wall|mesh": {
   "id": "thick-wall",
   "kernel": "mesh",
-  "quality": "normal",
-  "stats": {
-   "kernel": "mesh/offset",
-   "triangles": 24198,
-   "vertices": 12103,
-   "boundaryEdges": 0,
-   "nonManifoldEdges": 0,
-   "warnings": [],
-   "timings": {
-    "wasm": 6.3,
-    "primitives": 14.5,
-    "union": 2.8,
-    "cavity": 11.3,
-    "shell": 6.6,
-    "finish": 0,
-    "extract": 46
-   },
-   "totalMs": 91.5
-  },
-  "whiteFrac": [
-   [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0
-   ]
-  ],
-  "width": 1560,
-  "height": 1040
+  "error": "Error: Error creating WebGL context."
  },
  "cut-sphere|sdf": {
   "id": "cut-sphere",
   "kernel": "sdf",
-  "quality": "normal",
-  "stats": {
-   "kernel": "sdf",
-   "triangles": 197836,
-   "vertices": 98915,
-   "boundaryEdges": 0,
-   "nonManifoldEdges": 5,
-   "cellSize": 0.16875,
-   "activeCells": 657920,
-   "warnings": [],
-   "timings": {
-    "activate": 8.5,
-    "sampleF": 64.9,
-    "seeds": 104,
-    "propagate": 442.9,
-    "sampleS": 52.4,
-    "vertices": 282.5,
-    "faces": 27.9,
-    "check": 49.7
-   },
-   "totalMs": 1032.8
-  },
-  "whiteFrac": [
-   [
-    0,
-    0,
-    0,
-    0.0503698224852071,
-    0,
-    0
-   ]
-  ],
-  "width": 1560,
-  "height": 1040
+  "error": "Error: Error creating WebGL context."
  },
  "cut-sphere|mesh": {
   "id": "cut-sphere",
   "kernel": "mesh",
-  "quality": "normal",
-  "stats": {
-   "kernel": "mesh/offset",
-   "triangles": 16938,
-   "vertices": 8471,
-   "boundaryEdges": 0,
-   "nonManifoldEdges": 0,
-   "warnings": [],
-   "timings": {
-    "wasm": 8.8,
-    "primitives": 8,
-    "union": 1.2,
-    "cavity": 10.3,
-    "shell": 25.9,
-    "finish": 0,
-    "extract": 51.6
-   },
-   "totalMs": 108.6
-  },
-  "whiteFrac": [
-   [
-    0,
-    0,
-    0,
-    0.050088757396449704,
-    0,
-    0
-   ]
-  ],
-  "width": 1560,
-  "height": 1040
+  "error": "Error: Error creating WebGL context."
  },
  "mug-stick|sdf": {
   "id": "mug-stick",
   "kernel": "sdf",
-  "quality": "normal",
-  "stats": {
-   "kernel": "sdf",
-   "triangles": 171136,
-   "vertices": 85567,
-   "boundaryEdges": 0,
-   "nonManifoldEdges": 1,
-   "cellSize": 0.24,
-   "activeCells": 667136,
-   "warnings": [],
-   "timings": {
-    "activate": 10.3,
-    "sampleF": 165.9,
-    "seeds": 119.6,
-    "propagate": 305,
-    "sampleS": 66.4,
-    "vertices": 406.9,
-    "faces": 26.2,
-    "check": 41.4
-   },
-   "totalMs": 1141.7
-  },
-  "whiteFrac": [
-   [
-    0,
-    0,
-    0.1507396449704142,
-    0,
-    0,
-    0
-   ]
-  ],
-  "width": 1560,
-  "height": 1040
+  "error": "Error: Error creating WebGL context."
  },
  "mug-stick|mesh": {
   "id": "mug-stick",
   "kernel": "mesh",
-  "quality": "normal",
-  "stats": {
-   "kernel": "mesh/offset",
-   "triangles": 35158,
-   "vertices": 17579,
-   "boundaryEdges": 0,
-   "nonManifoldEdges": 0,
-   "warnings": [],
-   "timings": {
-    "wasm": 9.4,
-    "primitives": 20.2,
-    "union": 0.6,
-    "cavity": 5.4,
-    "shell": 19.4,
-    "finish": 4.5,
-    "extract": 82.2
-   },
-   "totalMs": 147.3
-  },
-  "whiteFrac": [
-   [
-    0,
-    0,
-    0.15782544378698224,
-    0,
-    0,
-    0
-   ]
-  ],
-  "width": 1560,
-  "height": 1040
+  "error": "Error: Error creating WebGL context."
  },
  "mug-thin|sdf": {
   "id": "mug-thin",
   "kernel": "sdf",
-  "quality": "normal",
-  "stats": {
-   "kernel": "sdf",
-   "triangles": 927328,
-   "vertices": 463658,
-   "boundaryEdges": 0,
-   "nonManifoldEdges": 6,
-   "cellSize": 0.1041238900410775,
-   "activeCells": 3703296,
-   "warnings": [
-    "Wall drawn at 0.25 cm, not 0.08 cm: the SDF grid can't resolve it at this size. Use Fine quality, or the Mesh kernel for the exact wall."
-   ],
-   "timings": {
-    "activate": 1289.6,
-    "sampleF": 831.5,
-    "seeds": 852.1,
-    "propagate": 1374.3,
-    "sampleS": 249.9,
-    "vertices": 2086.8,
-    "faces": 267.7,
-    "check": 762.2
-   },
-   "totalMs": 7714.2
-  },
-  "whiteFrac": [
-   [
-    0,
-    0,
-    0.1669526627218935,
-    0,
-    0,
-    0
-   ]
-  ],
-  "width": 1560,
-  "height": 1040
+  "error": "Error: Error creating WebGL context."
  },
  "mug-thin|mesh": {
   "id": "mug-thin",
   "kernel": "mesh",
-  "quality": "normal",
-  "stats": {
-   "kernel": "mesh/offset",
-   "triangles": 35900,
-   "vertices": 17950,
-   "boundaryEdges": 0,
-   "nonManifoldEdges": 0,
-   "warnings": [],
-   "timings": {
-    "wasm": 10.3,
-    "primitives": 29.4,
-    "union": 1.5,
-    "cavity": 7,
-    "shell": 33.8,
-    "finish": 4.9,
-    "extract": 118.6
-   },
-   "totalMs": 215.8
-  },
-  "whiteFrac": [
-   [
-    0,
-    0,
-    0.17599112426035504,
-    0,
-    0,
-    0
-   ]
-  ],
-  "width": 1560,
-  "height": 1040
+  "error": "Error: Error creating WebGL context."
+ },
+ "two-groups|sdf": {
+  "id": "two-groups",
+  "kernel": "sdf",
+  "error": "Error: Error creating WebGL context."
+ },
+ "two-groups|mesh": {
+  "id": "two-groups",
+  "kernel": "mesh",
+  "error": "Error: Error creating WebGL context."
  }
 }
