@@ -219,5 +219,27 @@ export function examples(): Example[] {
     probes: [[-1, -1, 0]],
   });
 
+  // Recreates a scene from a screenshot of an earlier tool: mug + solid handle +
+  // joined stick, at a normal wall and at an extreme 0.08 cm wall.
+  const mugProfile: ProfilePoint[] = [
+    { r: 3.2, y: -4.5, corner: true },
+    { r: 3.6, y: -2 },
+    { r: 3.8, y: 2 },
+    { r: 4.0, y: 4.5, corner: true },
+  ];
+  const mug = (t: number) => doc([
+    obj('revolve', { points: mugProfile }, { holes: ['top'], name: 'Vessel' }),
+    obj('torus', { R: 2.2, r: 0.7 }, { pos: [4.3, 0, 0], rot: [90, 0, 0], mode: 'solid', name: 'Solid handle' }),
+    obj('cylinder', { r: 1.1, h: 14 }, { pos: [-1.2, 2, 0], rot: [0, 0, -12], name: 'Stick' }),
+  ], t);
+  list.push({
+    id: 'mug-stick', title: 'Mug, handle, stick', notes: 'Hollow mug with a solid torus handle and a joined stick through it, 0.25 cm wall.',
+    doc: mug(0.25), probes: [[1, -3, 1.5]],
+  });
+  list.push({
+    id: 'mug-thin', title: 'Mug at 0.08 cm', notes: 'Same mug with an extreme 0.08 cm wall: rims must stay clean, no pinholes.',
+    doc: mug(0.08), probes: [[1, -3, 1.5]],
+  });
+
   return list;
 }

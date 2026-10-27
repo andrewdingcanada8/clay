@@ -75,7 +75,7 @@ Last updated: 2026-10-27. Benchmark numbers come from `bench/REPORT.md`, which `
 
 | | Item | Notes |
 |---|---|---|
-| ✅ | 18 scenes (`src/examples.ts`), also in the app's Examples menu | open box, sphere+cube, 30-sphere chain, vase, bowl, cylinder pins, cup+stick, vase+sticks (joined / solid), torus, lattice, thin vase 0.2, thin chain 0.2, rotated+stretched, rotated box, tower, thick wall, cut sphere |
+| ✅ | 20 scenes (`src/examples.ts`), also in the app's Examples menu | open box, sphere+cube, 30-sphere chain, vase, bowl, cylinder pins, cup+stick, vase+sticks (joined / solid), torus, lattice, thin vase 0.2, thin chain 0.2, rotated+stretched, rotated box, tower, thick wall, cut sphere, mug + solid handle + stick at 0.25 and 0.08 cm |
 | ✅ | Visual contact sheets per case × kernel (`bench/out/*.png`) | Exterior views, 3 sections, zoomed wall details, 360° interior camera (black on white: white = opening or leak). |
 | ✅ | Programmatic: build time, triangles, open edges (must be 0), non-manifold edges, interior white % | |
 | ⬜ | Expected-opening masks so the interior white % is checked automatically | |

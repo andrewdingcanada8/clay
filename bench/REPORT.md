@@ -46,3 +46,7 @@ Quality: normal. Images: `bench/out/<case>-<kernel>.png`.
 | thick-wall | mesh-mk | 70776 | 27454 | 0 | 0 | 0.3 |  |
 | cut-sphere | sdf | 1495 | 193732 | 0 | 3 | 4.2 |  |
 | cut-sphere | mesh | 98 | 16788 | 0 | 0 | 4.1 |  |
+| mug-stick | sdf | 1248 | 157180 | 0 | 7 | 14.9 |  |
+| mug-stick | mesh | 186 | 34802 | 0 | 0 | 15.7 |  |
+| mug-thin | sdf | 6592 | 891268 | 0 | 3 | 16.9 | Wall 0.08 cm is under 2 cells (cell 0.043 cm): raise quality or thicken the wall. |
+| mug-thin | mesh | 196 | 35838 | 0 | 0 | 17.2 |  |

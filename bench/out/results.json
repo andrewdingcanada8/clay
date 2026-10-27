@@ -1670,5 +1670,153 @@
   ],
   "width": 1560,
   "height": 1040
+ },
+ "mug-stick|sdf": {
+  "id": "mug-stick",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 157180,
+   "vertices": 78583,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 7,
+   "cellSize": 0.1,
+   "activeCells": 584192,
+   "warnings": [],
+   "timings": {
+    "activate": 19.6,
+    "sampleF": 152,
+    "seeds": 139.4,
+    "propagate": 419.3,
+    "sampleS": 62,
+    "vertices": 392.9,
+    "faces": 21.9,
+    "check": 40.7
+   },
+   "totalMs": 1247.9
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.1491715976331361,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "mug-stick|mesh": {
+  "id": "mug-stick",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 34802,
+   "vertices": 17401,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 13.8,
+    "primitives": 31,
+    "union": 1.7,
+    "cavity": 6.9,
+    "shell": 35.2,
+    "finish": 4.9,
+    "extract": 87.5
+   },
+   "totalMs": 185.8
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.1571449704142012,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "mug-thin|sdf": {
+  "id": "mug-thin",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 891268,
+   "vertices": 445629,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 3,
+   "cellSize": 0.04254015191260367,
+   "activeCells": 3401728,
+   "warnings": [
+    "Wall 0.08 cm is under 2 cells (cell 0.043 cm): raise quality or thicken the wall."
+   ],
+   "timings": {
+    "activate": 242.6,
+    "sampleF": 788.3,
+    "seeds": 637.6,
+    "propagate": 2194.8,
+    "sampleS": 232.7,
+    "vertices": 1950.9,
+    "faces": 90,
+    "check": 454.8
+   },
+   "totalMs": 6591.8
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.1694378698224852,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "mug-thin|mesh": {
+  "id": "mug-thin",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 35838,
+   "vertices": 17919,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 12.7,
+    "primitives": 30.6,
+    "union": 1.5,
+    "cavity": 7.5,
+    "shell": 34.3,
+    "finish": 4.8,
+    "extract": 98.9
+   },
+   "totalMs": 195.9
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.1717751479289941,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
  }
 }
