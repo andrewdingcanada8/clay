@@ -12,7 +12,7 @@
 // and measures the distance to that seed's small tangent disc.
 
 import type { Quality } from './document';
-import { type CompiledGroup, holeDepth, shellSDF } from './scene';
+import { type CompiledGroup, shellSDF } from './scene';
 import { faceAtWorld, sdfWorld } from './primitives';
 
 export interface CavityGrid {
@@ -22,8 +22,6 @@ export interface CavityGrid {
   dims: [number, number, number];
   /** Signed depth per texel (x fastest), clamped to [-clampV, clampV]. */
   data: Float32Array;
-  /** Index (within the group's shell objects) of the nearest exposed surface, 255 = none. */
-  objIdx: Uint8Array;
   clampV: number;
   /** Walls up to this thickness are represented exactly (grid can be reused). */
   tMax: number;
@@ -153,10 +151,6 @@ export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid 
   //    interpolated cavity never grows a skin across the opening.
   const rho = 0.75 * h;
   const data = new Float32Array(N);
-  // nearest exposed shell object per texel (255 = none): lets the renderer use the
-  // exact analytic distance to that object instead of the interpolated value
-  const objIdx = new Uint8Array(N).fill(255);
-  for (let q = 0; q < N; q++) if (nearest[q] >= 0) objIdx[q] = Math.min(254, sObj[nearest[q]]);
   for (let q = 0; q < N; q++) {
     const f = F[q];
     if (!Number.isFinite(f) || Number.isNaN(f)) { data[q] = f < 0 ? clampV : -clampV; continue; }
@@ -165,13 +159,26 @@ export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid 
     if (s >= 0) {
       const vx = qx(q) - sx[s], vy = qy(q) - sy[s], vz = qz(q) - sz[s];
       const vn = vx * snx[s] + vy * sny[s] + vz * snz[s];
-      const lat = Math.hypot(vx - vn * snx[s], vy - vn * sny[s], vz - vn * snz[s]);
-      d = Math.min(clampV, Math.hypot(vn, Math.max(0, lat - rho)));
+      const lx = vx - vn * snx[s], ly = vy - vn * sny[s], lz = vz - vn * snz[s];
+      const lat = Math.hypot(lx, ly, lz);
+      // The seed stands for a small tangent disc of its surface. Next to a joint
+      // the disc must not reach into the part of the surface buried inside another
+      // shell object, or the wall gets pulled in along the joint.
+      let r = rho;
+      if (lat > 1e-9 && g.shells.length > 1) {
+        const k = Math.min(lat, rho) / lat;
+        const fx = sx[s] + lx * k, fy = sy[s] + ly * k, fz = sz[s] + lz * k;
+        for (let oi = 0; oi < g.shells.length; oi++) {
+          if (oi === sObj[s]) continue;
+          if (sdfWorld(g.shells[oi], fx, fy, fz) < -0.02 * h) { r = 0; break; }
+        }
+      }
+      d = Math.min(clampV, Math.hypot(vn, Math.max(0, lat - r)));
     }
     if (f <= 0) data[q] = d;
     else data[q] = d > f + 0.5 * h ? d : -Math.min(f, clampV);
   }
-  return { groupIndex: g.index, origin, h, dims, data, objIdx, clampV, tMax };
+  return { groupIndex: g.index, origin, h, dims, data, clampV, tMax };
 }
 
 /** Trilinear sample of a cavity grid (texel centres at origin + i*h). */
@@ -191,33 +198,7 @@ export function sampleCavity(c: CavityGrid, x: number, y: number, z: number): nu
   return (c00 * (1 - v) + c10 * v) * (1 - w) + (c01 * (1 - v) + c11 * v) * w;
 }
 
-/**
- * Cavity depth with sharp creases: the exact analytic distance to the nearest
- * exposed shell objects (from the 8 surrounding texels), checked against the
- * interpolated grid so a face buried inside another object never counts.
- */
-export function cavityDepth(c: CavityGrid, g: CompiledGroup, x: number, y: number, z: number): number {
-  const dg = sampleCavity(c, x, y, z);
-  if (Math.abs(dg - g.t) > 2 * c.h) return dg; // refinement only matters near the inner wall
-  const fx = (x - c.origin[0]) / c.h, fy = (y - c.origin[1]) / c.h, fz = (z - c.origin[2]) / c.h;
-  const [nx, ny, nz] = c.dims;
-  if (fx < 0 || fy < 0 || fz < 0 || fx > nx - 1 || fy > ny - 1 || fz > nz - 1) return dg;
-  const i = Math.min(nx - 2, Math.floor(fx)), j = Math.min(ny - 2, Math.floor(fy)), k = Math.min(nz - 2, Math.floor(fz));
-  let da = Infinity;
-  const seen = new Set<number>();
-  for (let cnr = 0; cnr < 8; cnr++) {
-    const q = (i + (cnr & 1)) + nx * ((j + ((cnr >> 1) & 1)) + ny * (k + ((cnr >> 2) & 1)));
-    const oi = c.objIdx[q];
-    if (oi === 255 || seen.has(oi)) continue;
-    seen.add(oi);
-    const o = g.shells[oi];
-    if (!o) continue;
-    const d = sdfWorld(o, x, y, z);
-    da = Math.min(da, d < 0 ? holeDepth(o, g.holes, x, y, z) : d);
-  }
-  if (!Number.isFinite(da)) return dg;
-  return da < dg - CREASE_TOL * c.h ? dg : da;
+/** Cavity depth at a point (grid lookup). */
+export function cavityDepth(c: CavityGrid, _g: CompiledGroup, x: number, y: number, z: number): number {
+  return sampleCavity(c, x, y, z);
 }
-
-/** How far (in texels) the analytic depth may undercut the grid before it is rejected. */
-export const CREASE_TOL = 1.5;
