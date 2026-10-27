@@ -3,7 +3,7 @@
 
 import type { PrimitiveType, SceneObject } from './document';
 import { type AABB, type Vec3, clamp, emptyAABB, eulerXYZ, growAABB, mulMat3TVec, mulMat3Vec, polygonSDF } from './math';
-import { type SampledProfile, decorate, pointName, sampleProfile } from './profile';
+import { type SampledProfile, sampleProfile } from './profile';
 
 export interface FaceInfo {
   id: string;
@@ -274,7 +274,7 @@ export function compileObject(obj: SceneObject): CompiledObject {
       break;
     }
     case 'revolve': {
-      const prof = sampleProfile(decorate(p.points ?? [], p.rim, p.foot));
+      const prof = sampleProfile(p.points ?? []);
       profile = prof;
       const pts = prof.pts, n = prof.n, skip = prof.axisSeg;
       sdfLocal = (x, y, z) => polygonSDF(pts, n, Math.hypot(x, z), y, skip).d;
@@ -282,10 +282,7 @@ export function compileObject(obj: SceneObject): CompiledObject {
       faces = prof.faces.map((f) => {
         if (f === 'top') return { id: f, label: 'Top cap', plane: { n: [0, 1, 0] as Vec3, p: [0, prof.yMax, 0] as Vec3 } };
         if (f === 'bottom') return { id: f, label: 'Bottom cap', plane: { n: [0, -1, 0] as Vec3, p: [0, prof.yMin, 0] as Vec3 } };
-        if (f === 'foot') return { id: f, label: 'Foot' };
-        if (f === 'rim') return { id: f, label: 'Rim' };
-        const i = Number(f.slice(4)), n = (p.points ?? []).length;
-        return { id: f, label: `${pointName(i, n)} → ${pointName(i + 1, n)}` };
+        return { id: f, label: `Span ${Number(f.slice(4)) + 1}` };
       });
       // Caps are planar only when the profile's end segment is horizontal.
       for (const f of faces) {

@@ -174,16 +174,8 @@ input[type="number"] {
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* profile editor (inside the sheet) */
-.profile-wrap { display: flex; flex-direction: column; gap: 8px; }
-.prof-point { display: flex; align-items: center; gap: 6px; }
-.prof-point b { min-width: 64px; font-size: 14px; }
-.prof-point .btn { min-width: 40px; padding-inline: 10px; }
-.prof-edge { flex: 1; display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); min-width: 0; }
-.prof-edge input { flex: 1; min-width: 0; accent-color: var(--accent); }
-.prof-chips { align-items: center; }
-.prof-chips .obj-chip { padding-block: 5px; font-size: 13px; flex: none; }
-.prof-label { flex: none; width: 40px; font: 600 10px var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.profile-canvas { width: 100%; height: 38vh; min-height: 220px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); touch-action: none; display: block; }
+.profile-wrap { display: flex; flex-direction: column; gap: 10px; }
+.profile-canvas { width: 100%; height: 34vh; min-height: 220px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); touch-action: none; display: block; }
 @media (min-width: 900px) { .profile-canvas { height: 420px; } }
 
 .toast {

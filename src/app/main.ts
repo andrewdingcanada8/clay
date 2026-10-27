@@ -12,7 +12,6 @@ import { classifyPoint, compileScene, sdfWorld, toLocal } from '../engine/primit
 import { examples } from '../examples';
 import { Builder } from './builder';
 import { ProfileEditor } from './profileEditor';
-import { FOOT_STYLES, type FootStyle, PROFILE_PRESETS, RIM_STYLES, type RimStyle } from '../engine/profile';
 import { HAND_LENGTH_CM } from './hand';
 import { type GizmoMode, Viewport } from './viewport';
 
@@ -421,9 +420,6 @@ function examplesPanel() {
 function renderProfilePanel() {
   const o = doc.objects.find((x) => x.id === ui.profileEditing);
   if (!o || o.type !== 'revolve') { ui.profileEditing = null; renderPanel(); return; }
-  const rim = o.params.rim ?? 'plain', foot = o.params.foot ?? 'flat';
-  const chipRow = (kind: string, cur: string, list: [string, string][]) =>
-    `<div class="chips prof-chips"><span class="prof-label">${kind === 'preset' ? 'Shape' : kind === 'rim' ? 'Rim' : 'Foot'}</span>${list.map(([v, l]) => `<button class="obj-chip" data-${kind}="${v}" aria-pressed="${v === cur}">${l}</button>`).join('')}</div>`;
   panel.innerHTML = `<div class="profile-wrap">
     <div class="row"><h3 style="margin:0 auto 0 0;font:600 11px var(--font-body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Profile of ${escapeHtml(o.name)}</h3>
       <button class="btn" data-act="profile-zoom-out" aria-label="Zoom out">−</button>
@@ -431,55 +427,20 @@ function renderProfilePanel() {
       <button class="btn" data-act="profile-zoom-in" aria-label="Zoom in">+</button>
       <button class="btn primary" data-act="profile-done">Done</button></div>
     <canvas class="profile-canvas" id="profile-canvas"></canvas>
-    <div class="prof-point">
-      <b id="profile-name">–</b>
-      <button class="btn" data-act="profile-remove" aria-label="Remove point">−</button>
-      <button class="btn" data-act="profile-add" aria-label="Add point">+</button>
-      <label class="prof-edge"><span>sharp</span><input type="range" id="profile-edge" min="0" max="1" step="0.01" aria-label="Edge sharp to round"><span>round</span></label>
+    <div class="row">
+      <button class="btn" data-act="profile-corner" ${ui.profilePoint < 0 ? 'disabled' : ''}>Sharp / smooth</button>
+      <button class="btn danger" data-act="profile-delete" ${ui.profilePoint < 0 ? 'disabled' : ''}>Delete point</button>
     </div>
-    ${chipRow('preset', '', PROFILE_PRESETS.map((p, i) => [String(i), p.name]))}
-    ${chipRow('rim', rim, RIM_STYLES)}
-    ${chipRow('foot', foot, FOOT_STYLES)}
-    <p class="hint">Drag near a point to move it, or anywhere to move the selected one. Pinch or scroll to zoom, two fingers to pan; zoom out to build bigger pieces, in for fine detail. The curve spins a full 360° around the dashed axis.</p></div>`;
-  const ed = new ProfileEditor(document.getElementById('profile-canvas') as HTMLCanvasElement, o.params.points ?? [], rim, foot);
-  profileEditor = ed;
-  const edge = document.getElementById('profile-edge') as HTMLInputElement;
-  const refresh = () => {
-    document.getElementById('profile-name')!.textContent = ed.name();
-    edge.value = String(ed.edge());
-    panel.querySelector<HTMLButtonElement>('[data-act="profile-add"]')!.disabled = !ed.canAdd();
-    panel.querySelector<HTMLButtonElement>('[data-act="profile-remove"]')!.disabled = !ed.canRemove();
-  };
-  ed.onChange = (pts, done) => {
+    <p class="hint">Drag points to reshape. Tap empty space to add a point. Tap a point to select it. Squares are sharp corners. Pinch or scroll to zoom, two fingers to pan. The curve spins a full 360° around the dashed axis.</p></div>`;
+  profileEditor = new ProfileEditor(document.getElementById('profile-canvas') as HTMLCanvasElement, o.params.points ?? []);
+  profileEditor.onChange = (pts, done) => {
     update((d) => { d.objects.find((x) => x.id === o.id)!.params.points = pts; }, !done);
     view.setGhost(selected(), 'off');
-    refresh();
   };
-  ed.onSelect = (i) => { ui.profilePoint = i; refresh(); };
-  edge.addEventListener('input', () => ed.setEdge(Number(edge.value), false));
-  edge.addEventListener('change', () => ed.setEdge(Number(edge.value), true));
-  refresh();
-}
-
-function onProfileClick(d: DOMStringMap): boolean {
-  const ed = profileEditor, o = selected();
-  if (!ed || !o) return false;
-  if (d.preset) { ed.setPoints(PROFILE_PRESETS[Number(d.preset)].points); return true; }
-  if (d.rim || d.foot) {
-    update((doc2) => {
-      const p = doc2.objects.find((x) => x.id === o.id)!.params;
-      if (d.rim) p.rim = d.rim as RimStyle;
-      if (d.foot) p.foot = d.foot as FootStyle;
-    });
-    const p = doc.objects.find((x) => x.id === o.id)!.params;
-    ed.setStyles(p.rim ?? 'plain', p.foot ?? 'flat');
-    view.setGhost(selected(), 'off');
-    panel.querySelectorAll<HTMLButtonElement>(d.rim ? '[data-rim]' : '[data-foot]').forEach((b) => {
-      b.setAttribute('aria-pressed', String((d.rim ? b.dataset.rim : b.dataset.foot) === (d.rim ?? d.foot)));
-    });
-    return true;
-  }
-  return false;
+  profileEditor.onSelect = (i) => {
+    ui.profilePoint = i;
+    panel.querySelectorAll<HTMLButtonElement>('[data-act="profile-corner"],[data-act="profile-delete"]').forEach((b) => { b.disabled = i < 0; });
+  };
 }
 
 function renderAll() {
@@ -564,7 +525,6 @@ panel.addEventListener('click', (e) => {
   if (d.select) return selectObject(d.select);
   if (d.example) return loadExample(d.example);
   if (d.seg) return onSeg(d.seg, d.value!);
-  if ((d.preset || d.rim || d.foot) && onProfileClick(d)) return;
   if (d.face) {
     const o = selected();
     if (o) toggleHole(o.id, d.face);
@@ -614,8 +574,8 @@ panel.addEventListener('click', (e) => {
     }
     case 'edit-profile': ui.profileEditing = ui.selectedId; ui.profilePoint = -1; view.setGhost(selected(), 'off'); renderPanel(); break;
     case 'profile-done': ui.profileEditing = null; refreshGhost(); renderPanel(); break;
-    case 'profile-add': profileEditor?.addPoint(); break;
-    case 'profile-remove': profileEditor?.removePoint(); break;
+    case 'profile-corner': profileEditor?.toggleCorner(); break;
+    case 'profile-delete': profileEditor?.deleteSelected(); break;
     case 'profile-zoom-in': profileEditor?.zoomBy(1.4); break;
     case 'profile-zoom-out': profileEditor?.zoomBy(1 / 1.4); break;
     case 'profile-fit': profileEditor?.fit(); break;

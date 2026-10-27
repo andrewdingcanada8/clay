@@ -49,10 +49,7 @@ Last updated: 2026-10-27. Benchmark numbers come from `bench/REPORT.md`, which `
 | | Item | Notes |
 |---|---|---|
 | ✅ | Primitives: sphere, box, cylinder, cone, torus, capsule, n-gon prism | |
-| ✅ | Revolve: 2D spline profile, full 360° | Bézier profile with a per-point sharp↔round edge (from the MVP). |
-| ✅ | Profile editor: zoom/pan (pinch, wheel, −/Fit/+), grid adapts to zoom, size readout | Zoom out to draw bigger pieces, in for detail. |
-| ✅ | Profile editor: nearest-point drag, +/− points, point names, 14 preset shapes, rim and foot styles | Ported from the Pottery Maker MVP; rim/foot are non-destructive. |
-| ⬜ | MVP handles, spouts, lids, glazes | Not ported yet. |
+| ✅ | Revolve: 2D spline profile, full 360° | Centripetal Catmull–Rom with sharp/smooth points; editor zooms and pans (pinch, scroll, −/Fit/+) with a grid that follows the zoom. |
 | ⬜ | Partial revolve (< 360°) | |
 | ⬜ | Sweep a profile along a path | |
 | ⬜ | Extrude an arbitrary 2D outline | |

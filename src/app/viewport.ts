@@ -9,7 +9,7 @@ import type { SceneObject } from '../engine/document';
 import type { BuildResult } from '../engine/kernel';
 import { DEG } from '../engine/math';
 import { revolveOutline } from '../engine/primitives';
-import { decorate, sampleCurve } from '../engine/profile';
+import { sampleCurve } from '../engine/profile';
 import type { CavityGrid } from '../engine/cavity';
 import type { SceneDoc } from '../engine/document';
 import { cavityDepth } from '../engine/cavity';
@@ -335,10 +335,7 @@ export function ghostGeometry(o: SceneObject): THREE.BufferGeometry {
       return g;
     }
     case 'revolve': {
-      const { xy } = sampleCurve(decorate(p.points ?? [], p.rim, p.foot), 8);
-      if (xy[0] < 1e-6) { // profile already starts on the axis (decorated underside)
-        return lathe([...xy, 0, xy[xy.length - 1]], 48);
-      }
+      const { xy } = sampleCurve(p.points ?? [], 8);
       const out = [0, xy[1], ...xy, 0, xy[xy.length - 1]];
       return lathe(out, 48);
     }
