@@ -42,7 +42,8 @@ for (const id of caseIds) {
     const url = `http://localhost:${port}/bench.html?case=${id}&kernel=${kernel}&quality=${quality}`;
     const t0 = Date.now();
     try {
-      await page.goto(url, { timeout: 60000 });
+      // the bench page builds synchronously while loading: give the load the case timeout
+      await page.goto(url, { timeout: caseTimeout, waitUntil: 'commit' });
       await page.waitForFunction(() => window.__bench || window.__benchError, null, { timeout: caseTimeout });
     } catch (e) {
       console.log(`${id} ${kernel}: timeout after ${caseTimeout / 1000}s`);

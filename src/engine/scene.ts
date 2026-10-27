@@ -19,7 +19,7 @@
 
 import type { SceneDoc } from './document';
 import { type AABB, type Vec3, emptyAABB, growAABB } from './math';
-import { buildProfileTable, tableDepth } from './profileTable';
+import { buildProfileTable, tableDepth, tableProfile } from './profileTable';
 import { type CompiledObject, compileObject, normalToWorld, prismFrustum, sdfWorld, toLocal, toWorld } from './primitives';
 
 export interface CompiledPin {
@@ -172,7 +172,7 @@ export function holeDepth(c: CompiledObject, holes: Set<string>, x: number, y: n
       const key = c.profile!.faces.filter(isHole).join(',');
       const tables = c.depthTables ??= new Map();
       let t = tables.get(key);
-      if (!t) { t = buildProfileTable(p.points ?? [], isHole); tables.set(key, t); }
+      if (!t) { t = buildProfileTable(tableProfile(c.obj.type, p.points, c.profile!), isHole); tables.set(key, t); }
       return tableDepth(t, Math.hypot(lx, lz), ly) * c.minScale;
     }
   }
@@ -203,13 +203,18 @@ export function baseDepth(g: CompiledGroup, x: number, y: number, z: number, cla
   // correction can't follow; rounding it (over two texels, plus the blend radius in
   // blended groups) keeps D = A + C smooth.
   const k = 2 * h + g.k;
-  let d = -Infinity;
+  // The two deepest terms only (as the shader; see there for the skip test).
+  const lb = -shellSDF(g, x, y, z) - 0.25 * g.k * (g.shells.length - 1);
+  let t1 = -Infinity, t2 = -Infinity;
   for (const o of g.shells) {
-    // skip objects that can't reach the smooth max's window (exact, as in the shader)
-    const [cx, cy, cz, r] = o.bsphere ??= boundSphere(o);
-    if (r - Math.hypot(x - cx, y - cy, z - cz) < d - k) continue;
-    d = -smin(-d, -holeDepth(o, g.holes, x, y, z), k);
+    if (!o.obj.holes.length) {
+      const [cx, cy, cz, r] = o.bsphere ??= boundSphere(o);
+      if (r - Math.hypot(x - cx, y - cy, z - cz) < Math.max(lb, t1) - k) continue;
+    }
+    const v = holeDepth(o, g.holes, x, y, z);
+    if (v > t1) { t2 = t1; t1 = v; } else if (v > t2) t2 = v;
   }
+  const d = t2 === -Infinity ? t1 : -smin(-t1, -t2, k);
   return Math.max(-clampV, Math.min(clampV, d));
 }
 

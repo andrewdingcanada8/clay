@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 import type { CavityGrid } from '../engine/cavity';
 import type { SceneDoc } from '../engine/document';
-import { buildProfileTable } from '../engine/profileTable';
+import { buildProfileTable, tableProfile } from '../engine/profileTable';
 import type { CompiledObject } from '../engine/primitives';
 import { type CompiledGroup, OPENING_EPS, compileGroups } from '../engine/scene';
 
@@ -242,15 +242,19 @@ float map(vec3 p) {
       // (smooth max over two texels where the deepest object switches; see scene.baseDepth)
       bool useGrid = g < ${MAX_GRIDS} && uUseGrid[min(g, ${MAX_GRIDS - 1})] == 1;
       float kA = useGrid ? 2.0 * uCavH[min(g, ${MAX_GRIDS - 1})] + kb : 0.0;
-      float D = -1e5;
+      // The smooth max takes the two deepest terms only, so it doesn't depend on
+      // object order and terms far below the deepest can be skipped exactly. -fs
+      // (less the blend bulge: up to k/4 per sequential smooth min) is a lower bound
+      // on the deepest term; an object
+      // without openings can't be deeper than -bound.
+      float t1 = -1e5, t2 = -1e5, lb = -fs - 0.25 * kb * float(R.y - R.x - 1);
       for (int i = R.x; i < R.y; i++) {
-        // An object can add at most -bound to the max; skip it only when that can't
-        // reach into the smooth max's window (exact: the term would have no effect).
-        if (-bound(i, p) < D - kA) continue;
+        if (int(row(i, 6).z) == 0 && -bound(i, p) < max(lb, t1) - kA) continue;
         float d = sdObj(i, p);
         d = d > 0.0 ? -d : holeDepth(i, p);
-        D = -smin(-D, -d, kA);
+        if (d > t1) { t2 = t1; t1 = d; } else t2 = max(t2, d);
       }
+      float D = -smin(-t1, -t2, kA);
       if (useGrid) D = gridDepth(g, p, uT[g], D);
       cav = max(fs - ${OPENING_EPS.toFixed(3)}, uT[g] - D);
       cut = cav;
@@ -578,7 +582,7 @@ export class SdfRenderer {
       keep.add(key);
       let pt = this.profiles.get(key);
       if (!pt) {
-        const t = buildProfileTable(o.obj.params.points ?? [], isHole);
+        const t = buildProfileTable(tableProfile('revolve', o.obj.params.points, o.profile!), isHole);
         const data = new Uint16Array(t.W * t.H * 2);
         for (let q = 0; q < t.W * t.H; q++) {
           data[2 * q] = THREE.DataUtils.toHalfFloat(t.sd[q]);

@@ -13,13 +13,13 @@
    "activeCells": 2006016,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 20.2,
-    "sample": 1019.2,
-    "vertices": 1979.6,
-    "faces": 41.8
+    "cavity": 0.2,
+    "activate": 26.8,
+    "sample": 1120.2,
+    "vertices": 2253.2,
+    "faces": 42.3
    },
-   "totalMs": 3173.2
+   "totalMs": 3550.6
   },
   "whiteFrac": [
    [
@@ -82,12 +82,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0,
-    "activate": 7.4,
-    "sample": 382.5,
-    "vertices": 1061.3,
-    "faces": 35.5
+    "activate": 8.4,
+    "sample": 415,
+    "vertices": 1160.4,
+    "faces": 25.5
    },
-   "totalMs": 1535.1
+   "totalMs": 1668.3
   },
   "whiteFrac": [
    [
@@ -165,13 +165,13 @@
    "activeCells": 496128,
    "warnings": [],
    "timings": {
-    "cavity": 0.3,
-    "activate": 13.4,
-    "sample": 971.3,
-    "vertices": 4737.6,
-    "faces": 20.4
+    "cavity": 0.2,
+    "activate": 14.1,
+    "sample": 1045.3,
+    "vertices": 5804.7,
+    "faces": 21.7
    },
-   "totalMs": 5783.4
+   "totalMs": 6923.5
   },
   "whiteFrac": [
    [
@@ -266,12 +266,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 370,
-    "sample": 1089.3,
-    "vertices": 2656.9,
-    "faces": 24.1
+    "activate": 359.8,
+    "sample": 1180.6,
+    "vertices": 2604.9,
+    "faces": 24.7
    },
-   "totalMs": 4213.1
+   "totalMs": 4224.4
   },
   "whiteFrac": [
    [
@@ -349,22 +349,22 @@
    "activeCells": 906752,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 12.9,
-    "sample": 3071.8,
-    "vertices": 5219.5,
-    "faces": 21.8
+    "cavity": 0.1,
+    "activate": 230.1,
+    "sample": 945.4,
+    "vertices": 1699.1,
+    "faces": 22.6
    },
-   "totalMs": 8358.7
+   "totalMs": 2931.8
   },
   "whiteFrac": [
    [
-    0.158698224852071,
-    0.15866863905325443,
-    0.9275147928994083,
+    0.15745562130177515,
+    0.15745562130177515,
+    0.9279881656804734,
     0,
-    0.158698224852071,
-    0.15866863905325443
+    0.15745562130177515,
+    0.15745562130177515
    ]
   ],
   "width": 1560,
@@ -409,30 +409,30 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 295420,
-   "vertices": 147700,
+   "triangles": 195568,
+   "vertices": 97786,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.125,
-   "activeCells": 1287168,
+   "activeCells": 1112576,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 14,
-    "sample": 790.9,
-    "vertices": 1935.4,
-    "faces": 33.7
+    "cavity": 0,
+    "activate": 13.7,
+    "sample": 752.4,
+    "vertices": 1429,
+    "faces": 28
    },
-   "totalMs": 2858.1
+   "totalMs": 2268.4
   },
   "whiteFrac": [
    [
-    0.007603550295857988,
-    0.004201183431952663,
-    0.25465976331360946,
+    0.0015532544378698224,
     0,
-    0.04084319526627219,
-    0.03321005917159763
+    0,
+    0,
+    0,
+    0
    ]
   ],
   "width": 1560,
@@ -485,19 +485,19 @@
    "activeCells": 930304,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 11.9,
-    "sample": 3258.8,
-    "vertices": 5947.9,
-    "faces": 23.1
+    "cavity": 0.3,
+    "activate": 227,
+    "sample": 1250.4,
+    "vertices": 2501.3,
+    "faces": 23.2
    },
-   "totalMs": 9278.7
+   "totalMs": 4038.5
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.23004437869822486,
+    0.23068047337278105,
     0,
     0,
     0
@@ -545,30 +545,30 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 206780,
-   "vertices": 103364,
+   "triangles": 206656,
+   "vertices": 103306,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 10,
+   "nonManifoldEdges": 6,
    "cellSize": 0.21428571428571427,
    "activeCells": 683520,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 16.1,
-    "sample": 3208.3,
-    "vertices": 12872,
-    "faces": 25.2
+    "cavity": 0.3,
+    "activate": 370.5,
+    "sample": 1181.8,
+    "vertices": 4781.1,
+    "faces": 23.1
    },
-   "totalMs": 16172.7
+   "totalMs": 6412.6
   },
   "whiteFrac": [
    [
+    0.009437869822485206,
+    0.0031508875739644972,
+    0.02076923076923077,
     0,
     0,
-    0.017514792899408285,
-    0,
-    0,
-    0
+    0.0045414201183431955
    ]
   ],
   "width": 1560,
@@ -621,19 +621,19 @@
    "activeCells": 894464,
    "warnings": [],
    "timings": {
-    "cavity": 0.2,
-    "activate": 18.5,
-    "sample": 4624.6,
-    "vertices": 10534.7,
-    "faces": 24.5
+    "cavity": 0,
+    "activate": 408.1,
+    "sample": 1308.1,
+    "vertices": 2921,
+    "faces": 26.8
    },
-   "totalMs": 15269.9
+   "totalMs": 4721.4
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.01596153846153846,
+    0.017041420118343194,
     0,
     0,
     0
@@ -691,11 +691,11 @@
    "timings": {
     "cavity": 0,
     "activate": 6.9,
-    "sample": 237.1,
-    "vertices": 728.5,
-    "faces": 29.9
+    "sample": 287.8,
+    "vertices": 786.1,
+    "faces": 25.6
    },
-   "totalMs": 1082.4
+   "totalMs": 1166.7
   },
   "whiteFrac": [
    [
@@ -757,13 +757,13 @@
    "activeCells": 1050624,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 15.9,
-    "sample": 940.6,
-    "vertices": 3193,
-    "faces": 28.9
+    "cavity": 0.1,
+    "activate": 11.9,
+    "sample": 1053,
+    "vertices": 3810.2,
+    "faces": 32.9
    },
-   "totalMs": 4238.3
+   "totalMs": 4973.1
   },
   "whiteFrac": [
    [
@@ -828,12 +828,12 @@
    ],
    "timings": {
     "cavity": 0.1,
-    "activate": 496.3,
-    "sample": 4462.4,
-    "vertices": 16167.1,
-    "faces": 108.3
+    "activate": 524.2,
+    "sample": 4594.4,
+    "vertices": 16600.2,
+    "faces": 124.9
    },
-   "totalMs": 21800
+   "totalMs": 22686.4
   },
   "whiteFrac": [
    [
@@ -911,13 +911,13 @@
    "activeCells": 2017280,
    "warnings": [],
    "timings": {
-    "cavity": 0.2,
-    "activate": 41.4,
-    "sample": 1912.3,
-    "vertices": 7114.3,
-    "faces": 70.4
+    "cavity": 0,
+    "activate": 39.1,
+    "sample": 2144.7,
+    "vertices": 8056.5,
+    "faces": 65.8
    },
-   "totalMs": 9375.5
+   "totalMs": 10521
   },
   "whiteFrac": [
    [
@@ -961,11 +961,11 @@
    "timings": {
     "cavity": 0,
     "activate": 8.4,
-    "sample": 373.6,
-    "vertices": 1104.3,
-    "faces": 24.7
+    "sample": 418.9,
+    "vertices": 1276.5,
+    "faces": 27.5
    },
-   "totalMs": 1564
+   "totalMs": 1785.5
   },
   "whiteFrac": [
    [
@@ -1007,13 +1007,13 @@
    "activeCells": 777728,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 8.2,
-    "sample": 338.6,
-    "vertices": 1174.2,
-    "faces": 26.4
+    "cavity": 0.1,
+    "activate": 10.5,
+    "sample": 370,
+    "vertices": 1280.7,
+    "faces": 25.2
    },
-   "totalMs": 1601.9
+   "totalMs": 1748.9
   },
   "whiteFrac": [
    [
@@ -1039,21 +1039,21 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 142296,
-   "vertices": 71150,
+   "triangles": 126660,
+   "vertices": 63332,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.19910714285714284,
-   "activeCells": 647680,
+   "activeCells": 632320,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 8.5,
-    "sample": 1001.9,
-    "vertices": 2327.9,
-    "faces": 25.1
+    "cavity": 0,
+    "activate": 7.9,
+    "sample": 1003.2,
+    "vertices": 2328.1,
+    "faces": 22.6
    },
-   "totalMs": 3393.3
+   "totalMs": 3385.8
   },
   "whiteFrac": [
    [
@@ -1132,12 +1132,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0,
-    "activate": 5.1,
-    "sample": 236.2,
-    "vertices": 505.7,
-    "faces": 16
+    "activate": 5.2,
+    "sample": 221.5,
+    "vertices": 497.5,
+    "faces": 17.7
    },
-   "totalMs": 783
+   "totalMs": 761.9
   },
   "whiteFrac": [
    [
@@ -1171,13 +1171,13 @@
    "activeCells": 870400,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 9.1,
-    "sample": 368.4,
-    "vertices": 1182.7,
-    "faces": 26.6
+    "cavity": 0.1,
+    "activate": 16.8,
+    "sample": 468.8,
+    "vertices": 1456.7,
+    "faces": 26.1
    },
-   "totalMs": 1646.9
+   "totalMs": 2032.9
   },
   "whiteFrac": [
    [
@@ -1203,27 +1203,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 164812,
-   "vertices": 82403,
+   "triangles": 164944,
+   "vertices": 82470,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 5,
+   "nonManifoldEdges": 4,
    "cellSize": 0.24,
    "activeCells": 843264,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 14.5,
-    "sample": 2645.9,
-    "vertices": 5506,
-    "faces": 22
+    "cavity": 0.2,
+    "activate": 228.2,
+    "sample": 1174.4,
+    "vertices": 2536.3,
+    "faces": 22.6
    },
-   "totalMs": 8234.8
+   "totalMs": 4001
   },
   "whiteFrac": [
    [
     0,
-    0,
-    0.15539940828402368,
+    0.004097633136094674,
+    0.16894970414201183,
     0,
     0,
     0
@@ -1243,30 +1243,30 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 923756,
-   "vertices": 461970,
-   "boundaryEdges": 258,
-   "nonManifoldEdges": 11,
-   "cellSize": 0.1021942858476148,
-   "activeCells": 3500544,
+   "triangles": 877360,
+   "vertices": 438985,
+   "boundaryEdges": 674,
+   "nonManifoldEdges": 31,
+   "cellSize": 0.10148974351130463,
+   "activeCells": 3540992,
    "warnings": [
-    "Mesh wall for Group 1 drawn at 0.25 cm, not 0.08 cm (grid too coarse at this size).",
-    "122 quads skipped at block borders"
+    "Mesh wall for Group 1 drawn at 0.24 cm, not 0.08 cm (grid too coarse at this size).",
+    "266 quads skipped at block borders"
    ],
    "timings": {
     "cavity": 0,
-    "activate": 2170.7,
-    "sample": 8163.9,
-    "vertices": 28817.8,
-    "faces": 254.7
+    "activate": 1328.9,
+    "sample": 3619.6,
+    "vertices": 11107.8,
+    "faces": 87.4
    },
-   "totalMs": 40182.3
+   "totalMs": 16566.8
   },
   "whiteFrac": [
    [
     0,
-    0.0007988165680473373,
-    0.19449704142011834,
+    0,
+    0.18014792899408283,
     0,
     0,
     0
@@ -1294,19 +1294,19 @@
    "activeCells": 1235456,
    "warnings": [],
    "timings": {
-    "cavity": 0.2,
-    "activate": 17.5,
-    "sample": 3404,
-    "vertices": 5708.9,
-    "faces": 31.7
+    "cavity": 0.1,
+    "activate": 248.5,
+    "sample": 1157.6,
+    "vertices": 2002.7,
+    "faces": 31
    },
-   "totalMs": 9216.2
+   "totalMs": 3496.7
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.34276627218934913,
+    0.3442751479289941,
     0,
     0,
     0
@@ -1336,11 +1336,11 @@
    "timings": {
     "cavity": 0,
     "activate": 10.2,
-    "sample": 995.4,
-    "vertices": 3129.3,
-    "faces": 26.6
+    "sample": 1040.8,
+    "vertices": 3210,
+    "faces": 26.1
    },
-   "totalMs": 4215.1
+   "totalMs": 4356
   },
   "whiteFrac": [
    [
@@ -1394,29 +1394,29 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 270988,
-   "vertices": 135492,
+   "triangles": 179276,
+   "vertices": 89640,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.14285714285714285,
-   "activeCells": 1153024,
+   "activeCells": 1047040,
    "warnings": [],
    "timings": {
     "cavity": 0,
-    "activate": 12,
-    "sample": 559,
-    "vertices": 1533.4,
-    "faces": 34.2
+    "activate": 11.8,
+    "sample": 561.8,
+    "vertices": 1075.8,
+    "faces": 27
    },
-   "totalMs": 2208.8
+   "totalMs": 1718.5
   },
   "whiteFrac": [
    [
-    0.050355029585798815,
+    0.02519230769230769,
     0,
-    0.23081360946745563,
+    0.016331360946745564,
     0,
-    0.05979289940828402,
+    0.011804733727810652,
     0
    ]
   ],
@@ -1438,12 +1438,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0,
-    "activate": 6.4,
-    "sample": 274.7,
-    "vertices": 666.1,
-    "faces": 22.1
+    "activate": 6.2,
+    "sample": 274.1,
+    "vertices": 815.8,
+    "faces": 22.9
    },
-   "totalMs": 1008.5
+   "totalMs": 1159.6
   },
   "whiteFrac": [
    [
@@ -1472,13 +1472,13 @@
    "activeCells": 743936,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 6.1,
-    "sample": 181.9,
-    "vertices": 404.9,
+    "cavity": 0,
+    "activate": 6.7,
+    "sample": 205.1,
+    "vertices": 483.8,
     "faces": 22.9
    },
-   "totalMs": 646.9
+   "totalMs": 750.9
   },
   "whiteFrac": [
    [
@@ -1508,12 +1508,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 7.2,
-    "sample": 428.4,
-    "vertices": 1050,
-    "faces": 23.5
+    "activate": 17.8,
+    "sample": 594.7,
+    "vertices": 1600.4,
+    "faces": 19.9
    },
-   "totalMs": 1542.6
+   "totalMs": 2269.5
   },
   "whiteFrac": [
    [
@@ -1543,12 +1543,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 300.8,
-    "sample": 1439.4,
-    "vertices": 4664.5,
-    "faces": 35.6
+    "activate": 302.6,
+    "sample": 1350.3,
+    "vertices": 4779.4,
+    "faces": 36.9
    },
-   "totalMs": 6558.5
+   "totalMs": 6566.9
   },
   "whiteFrac": [
    [

@@ -3,7 +3,7 @@
 // textures; the CPU samples the same tables, so both see the same analytic depth.
 
 import { polygonSDF } from './math';
-import { type ProfilePoint, sampleProfile } from './profile';
+import { type ProfilePoint, type SampledProfile, sampleProfile } from './profile';
 
 export const PROFILE_RES: [number, number] = [160, 320];
 /** Curve samples per profile span: the inner wall is an offset of this polyline, and
@@ -20,8 +20,13 @@ export interface ProfileTable {
   max: [number, number];
 }
 
-export function buildProfileTable(points: ProfilePoint[], isHole: (face: string) => boolean): ProfileTable {
-  const prof = sampleProfile(points, PROFILE_SAMPLES);
+/** Profile to tabulate: revolves are resampled finely; cylinders and cones already
+ *  have an exact polygon. */
+export function tableProfile(type: string, points: ProfilePoint[] | undefined, compiled: SampledProfile): SampledProfile {
+  return type === 'revolve' ? sampleProfile(points ?? [], PROFILE_SAMPLES) : compiled;
+}
+
+export function buildProfileTable(prof: SampledProfile, isHole: (face: string) => boolean): ProfileTable {
   const m = Math.max(1, 0.15 * Math.max(prof.rMax, prof.yMax - prof.yMin));
   const lo: [number, number] = [0, prof.yMin - m], hi: [number, number] = [prof.rMax + m, prof.yMax + m];
   const [W, H] = PROFILE_RES;

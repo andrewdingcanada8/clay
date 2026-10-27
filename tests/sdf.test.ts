@@ -35,3 +35,21 @@ describe('sdf kernel', () => {
     expect(Math.abs(v - expected) / expected).toBeLessThan(0.03);
   });
 });
+
+describe('analytic depth', () => {
+  it('matches the exact depth for cylinders, cones and revolves, with and without openings', async () => {
+    const { compileGroups, baseDepth } = await import('../src/engine/scene');
+    const d = emptyDoc();
+    d.objects.push(makeObject('cylinder', { params: { r: 5, h: 10 }, holes: ['top'] }));
+    const g = compileGroups(d)[0];
+    // inside, 1 cm from the axis: side is 4 cm away, the open top doesn't count, bottom 6 cm
+    expect(baseDepth(g, 1, 1, 0, 100, 0.01)).toBeCloseTo(4, 1);
+    // near the open top the depth stays the distance to the side
+    expect(baseDepth(g, 0, 4.9, 0, 100, 0.01)).toBeCloseTo(5, 1);
+    const c = emptyDoc();
+    c.objects.push(makeObject('cone', { params: { r: 4, h: 8 } }));
+    const gc = compileGroups(c)[0];
+    // on the axis, 1 cm above the base: nearest is the base
+    expect(baseDepth(gc, 0, -3, 0, 100, 0.01)).toBeCloseTo(1, 1);
+  });
+});
