@@ -1444,5 +1444,231 @@
   ],
   "width": 1560,
   "height": 1040
+ },
+ "open-box|mesh-mk": {
+  "id": "open-box",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/minkowski",
+   "triangles": 44,
+   "vertices": 24,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 20.3,
+    "primitives": 4.5,
+    "union": 0.4,
+    "cavity": 88.1,
+    "shell": 1.1,
+    "finish": 0,
+    "extract": 1
+   },
+   "totalMs": 115.5
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.4175147928994083,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "sphere-cube|mesh-mk": {
+  "id": "sphere-cube",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/minkowski",
+   "triangles": 28082,
+   "vertices": 14045,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 8.4,
+    "primitives": 10.4,
+    "union": 1.9,
+    "cavity": 39677.4,
+    "shell": 7.7,
+    "finish": 0.1,
+    "extract": 45
+   },
+   "totalMs": 39755.6
+  },
+  "whiteFrac": [
+   [
+    0.1043491124260355,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   [
+    0.6648520710059171,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1300
+ },
+ "rotated-box|mesh-mk": {
+  "id": "rotated-box",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/minkowski",
+   "triangles": 66,
+   "vertices": 35,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 8,
+    "primitives": 0.4,
+    "union": 0,
+    "cavity": 86.5,
+    "shell": 0.6,
+    "finish": 0,
+    "extract": 0.9
+   },
+   "totalMs": 96.5
+  },
+  "whiteFrac": [
+   [
+    0,
+    0.06079881656804734,
+    0.4945118343195266,
+    0,
+    0.16208579881656804,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "tower|mesh-mk": {
+  "id": "tower",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/minkowski",
+   "triangles": 1194,
+   "vertices": 599,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 18.4,
+    "primitives": 1,
+    "union": 0.1,
+    "cavity": 1731.7,
+    "shell": 1.5,
+    "finish": 0,
+    "extract": 8.3
+   },
+   "totalMs": 1761.4
+  },
+  "whiteFrac": [
+   [
+    0.0010355029585798817,
+    0,
+    0,
+    0.5050443786982248,
+    0,
+    0
+   ],
+   [
+    0,
+    0,
+    0,
+    0.1077810650887574,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1300
+ },
+ "cup-stick|mesh-mk": {
+  "id": "cup-stick",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/minkowski",
+   "triangles": 22546,
+   "vertices": 11279,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 6.2,
+    "primitives": 5.9,
+    "union": 0.5,
+    "cavity": 28555.7,
+    "shell": 24.3,
+    "finish": 0.1,
+    "extract": 50.3
+   },
+   "totalMs": 28647.1
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.21071005917159763,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "thick-wall|mesh-mk": {
+  "id": "thick-wall",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/minkowski",
+   "triangles": 27454,
+   "vertices": 13729,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 6.3,
+    "primitives": 15.4,
+    "union": 2.7,
+    "cavity": 70710.8,
+    "shell": 4.6,
+    "finish": 0,
+    "extract": 32.4
+   },
+   "totalMs": 70776.4
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.0028994082840236688,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
  }
 }
