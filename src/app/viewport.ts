@@ -110,6 +110,32 @@ export class Viewport {
     this.needsRender = true;
   }
 
+  /** Square JPEG thumbnail of the current view (without the gizmo and ghost). */
+  snapshot(size = 240): string {
+    const hidden = [this.gizmo.getHelper(), this.ghost].filter((o) => o.visible);
+    for (const o of hidden) o.visible = false;
+    this.renderer.render(this.scene, this.camera);
+    const src = this.renderer.domElement;
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const s = Math.min(src.width, src.height);
+    c.getContext('2d')!.drawImage(src, (src.width - s) / 2, (src.height - s) / 2, s, s, 0, 0, size, size);
+    for (const o of hidden) o.visible = true;
+    this.invalidate();
+    return c.toDataURL('image/jpeg', 0.75);
+  }
+
+  cameraState(): { pos: [number, number, number]; target: [number, number, number] } {
+    return { pos: this.camera.position.toArray() as [number, number, number], target: this.orbit.target.toArray() as [number, number, number] };
+  }
+
+  setCameraState(s: { pos: [number, number, number]; target: [number, number, number] }) {
+    this.camera.position.fromArray(s.pos);
+    this.orbit.target.fromArray(s.target);
+    this.orbit.update();
+    this.invalidate();
+  }
+
   /** Lower the render resolution during camera moves and drags (SDF mode). */
   interacting(on: boolean) {
     clearTimeout(this.settleTimer);

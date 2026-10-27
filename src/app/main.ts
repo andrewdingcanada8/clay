@@ -13,6 +13,7 @@ import { examples } from '../examples';
 import { Builder } from './builder';
 import { ProfileEditor } from './profileEditor';
 import { HAND_LENGTH_CM } from './hand';
+import { type Piece, type PieceFlag, PieceStore, type ViewState } from './pieces';
 import { type GizmoMode, Viewport } from './viewport';
 
 type Tab = 'add' | 'edit' | 'shell' | 'holes' | 'view';
@@ -50,7 +51,15 @@ interface UIState {
   lockScale: boolean;
   profileEditing: string | null;
   profilePoint: number;
-  showExamples: boolean;
+  showGallery: boolean;
+  galleryTab: 'mine' | 'examples';
+  /** gallery card states (piece id): open ⋯ menu, renaming, flagging, confirming delete */
+  menuFor: string | null;
+  renameFor: string | null;
+  flagFor: string | null;
+  deleteFor: string | null;
+  /** waiting on "save or discard" before opening another piece or starting a new one */
+  pending: { open: string } | { example: string } | 'new' | null;
 }
 
 const STORAGE_KEY = 'clay.doc.v2'; // v2: hand-scale defaults
@@ -76,7 +85,8 @@ const future: string[] = [];
 const ui: UIState = {
   tab: 'edit', sheetOpen: true, selectedId: doc.objects[0]?.id ?? null, gizmo: 'translate', holeMode: 'face', pinRadius: 0.5,
   quality: 'normal', section: { on: false, axis: 'z', t: 0.5 }, wire: false, hand: true, lockScale: false,
-  profileEditing: null, profilePoint: -1, showExamples: false,
+  profileEditing: null, profilePoint: -1, showGallery: false, galleryTab: 'mine',
+  menuFor: null, renameFor: null, flagFor: null, deleteFor: null, pending: null,
 };
 let lastResult: BuildResult | null = null;
 let busy = false;
@@ -86,13 +96,26 @@ let cavityMs = 0;
 let frameOnNext = true;
 let profileEditor: ProfileEditor | null = null;
 
+// ---------- saved pieces
+const store = new PieceStore();
+const CURRENT_KEY = 'clay.current.v1';
+/** The open piece: its saved id (null = never saved) and the doc JSON as last saved or opened. */
+interface Current { id: string | null; name: string; saved: string }
+let current: Current = (() => {
+  try {
+    const c = JSON.parse(localStorage.getItem(CURRENT_KEY) ?? 'null');
+    if (c && typeof c.name === 'string') return c as Current;
+  } catch { /* storage unavailable */ }
+  return { id: null, name: 'Untitled', saved: committed };
+})();
+
 // ---------- DOM skeleton
 const app = document.getElementById('app')!;
 app.innerHTML = `
   <div id="viewport">
     <div class="topbar">
-      <div class="brand">Clay <small>shell studio</small></div>
-      <button class="icon-btn" id="btn-examples" aria-label="Examples">Examples</button>
+      <div class="brand">Clay <small id="piece-name">Untitled</small></div>
+      <button class="icon-btn" id="btn-gallery" aria-label="Pieces">Pieces</button>
       <button class="icon-btn" id="btn-frame" aria-label="Frame model">${ICON.frame}</button>
       <button class="icon-btn" id="btn-undo" aria-label="Undo">${ICON.undo}</button>
       <button class="icon-btn" id="btn-redo" aria-label="Redo">${ICON.redo}</button>
@@ -225,6 +248,7 @@ function refreshGhost() {
 
 // ---------- rendering
 function renderTopbar() {
+  document.getElementById('piece-name')!.textContent = current.name + (isDirty() ? ' •' : '');
   (document.getElementById('btn-undo') as HTMLButtonElement).disabled = !past.length;
   (document.getElementById('btn-redo') as HTMLButtonElement).disabled = !future.length;
 }
@@ -300,9 +324,9 @@ function faceLabel(o: SceneObject, fid: string): string {
 function renderPanel() {
   document.querySelectorAll<HTMLButtonElement>('.tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === ui.tab)));
   panel.hidden = !ui.sheetOpen;
-  panel.classList.toggle('tall', !!ui.profileEditing || ui.showExamples);
+  panel.classList.toggle('tall', !!ui.profileEditing || ui.showGallery);
   profileEditor = null;
-  if (ui.showExamples) { panel.innerHTML = examplesPanel(); return; }
+  if (ui.showGallery) { panel.innerHTML = galleryPanel(); return; }
   if (ui.profileEditing) { renderProfilePanel(); return; }
   panel.innerHTML = ({ add: addPanel, edit: editPanel, shell: shellPanel, holes: holesPanel, view: viewPanel } as Record<Tab, () => string>)[ui.tab]();
 }
@@ -419,8 +443,7 @@ function viewPanel() {
 }
 
 function examplesPanel() {
-  return `<div class="section"><div class="row"><h3 style="margin-right:auto">Benchmark scenes</h3><button class="btn" data-act="close-examples">Close</button></div>
-    <div class="examples">${exampleList.map((e) => `<button class="example" data-example="${e.id}"><b>${escapeHtml(e.title)}</b><small>${escapeHtml(e.notes)}</small></button>`).join('')}</div></div>`;
+  return `<div class="examples">${exampleList.map((e) => `<button class="example" data-example="${e.id}"><b>${escapeHtml(e.title)}</b><small>${escapeHtml(e.notes)}</small></button>`).join('')}</div>`;
 }
 
 function renderProfilePanel() {
@@ -536,6 +559,11 @@ panel.addEventListener('change', (e) => {
   if (act === 'wire-toggle') { ui.wire = el.checked; if (lastResult) view.setResult(lastResult, ui.wire); }
 });
 
+panel.addEventListener('keydown', (e) => {
+  const el = e.target as HTMLElement;
+  if (el.id === 'rename-input' && e.key === 'Enter' && ui.renameFor) renamePiece(ui.renameFor);
+  if (el.id === 'rename-input' && e.key === 'Escape') { closeCards(); renderPanel(); }
+});
 panel.addEventListener('click', (e) => {
   const btn = (e.target as HTMLElement).closest('button') as HTMLButtonElement | null;
   if (!btn) return;
@@ -543,6 +571,7 @@ panel.addEventListener('click', (e) => {
   if (d.add) return addObject(d.add as PrimitiveType);
   if (d.select) return selectObject(d.select);
   if (d.example) return loadExample(d.example);
+  if (onGalleryClick(d)) return;
   if (d.seg) return onSeg(d.seg, d.value!);
   if (d.face) {
     const o = selected();
@@ -597,7 +626,12 @@ panel.addEventListener('click', (e) => {
     case 'profile-zoom-in': profileEditor?.zoomBy(1.4); break;
     case 'profile-zoom-out': profileEditor?.zoomBy(1 / 1.4); break;
     case 'profile-fit': profileEditor?.fit(); break;
-    case 'close-examples': ui.showExamples = false; renderPanel(); break;
+    case 'close-gallery': ui.showGallery = false; ui.pending = null; renderPanel(); break;
+    case 'new-piece': newPiece(); break;
+    case 'save-piece': savePiece(); break;
+    case 'pending-save': resolvePending('save'); break;
+    case 'pending-discard': resolvePending('discard'); break;
+    case 'pending-cancel': ui.pending = null; renderPanel(); break;
     case 'add-group': {
       const id = newId('g');
       update((doc2) => { doc2.groups.push({ id, name: `Group ${doc2.groups.length + 1}`, thickness: DEFAULT_WALL }); });
@@ -620,6 +654,7 @@ function onSeg(name: string, value: string) {
     case 'kernel': update((d) => { d.kernel = value as SceneDoc['kernel']; }); break;
     case 'meshMethod': update((d) => { d.meshMethod = value as SceneDoc['meshMethod']; }); break;
     case 'quality': ui.quality = value as Quality; sync(false); break;
+    case 'galleryTab': ui.galleryTab = value as 'mine' | 'examples'; closeCards(); break;
     case 'axis': ui.section.axis = value as 'x' | 'y' | 'z'; view.setSection(true, ui.section.axis, ui.section.t); break;
   }
   renderPanel();
@@ -647,17 +682,14 @@ function addObject(type: PrimitiveType) {
   renderPanel();
 }
 
-function loadExample(id: string) {
+/** Examples open as a new, unsaved piece named after the example. */
+async function loadExample(id: string) {
   const ex = exampleList.find((e) => e.id === id)!;
-  update((d) => {
-    const k = d.kernel, m = d.meshMethod;
-    Object.assign(d, cloneDoc(ex.doc), { kernel: k, meshMethod: m });
-  });
-  ui.showExamples = false;
-  ui.selectedId = doc.objects[0]?.id ?? null;
-  frameOnNext = true;
-  refreshGhost();
-  renderPanel();
+  if (needsConfirm()) { ui.pending = { example: id }; renderPanel(); return; }
+  if (!(await leaveCurrent())) return;
+  const d = cloneDoc(ex.doc);
+  d.kernel = doc.kernel; d.meshMethod = doc.meshMethod;
+  loadDoc(d, { id: null, name: ex.title }, null);
   toast(ex.title);
 }
 
@@ -665,7 +697,7 @@ document.querySelector('.tabbar')!.addEventListener('click', (e) => {
   const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-tab]');
   if (!b) return;
   const t = b.dataset.tab as Tab;
-  ui.showExamples = false;
+  ui.showGallery = false;
   ui.profileEditing = null;
   if (t === ui.tab) ui.sheetOpen = !ui.sheetOpen;
   else { ui.tab = t; ui.sheetOpen = true; }
@@ -683,8 +715,9 @@ document.getElementById('btn-redo')!.addEventListener('click', () => {
   restore(future.pop()!);
 });
 document.getElementById('btn-frame')!.addEventListener('click', () => view.frame());
-document.getElementById('btn-examples')!.addEventListener('click', () => {
-  ui.showExamples = !ui.showExamples;
+document.getElementById('btn-gallery')!.addEventListener('click', () => {
+  ui.showGallery = !ui.showGallery;
+  ui.pending = null;
   ui.sheetOpen = true;
   renderPanel();
 });
@@ -752,6 +785,237 @@ view.onTap = (hit) => {
 };
 
 let toastTimer = 0;
+// ---------- pieces: save, open, new, gallery
+function setCurrent(c: Current) {
+  current = c;
+  try { localStorage.setItem(CURRENT_KEY, JSON.stringify(c)); } catch { /* storage unavailable */ }
+  renderTopbar();
+}
+
+function isDirty() {
+  return committed !== current.saved && doc.objects.length > 0;
+}
+
+function viewState(): ViewState {
+  return { kernel: doc.kernel, meshMethod: doc.meshMethod, quality: ui.quality, section: { ...ui.section }, camera: view.cameraState() };
+}
+
+function storeError(e: unknown): string {
+  const code = (e as { code?: string })?.code;
+  if (code === 'quota_exceeded') return 'Storage is full. Delete a few pieces, then save again.';
+  if (code === 'invalid_argument') return 'This piece is too large to save.';
+  return 'Couldn\'t save. Check your connection and try again.';
+}
+
+/** Save the open piece (a new entry if it was never saved). Resolves false on failure. */
+async function savePiece(): Promise<boolean> {
+  const now = Date.now();
+  const existing = store.get(current.id);
+  const p: Piece = existing
+    ? { ...existing, doc: cloneDoc(doc), thumb: view.snapshot(), view: viewState(), updatedAt: now }
+    : { id: newId('p'), name: current.id || current.name !== 'Untitled' ? current.name : `Piece ${store.list().length + 1}`, doc: cloneDoc(doc), thumb: view.snapshot(), view: viewState(), createdAt: now, updatedAt: now, flag: null };
+  setCurrent({ id: p.id, name: p.name, saved: committed });
+  try {
+    await store.put(p);
+    toast(`Saved "${p.name}"`);
+    if (ui.showGallery) renderPanel();
+    return true;
+  } catch (e) {
+    setCurrent({ ...current, saved: '' });
+    toast(storeError(e));
+    return false;
+  }
+}
+
+/** Unsaved work that was never saved needs an answer before it's replaced. */
+function needsConfirm() {
+  return !current.id && isDirty();
+}
+
+async function leaveCurrent(): Promise<boolean> {
+  if (current.id && isDirty()) return savePiece();
+  return true;
+}
+
+async function openPiece(id: string) {
+  const p = store.get(id);
+  if (!p) return;
+  if (needsConfirm()) { ui.pending = { open: id }; renderPanel(); return; }
+  if (!(await leaveCurrent())) return;
+  loadDoc(p.doc, { id: p.id, name: p.name }, p.view);
+  toast(`Opened "${p.name}"`);
+}
+
+async function newPiece() {
+  if (needsConfirm()) { ui.pending = 'new'; renderPanel(); return; }
+  if (!(await leaveCurrent())) return;
+  const d = emptyDoc();
+  d.kernel = doc.kernel; d.meshMethod = doc.meshMethod;
+  loadDoc(d, { id: null, name: 'Untitled' }, null);
+  ui.tab = 'add';
+  renderPanel();
+}
+
+async function resolvePending(how: 'save' | 'discard') {
+  const p = ui.pending;
+  ui.pending = null;
+  if (how === 'save' && !(await savePiece())) return;
+  if (how === 'discard') setCurrent({ ...current, saved: committed }); // nothing left to ask about
+  if (p === 'new') newPiece();
+  else if (p && 'open' in p) openPiece(p.open);
+  else if (p) loadExample(p.example);
+}
+
+/** Replace the document wholesale (no undo across pieces) and restore its view. */
+function loadDoc(d: SceneDoc, who: { id: string | null; name: string }, v: ViewState | null) {
+  doc = normalizeDoc(cloneDoc(d));
+  committed = JSON.stringify(doc);
+  past.length = 0; future.length = 0;
+  save(doc);
+  setCurrent({ ...who, saved: committed });
+  ui.selectedId = doc.objects[0]?.id ?? null;
+  ui.showGallery = false;
+  ui.menuFor = ui.renameFor = ui.flagFor = ui.deleteFor = null;
+  if (v) {
+    ui.quality = v.quality;
+    ui.section = { ...v.section };
+    view.setSection(ui.section.on, ui.section.axis, ui.section.t);
+    view.setCameraState(v.camera);
+    frameOnNext = false;
+  } else frameOnNext = true;
+  sync(false);
+  refreshGhost();
+  renderAll();
+}
+
+async function duplicatePiece(id: string) {
+  const p = store.get(id);
+  if (!p) return;
+  const now = Date.now();
+  try { await store.put({ ...JSON.parse(JSON.stringify(p)), id: newId('p'), name: `${p.name} copy`, createdAt: now, updatedAt: now, flag: null }); }
+  catch (e) { toast(storeError(e)); }
+}
+
+const flagLabel = (f: PieceFlag) => f.kernels.length === 2 ? 'SDF + Mesh problem' : f.kernels[0] === 'sdf' ? 'SDF problem' : f.kernels[0] === 'mesh' ? 'Mesh problem' : 'Problem';
+
+function when(t: number) {
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m} min ago`;
+  if (m < 60 * 24) return `${Math.round(m / 60)} h ago`;
+  return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function pieceCard(p: Piece) {
+  const cur = p.id === current.id;
+  let extra = '';
+  if (ui.renameFor === p.id) {
+    extra = `<div class="piece-form"><label class="field-col"><span>Name</span><input id="rename-input" value="${escapeHtml(p.name)}" maxlength="80"></label>
+      <div class="row"><button class="btn primary" data-rename-save="${p.id}">Rename</button><button class="btn" data-card-cancel="1">Cancel</button></div></div>`;
+  } else if (ui.flagFor === p.id) {
+    const f = p.flag;
+    extra = `<div class="piece-form"><p class="hint">Which kernel draws this piece wrong? Claude can open flagged pieces to reproduce the problem.</p>
+      <label class="toggle"><input type="checkbox" id="flag-sdf" ${!f || f.kernels.includes('sdf') ? 'checked' : ''}> SDF looks wrong</label>
+      <label class="toggle"><input type="checkbox" id="flag-mesh" ${f?.kernels.includes('mesh') ? 'checked' : ''}> Mesh looks wrong</label>
+      <label class="field-col"><span>What's wrong (optional)</span><textarea id="flag-note" rows="3" maxlength="2000" placeholder="e.g. rim is jagged at Draft; wall tears near the handle">${escapeHtml(f?.note ?? '')}</textarea></label>
+      ${cur ? '<p class="hint">The current camera, quality and section are saved with the flag.</p>' : ''}
+      <div class="row"><button class="btn primary" data-flag-save="${p.id}">Save flag</button><button class="btn" data-card-cancel="1">Cancel</button></div></div>`;
+  } else if (ui.deleteFor === p.id) {
+    extra = `<div class="piece-form"><p>Delete "${escapeHtml(p.name)}"? This can't be undone.</p>
+      <div class="row"><button class="btn danger" data-del-confirm="${p.id}">Delete</button><button class="btn" data-card-cancel="1">Cancel</button></div></div>`;
+  } else if (ui.menuFor === p.id) {
+    extra = `<div class="piece-menu" role="menu">
+      <button role="menuitem" data-rename="${p.id}">Rename</button>
+      <button role="menuitem" data-dup="${p.id}">Duplicate</button>
+      <button role="menuitem" data-flag="${p.id}">${p.flag ? 'Edit problem flag' : 'Flag a problem'}</button>
+      ${p.flag ? `<button role="menuitem" data-unflag="${p.id}">Clear problem flag</button>` : ''}
+      <button role="menuitem" class="danger" data-del="${p.id}">Delete</button></div>`;
+  }
+  return `<div class="piece${cur ? ' current' : ''}">
+    <button class="piece-open" data-open="${p.id}" aria-label="Open ${escapeHtml(p.name)}">${p.thumb ? `<img src="${p.thumb}" alt="">` : '<span class="piece-empty">No preview</span>'}</button>
+    <div class="piece-meta">
+      <div class="piece-title"><b>${escapeHtml(p.name)}</b><button class="piece-more" data-menu="${p.id}" aria-label="More actions for ${escapeHtml(p.name)}" aria-expanded="${ui.menuFor === p.id}">⋯</button></div>
+      <small>${cur ? 'Open now · ' : ''}${when(p.updatedAt)} · ${p.doc.objects.length} object${p.doc.objects.length === 1 ? '' : 's'}</small>
+      ${p.flag ? `<span class="flag-badge" title="${escapeHtml(p.flag.note)}">${flagLabel(p.flag)}</span>` : ''}
+    </div>${extra}</div>`;
+}
+
+function galleryPanel() {
+  const pieces = store.list();
+  const pending = ui.pending
+    ? `<div class="pending"><p>"${escapeHtml(current.name)}" has never been saved.</p>
+       <div class="row"><button class="btn primary" data-act="pending-save">Save it</button><button class="btn danger" data-act="pending-discard">Discard</button><button class="btn" data-act="pending-cancel">Cancel</button></div></div>` : '';
+  const saveLabel = current.id && !isDirty() ? 'Saved' : 'Save';
+  const body = ui.galleryTab === 'examples'
+    ? `<p class="hint">Benchmark scenes. Opening one replaces the open piece; save first if you want to keep it.</p>${examplesPanel()}`
+    : pieces.length
+      ? `<div class="pieces">${pieces.map(pieceCard).join('')}</div>`
+      : '<p class="hint">No saved pieces yet. Save the open piece to start your gallery.</p>';
+  return `<div class="section">
+    <div class="row"><h3 style="margin-right:auto">Pieces</h3>
+      <button class="btn" data-act="new-piece">New</button>
+      <button class="btn primary" data-act="save-piece" ${saveLabel === 'Saved' ? 'disabled' : ''}>${saveLabel}</button>
+      <button class="btn" data-act="close-gallery">Close</button></div>
+    ${pending}
+    ${seg<'mine' | 'examples'>('galleryTab', ui.galleryTab, [['mine', `My pieces (${pieces.length})`], ['examples', 'Examples']])}
+    <p class="hint">${store.kind === 'cloud' ? 'Saved with this artifact, on any device you open it on. Claude can read flagged pieces.' : 'Saved in this browser only.'}</p>
+    ${body}</div>`;
+}
+
+function closeCards() {
+  ui.menuFor = ui.renameFor = ui.flagFor = ui.deleteFor = null;
+}
+
+/** Gallery buttons; returns true when the click was one of them. */
+function onGalleryClick(d: DOMStringMap): boolean {
+  const closeCard = closeCards;
+  if (d.open) { closeCard(); openPiece(d.open); return true; }
+  if (d.menu) { const id = d.menu; const was = ui.menuFor === id; closeCard(); ui.menuFor = was ? null : id; renderPanel(); return true; }
+  if (d.cardCancel) { closeCard(); renderPanel(); return true; }
+  if (d.rename) { closeCard(); ui.renameFor = d.rename; renderPanel(); (document.getElementById('rename-input') as HTMLInputElement | null)?.select(); return true; }
+  if (d.renameSave) { renamePiece(d.renameSave); return true; }
+  if (d.dup) { closeCard(); duplicatePiece(d.dup); return true; }
+  if (d.flag) { closeCard(); ui.flagFor = d.flag; renderPanel(); return true; }
+  if (d.flagSave) { flagPiece(d.flagSave); return true; }
+  if (d.unflag) { closeCard(); store.patch(d.unflag, { flag: null }).catch((e) => toast(storeError(e))); return true; }
+  if (d.del) { closeCard(); ui.deleteFor = d.del; renderPanel(); return true; }
+  if (d.delConfirm) {
+    const id = d.delConfirm, name = store.get(id)?.name ?? 'Piece';
+    closeCard();
+    if (id === current.id) setCurrent({ id: null, name: current.name, saved: '' });
+    store.remove(id).then(() => toast(`Deleted "${name}"`), (e) => toast(storeError(e)));
+    return true;
+  }
+  return false;
+}
+
+function renamePiece(id: string) {
+  const name = (document.getElementById('rename-input') as HTMLInputElement).value.trim() || 'Untitled';
+  ui.renameFor = null;
+  if (id === current.id) setCurrent({ ...current, name });
+  store.patch(id, { name }).catch((e) => toast(storeError(e)));
+}
+
+async function flagPiece(id: string) {
+  const kernels: ('sdf' | 'mesh')[] = [];
+  if ((document.getElementById('flag-sdf') as HTMLInputElement).checked) kernels.push('sdf');
+  if ((document.getElementById('flag-mesh') as HTMLInputElement).checked) kernels.push('mesh');
+  const note = (document.getElementById('flag-note') as HTMLTextAreaElement).value.trim();
+  ui.flagFor = null;
+  // flagging the open piece saves it first, so the flag describes what's on screen
+  if (id === current.id && isDirty() && !(await savePiece())) return;
+  const p = store.get(id);
+  const flag: PieceFlag = { kernels, note, view: id === current.id ? viewState() : p?.view ?? null, at: Date.now() };
+  try { await store.patch(id, { flag }); toast('Flagged. Claude can now open this piece.'); }
+  catch (e) { toast(storeError(e)); }
+}
+
+store.onChange = () => {
+  if (current.id && !store.get(current.id) && store.kind === 'cloud') setCurrent({ ...current, id: null, saved: '' });
+  renderTopbar();
+  if (ui.showGallery && !document.activeElement?.closest('.piece-form')) renderPanel();
+};
+
 function toast(msg: string) {
   let el = document.querySelector<HTMLDivElement>('.toast');
   if (!el) {

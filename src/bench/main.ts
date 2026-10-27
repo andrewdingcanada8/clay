@@ -12,6 +12,7 @@ import { approxDepth, compileGroups, traceScene } from '../engine/scene';
 import type { Vec3 } from '../engine/math';
 import { SdfRenderer } from '../app/raymarch';
 import type { BuildResult } from '../engine/kernel';
+import { flaggedCases } from './flagged';
 
 const params = new URLSearchParams(location.search);
 const caseId = params.get('case') ?? 'open-box';
@@ -24,8 +25,9 @@ declare global { interface Window { __bench?: unknown; __benchError?: string; __
 
 async function main() {
   for (const k of ['__dcExpand', '__dcLambda']) if (params.get(k)) (globalThis as Record<string, unknown>)[k] = Number(params.get(k));
-  if (caseId === '__list') { window.__cases = examples().map((e) => e.id); return; }
-  const ex = examples().find((e) => e.id === caseId);
+  const cases = [...examples(), ...flaggedCases()];
+  if (caseId === '__list') { window.__cases = cases.map((e) => e.id); return; }
+  const ex = cases.find((e) => e.id === caseId);
   if (!ex) throw new Error(`unknown case ${caseId}`);
   const doc = { ...ex.doc, kernel, meshMethod: kernelParam === 'mesh-mk' ? 'minkowski' as const : 'offset' as const };
   // overrides for reproducing app states: ?wall=cm&blend=cm&nogrid=1
