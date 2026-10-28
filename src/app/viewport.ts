@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { SceneObject } from '../engine/document';
+import type { PartDef, SceneObject } from '../engine/document';
 import type { BuildResult } from '../engine/kernel';
 import { DEG } from '../engine/math';
 import { revolveOutline } from '../engine/primitives';
@@ -318,6 +318,9 @@ export class Viewport {
     this.invalidate();
   }
 
+  /** Definitions for drawing placed parts' ghosts (the document's parts). */
+  partDefs: PartDef[] = [];
+
   setGhost(obj: SceneObject | null, mode: GizmoMode) {
     this.gizmo.detach();
     for (const c of this.ghost.children) {
@@ -325,7 +328,7 @@ export class Viewport {
     }
     this.ghost.clear();
     if (!obj) { this.invalidate(); return; }
-    const geo = ghostGeometry(obj);
+    const geo = ghostGeometry(obj, this.partDefs);
     const color = obj.mode === 'subtract' ? 0xd04040 : obj.mode === 'solid' ? 0x3a7bd5 : 0xff8a1f;
     const fill = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.12, depthWrite: false }));
     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 }));
@@ -359,9 +362,32 @@ function lathe(outline: number[], segs: number, phi = 0): THREE.BufferGeometry {
   return new THREE.LatheGeometry(pts, segs, phi);
 }
 
-export function ghostGeometry(o: SceneObject): THREE.BufferGeometry {
+export function ghostGeometry(o: SceneObject, parts: PartDef[] = []): THREE.BufferGeometry {
   const p = o.params;
   switch (o.type) {
+    case 'part': {
+      // the outlines of the part's own objects, in part space
+      const def = parts.find((d) => d.id === p.part) ?? parts.flatMap((d) => d.parts ?? []).find((d) => d.id === p.part);
+      const chunks: Float32Array[] = [];
+      for (const inner of def?.objects ?? []) {
+        if (inner.hidden) continue;
+        const g = ghostGeometry(inner, [...parts, ...(def?.parts ?? [])]);
+        const flat = g.index ? g.toNonIndexed() : g;
+        const t = inner.transform;
+        flat.applyMatrix4(new THREE.Matrix4().compose(
+          new THREE.Vector3(...t.position),
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(t.rotation[0] * DEG, t.rotation[1] * DEG, t.rotation[2] * DEG, 'XYZ')),
+          new THREE.Vector3(...t.scale)));
+        chunks.push(flat.getAttribute('position').array as Float32Array);
+        g.dispose();
+      }
+      const all = new Float32Array(chunks.reduce((n, c) => n + c.length, 0));
+      let at = 0;
+      for (const c of chunks) { all.set(c, at); at += c.length; }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(all, 3));
+      return geo;
+    }
     case 'box': return new THREE.BoxGeometry(p.x, p.y, p.z);
     case 'prism': return lathe([0, -p.h! / 2, p.r!, -p.h! / 2, p.r2 ?? p.r!, p.h! / 2, 0, p.h! / 2], Math.max(3, Math.round(p.n!)), Math.PI / 2);
     case 'torus': {

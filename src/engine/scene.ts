@@ -48,7 +48,7 @@ export interface CompiledGroup {
 }
 
 export function compileGroups(doc: SceneDoc): CompiledGroup[] {
-  const objs = doc.objects.filter((o) => !o.hidden).map(compileObject);
+  const objs = doc.objects.filter((o) => !o.hidden && o.type !== 'part').map(compileObject);
   const byId = new Map(objs.map((o) => [o.obj.id, o]));
   const groups: CompiledGroup[] = doc.groups.map((g, index) => ({
     index, id: g.id, name: g.name, t: Math.max(0.01, g.thickness), k: Math.max(0, g.blend ?? 0), hollow: false,

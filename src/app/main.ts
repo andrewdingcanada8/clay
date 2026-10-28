@@ -9,11 +9,13 @@ import type { CavityGrid } from '../engine/cavity';
 import { DEFAULT_WALL, type Group } from '../engine/document';
 import type { Vec3 } from '../engine/math';
 import { classifyPoint, compileScene, sdfWorld, toLocal } from '../engine/primitives';
+import { compileGroups } from '../engine/scene';
 import { examples } from '../examples';
 import { Builder } from './builder';
 import { ProfileEditor } from './profileEditor';
 import { HAND_LENGTH_CM } from './hand';
-import { type Piece, type PieceFlag, PieceStore, type ViewState } from './pieces';
+import { type LibraryPart, PartStore, type Piece, type PieceFlag, PieceStore, type ViewState } from './pieces';
+import { expandParts, makePartDef, partScale, placedId } from '../engine/parts';
 import { type GizmoMode, Viewport } from './viewport';
 
 type Tab = 'add' | 'edit' | 'shell' | 'holes' | 'view';
@@ -60,6 +62,12 @@ interface UIState {
   deleteFor: string | null;
   /** waiting on "save or discard" before opening another piece or starting a new one */
   pending: { open: string } | { example: string } | 'new' | null;
+  /** group id being saved as a part (name prompt open) */
+  partNaming: string | null;
+  /** library part cards: open ⋯ menu, renaming, confirming delete */
+  libMenu: string | null;
+  libRename: string | null;
+  libDelete: string | null;
 }
 
 const STORAGE_KEY = 'clay.doc.v2'; // v2: hand-scale defaults
@@ -87,6 +95,7 @@ const ui: UIState = {
   quality: 'normal', section: { on: false, axis: 'z', t: 0.5 }, wire: false, hand: true, lockScale: false,
   profileEditing: null, profilePoint: -1, showGallery: false, galleryTab: 'mine',
   menuFor: null, renameFor: null, flagFor: null, deleteFor: null, pending: null,
+  partNaming: null, libMenu: null, libRename: null, libDelete: null,
 };
 let lastResult: BuildResult | null = null;
 let busy = false;
@@ -98,6 +107,7 @@ let profileEditor: ProfileEditor | null = null;
 
 // ---------- saved pieces
 const store = new PieceStore();
+const partStore = new PartStore();
 const CURRENT_KEY = 'clay.current.v1';
 /** The open piece: its saved id (null = never saved) and the doc JSON as last saved or opened. */
 interface Current { id: string | null; name: string; saved: string }
@@ -178,44 +188,47 @@ function update(mut: (d: SceneDoc) => void, interactive = false) {
 }
 
 // ---------- display / builds
-/** Key of what a group's cavity depends on: its shell objects and their openings. */
-function cavityKey(gi: number): string {
-  const g = doc.groups[gi];
-  const shells = doc.objects.filter((o) => o.groupId === g.id && o.mode === 'shell' && !o.hidden);
+// Everything is built and drawn from the expanded document: each placed part
+// becomes its own group (see engine/parts). Group indices below refer to it.
+function cavityKey(r: SceneDoc, gi: number): string {
+  const g = r.groups[gi];
+  const shells = r.objects.filter((o) => o.groupId === g.id && o.mode === 'shell' && !o.hidden);
   return JSON.stringify([ui.quality, g.blend ?? 0, shells.map((o) => [o.type, o.params, o.transform, o.holes])]);
 }
 
-function currentGrids(): (CavityGrid | null)[] {
-  return doc.groups.map((g, i) => {
+function currentGrids(r: SceneDoc): (CavityGrid | null)[] {
+  return r.groups.map((g, i) => {
     const c = gridCache[i];
-    return c && c.key === cavityKey(i) && g.thickness <= c.grid.tMax ? c.grid : null;
+    return c && c.key === cavityKey(r, i) && g.thickness <= c.grid.tMax ? c.grid : null;
   });
 }
 
 function applyGrids() {
-  if (doc.kernel === 'sdf') view.setSdfGrids(currentGrids());
+  if (doc.kernel === 'sdf') view.setSdfGrids(currentGrids(expandParts(doc)));
 }
 
 /** Bring the display in line with the document. While a drag is in progress
  *  (interactive) only cheap display updates run; worker builds wait for release. */
 function sync(interactive: boolean) {
+  const r = expandParts(doc);
+  view.partDefs = doc.parts ?? [];
   if (doc.kernel === 'mesh') {
     view.setMode('mesh');
-    if (!interactive) builder.request('mesh', doc, ui.quality);
+    if (!interactive) builder.request('mesh', r, ui.quality);
     return;
   }
   // SDF: the GPU draws the document straight away; only stale cavity grids rebuild.
   view.setMode('sdf');
-  view.setSdfDoc(doc);
-  const grids = currentGrids();
+  view.setSdfDoc(r);
+  const grids = currentGrids(r);
   view.setSdfGrids(grids);
   const missing: number[] = [];
   const keys: Record<number, string> = {};
-  doc.groups.forEach((g, i) => {
-    const hollow = doc.shell.enabled && doc.objects.some((o) => o.groupId === g.id && o.mode === 'shell' && !o.hidden);
-    if (hollow && !grids[i]) { missing.push(i); keys[i] = cavityKey(i); }
+  r.groups.forEach((g, i) => {
+    const hollow = r.shell.enabled && r.objects.some((o) => o.groupId === g.id && o.mode === 'shell' && !o.hidden);
+    if (hollow && !grids[i]) { missing.push(i); keys[i] = cavityKey(r, i); }
   });
-  if (missing.length && !interactive) builder.request('cavity', doc, ui.quality, { groups: missing, tag: keys });
+  if (missing.length && !interactive) builder.request('cavity', r, ui.quality, { groups: missing, tag: keys });
   if (frameOnNext) { view.frame(); frameOnNext = false; }
   renderStatus();
 }
@@ -258,7 +271,7 @@ function renderStatus() {
   const s = doc.kernel === 'mesh' ? lastResult?.stats : undefined;
   if (doc.kernel === 'sdf') {
     const hollow = doc.groups.some((g) => doc.shell.enabled && doc.objects.some((o) => o.groupId === g.id && o.mode === 'shell'));
-    const exact = currentGrids().some(Boolean) || !hollow;
+    const exact = currentGrids(expandParts(doc)).some(Boolean) || !hollow;
     chips.push(`<span class="chip ${busy ? 'busy' : 'ok'}">SDF · live${hollow ? (exact && !busy ? ' · exact walls' : ' · refining walls') : ''}</span>`);
   } else {
     const kernelName = doc.meshMethod === 'minkowski' ? 'Mesh · Minkowski' : 'Mesh';
@@ -314,6 +327,8 @@ const PARAMS: Record<PrimitiveType, [string, string, number, number, number][]> 
   capsule: [['r', 'Radius', 0.2, 25, 0.1], ['h', 'Length', 0, 80, 0.1]],
   prism: [['n', 'Sides', 3, 12, 1], ['r', 'Bottom radius', 0, 40, 0.1], ['r2', 'Top radius', 0, 40, 0.1], ['h', 'Height', 0.2, 80, 0.1]],
   revolve: [],
+  sweep: [],
+  part: [],
 };
 
 function faceLabel(o: SceneObject, fid: string): string {
@@ -340,7 +355,104 @@ function addPanel() {
   const types: PrimitiveType[] = ['sphere', 'box', 'cylinder', 'cone', 'torus', 'capsule', 'prism', 'revolve'];
   return `<div class="section"><h3>Add a form</h3>
     <div class="grid-add">${types.map((t) => `<button class="add-btn" data-add="${t}">${ICON[t]}${TYPE_LABEL[t]}</button>`).join('')}</div>
-    <p class="hint">New forms join the piece at the centre. Revolve opens the profile editor: draw half the silhouette and it spins 360° around the axis.</p></div>`;
+    <p class="hint">New forms join the piece at the centre. Revolve opens the profile editor: draw half the silhouette and it spins 360° around the axis.</p></div>
+    ${partsLibrary()}`;
+}
+
+function partsLibrary() {
+  const list = partStore.list();
+  const card = (p: LibraryPart) => {
+    let extra = '';
+    if (ui.libRename === p.id) {
+      extra = `<div class="piece-form"><label class="field-col"><span>Name</span><input id="lib-rename-input" value="${escapeHtml(p.name)}" maxlength="80"></label>
+        <div class="row"><button class="btn primary" data-lib-rename-save="${p.id}">Rename</button><button class="btn" data-lib-cancel="1">Cancel</button></div></div>`;
+    } else if (ui.libDelete === p.id) {
+      extra = `<div class="piece-form"><p>Remove "${escapeHtml(p.name)}" from your parts? Pieces that already use it keep their copy.</p>
+        <div class="row"><button class="btn danger" data-lib-del-confirm="${p.id}">Remove</button><button class="btn" data-lib-cancel="1">Cancel</button></div></div>`;
+    } else if (ui.libMenu === p.id) {
+      extra = `<div class="piece-menu" role="menu"><button role="menuitem" data-lib-rename="${p.id}">Rename</button><button role="menuitem" class="danger" data-lib-del="${p.id}">Remove</button></div>`;
+    }
+    return `<div class="piece">
+      <button class="piece-open" data-add-part="${p.id}" aria-label="Add ${escapeHtml(p.name)}">${p.thumb ? `<img src="${p.thumb}" alt="">` : '<span class="piece-empty">No preview</span>'}</button>
+      <div class="piece-meta"><div class="piece-title"><b>${escapeHtml(p.name)}</b><button class="piece-more" data-lib-menu="${p.id}" aria-label="More actions for ${escapeHtml(p.name)}" aria-expanded="${ui.libMenu === p.id}">⋯</button></div>
+      <small>${p.objects.length} object${p.objects.length === 1 ? '' : 's'}${p.hollow ? ` · ${p.thickness.toFixed(2)} cm wall` : ' · solid'}</small></div>${extra}</div>`;
+  };
+  return `<div class="section"><h3>Your parts</h3>
+    ${list.length ? `<div class="pieces">${list.map(card).join('')}</div>` : '<p class="hint">No parts yet. In the Shell tab, use "Save as part" on a group to reuse it in any piece.</p>'}
+    ${list.length ? '<p class="hint">Tap a part to add it. A part is finished geometry: its own hollow, openings and subtractions stay inside it.</p>' : ''}</div>`;
+}
+
+function partEditBody(o: SceneObject) {
+  const t = o.transform;
+  const def = (doc.parts ?? []).find((d) => d.id === o.params.part);
+  return `
+    <div class="section"><h3>Part · ${escapeHtml(def?.name ?? 'missing')}</h3>
+      ${seg<ObjectMode>('mode', o.mode === 'subtract' ? 'subtract' : 'solid', [['solid', 'Finished'], ['subtract', 'Cut']])}
+      <p class="hint">${o.mode === 'subtract' ? 'Its outer shape is carved from the group it sits in.' : 'Placed as finished geometry: its own hollow and subtractions stay inside it, and nothing else cuts it.'}</p>
+      ${doc.groups.length > 1 && o.mode === 'subtract' ? `<div class="row">${doc.groups.map((g) => `<button class="face-chip" data-move-group="${g.id}" aria-pressed="${g.id === o.groupId}">${escapeHtml(g.name)}</button>`).join('')}</div>` : ''}
+      <div class="row"><button class="btn" data-act="unpack-part">Unpack into a group</button></div>
+      <p class="hint">Unpacking turns it back into editable objects in a new group of this piece.</p>
+    </div>
+    <div class="section"><h3>Transform</h3>
+      ${seg<GizmoMode>('gizmo', ui.gizmo, [['translate', 'Move'], ['rotate', 'Rotate'], ['scale', 'Scale'], ['off', 'Hide']])}
+      ${xyz('position', 'Position', t.position, 0.1)}
+      ${xyz('rotation', 'Rotation°', t.rotation, 1)}
+      ${slider('tf.uscale', 'Size ×', +partScale(t).toFixed(3), 0.1, Math.max(4, Math.ceil(partScale(t) * 1.5)), 0.01)}
+      <p class="hint">Parts scale evenly; the wall scales with them.</p>
+    </div>
+    <div class="row"><button class="btn" data-act="duplicate">Duplicate</button><button class="btn danger" data-act="delete">Delete</button></div>`;
+}
+
+async function savePart(groupId: string) {
+  const name = ((document.getElementById('part-name') as HTMLInputElement | null)?.value.trim()) || 'Part';
+  ui.partNaming = null;
+  const r = expandParts(doc);
+  const g = compileGroups(r).find((x) => x.id === groupId);
+  if (!g) { toast('This group has nothing to save yet'); renderPanel(); return; }
+  const def = makePartDef(doc, groupId, name, g.bounds);
+  def.thumb = view.snapshot();
+  const now = Date.now();
+  try { await partStore.put({ ...def, createdAt: now, updatedAt: now }); toast(`Saved part "${name}". Add it from the Add tab.`); }
+  catch (e) { toast(storeError(e)); }
+  renderPanel();
+}
+
+function addPart(id: string) {
+  const lib = partStore.get(id);
+  if (!lib) return;
+  const { createdAt: _c, updatedAt: _u, ...def } = lib;
+  const o = makeObject('part', { params: { part: def.id }, mode: 'solid', name: def.name, groupId: selected()?.groupId ?? doc.groups[0].id });
+  update((d) => {
+    d.parts = d.parts ?? [];
+    if (!d.parts.some((x) => x.id === def.id)) d.parts.push(JSON.parse(JSON.stringify({ ...def, thumb: undefined })));
+    d.objects.push(o);
+  });
+  ui.selectedId = o.id;
+  ui.tab = 'edit';
+  refreshGhost();
+  renderPanel();
+}
+
+/** Replace a placed part by its objects, as a new group of this piece. */
+function unpackPart(o: SceneObject) {
+  const x = expandParts({ ...doc, objects: [o], pins: [], groups: doc.groups.map((g) => ({ ...g })) });
+  const fresh = new Map<string, string>();
+  const idFor = (old: string) => { if (!fresh.has(old)) fresh.set(old, newId(old.endsWith('~g') ? 'g' : 'o')); return fresh.get(old)!; };
+  const newGroups = x.groups.filter((g) => !doc.groups.some((dg) => dg.id === g.id)).map((g) => ({ ...g, id: idFor(g.id) }));
+  const objs = x.objects.map((c) => ({ ...c, id: idFor(c.id), groupId: fresh.get(c.groupId) ?? c.groupId }));
+  const pins = x.pins.map((p) => ({ ...p, id: newId('p'), objectId: fresh.get(p.objectId) ?? p.objectId }));
+  update((d) => {
+    d.objects = d.objects.filter((y) => y.id !== o.id).concat(objs);
+    d.groups.push(...newGroups);
+    d.pins.push(...pins);
+    // drop definitions nothing uses any more
+    const used = new Set(d.objects.filter((y) => y.type === 'part').map((y) => y.params.part));
+    d.parts = (d.parts ?? []).filter((p) => used.has(p.id));
+  });
+  ui.selectedId = objs[0]?.id ?? null;
+  toast(newGroups.length ? `Unpacked into "${newGroups[0].name}"` : 'Unpacked');
+  refreshGhost();
+  renderAll();
 }
 
 function editPanel() {
@@ -348,7 +460,8 @@ function editPanel() {
   let body = '';
   if (o) {
     const t = o.transform;
-    body = `
+    if (o.type === 'part') body = partEditBody(o);
+    else body = `
     <div class="section"><h3>${TYPE_LABEL[o.type]} · role in its group</h3>
       ${seg<ObjectMode>('mode', o.mode, [['shell', 'Shell'], ['solid', 'Solid'], ['subtract', 'Subtract']])}
       <p class="hint">${o.mode === 'shell' ? 'Forms the hollow body. The cavity grows inward from the outside of all Shell objects in the group.' : o.mode === 'solid' ? 'Never hollowed itself, but cut where the group\'s cavity passes through it.' : 'Carved out of its group together with the cavity. No wall forms around it.'}</p>
@@ -381,6 +494,10 @@ function shellPanel() {
       ${slider(`wall.${i}`, 'Wall cm', g.thickness, 0.05, 4, 0.01)}
       ${slider(`blend.${i}`, 'Blend cm', g.blend ?? 0, 0, 10, 0.1)}
       <p class="hint">${count('shell')} shell · ${count('solid')} solid · ${count('subtract')} subtract</p>
+      ${ui.partNaming === g.id
+        ? `<div class="piece-form"><label class="field-col"><span>Part name</span><input id="part-name" value="${escapeHtml(g.name)}" maxlength="80"></label>
+           <div class="row"><button class="btn primary" data-save-part="${g.id}">Save part</button><button class="btn" data-part-cancel="1">Cancel</button></div></div>`
+        : members.length ? `<div class="row"><button class="btn" data-name-part="${g.id}">Save as part</button></div>` : ''}
     </div>`;
   }).join('');
   return `<div class="section"><h3>Hollowing</h3>
@@ -428,7 +545,7 @@ function viewPanel() {
     </div>
     ${doc.kernel === 'sdf' ? `<div class="section"><h3>Rendering</h3><div class="stats">${escapeHtml([
       'Raymarched on the GPU: no triangles.',
-      ...currentGrids().map((c, i) => c ? `${doc.groups[i].name}: cavity grid ${c.dims.join('×')}, ${c.h.toFixed(2)} cm texels` : ''),
+      ...((r) => currentGrids(r).map((c, i) => c ? `${r.groups[i].name}: cavity grid ${c.dims.join('×')}, ${c.h.toFixed(2)} cm texels` : ''))(expandParts(doc)),
       cavityMs ? `last cavity build ${fmtMs(cavityMs)}` : '',
     ].filter(Boolean).join('\n'))}</div></div>` : `<div class="section"><h3>Last build</h3><div class="stats">${s ? escapeHtml([
       `kernel     ${s.kernel}`,
@@ -512,6 +629,9 @@ function setNum(key: string, v: number, interactive: boolean) {
     const k = key.slice(2);
     return update((d) => { (d.objects.find((x) => x.id === o.id)!.params as Record<string, number>)[k] = k === 'n' ? Math.round(v) : v; }, interactive);
   }
+  if (key === 'tf.uscale') {
+    return update((d) => { const s = Math.max(0.05, v); d.objects.find((x) => x.id === o.id)!.transform.scale = [s, s, s]; }, interactive);
+  }
   if (key.startsWith('tf.')) {
     const [, field, idx] = key.split('.');
     return update((d) => {
@@ -570,6 +690,21 @@ panel.addEventListener('click', (e) => {
   const d = btn.dataset;
   if (d.add) return addObject(d.add as PrimitiveType);
   if (d.select) return selectObject(d.select);
+  if (d.addPart) { ui.libMenu = null; return addPart(d.addPart); }
+  if (d.namePart) { ui.partNaming = d.namePart; renderPanel(); (document.getElementById('part-name') as HTMLInputElement | null)?.select(); return; }
+  if (d.savePart) { savePart(d.savePart); return; }
+  if (d.partCancel) { ui.partNaming = null; renderPanel(); return; }
+  if (d.libMenu) { const id = d.libMenu; ui.libRename = ui.libDelete = null; ui.libMenu = ui.libMenu === id ? null : id; renderPanel(); return; }
+  if (d.libCancel) { ui.libMenu = ui.libRename = ui.libDelete = null; renderPanel(); return; }
+  if (d.libRename) { ui.libMenu = null; ui.libRename = d.libRename; renderPanel(); return; }
+  if (d.libRenameSave) {
+    const id = d.libRenameSave, name = (document.getElementById('lib-rename-input') as HTMLInputElement).value.trim() || 'Part';
+    ui.libRename = null;
+    partStore.patch(id, { name, updatedAt: Date.now() }).catch((e) => toast(storeError(e)));
+    return;
+  }
+  if (d.libDel) { ui.libMenu = null; ui.libDelete = d.libDel; renderPanel(); return; }
+  if (d.libDelConfirm) { const id = d.libDelConfirm; ui.libDelete = null; partStore.remove(id).catch((e) => toast(storeError(e))); return; }
   if (d.example) return loadExample(d.example);
   if (onGalleryClick(d)) return;
   if (d.seg) return onSeg(d.seg, d.value!);
@@ -599,6 +734,7 @@ panel.addEventListener('click', (e) => {
   if (d.unpin) { update((doc2) => { doc2.pins = doc2.pins.filter((p) => p.id !== d.unpin); }); renderPanel(); return; }
   switch (d.act) {
     case 'lock': ui.lockScale = !ui.lockScale; btn.setAttribute('aria-pressed', String(ui.lockScale)); break;
+    case 'unpack-part': { const o = selected(); if (o?.type === 'part') unpackPart(o); break; }
     case 'duplicate': {
       const o = selected();
       if (!o) break;
@@ -732,7 +868,11 @@ window.addEventListener('keydown', (e) => {
 view.onGizmoChange = (t, done) => {
   const o = selected();
   if (!o) return;
-  update((d) => { Object.assign(d.objects.find((x) => x.id === o.id)!.transform, t); }, !done);
+  update((d) => {
+    const tr = d.objects.find((x) => x.id === o.id)!.transform;
+    Object.assign(tr, t);
+    if (o.type === 'part') { const s = partScale(tr); tr.scale = [s, s, s]; }
+  }, !done);
   if (done && ui.tab === 'edit') renderPanel();
 };
 
@@ -742,11 +882,12 @@ view.onTap = (hit) => {
     if (ui.tab === 'edit' && !ui.profileEditing) selectObject(null);
     return;
   }
-  const objs = compileScene(doc.objects);
+  const objs = compileScene(expandParts(doc).objects);
   const p = hit.point;
   const c = classifyPoint(objs, p.x, p.y, p.z, ['shell', 'solid', 'subtract']);
   if (!c) return;
-  const oid = c.obj.obj.id;
+  const oid = placedId(c.obj.obj.id);
+  if (oid !== c.obj.obj.id && ui.tab === 'holes') { toast('A part is finished geometry: its openings are set inside the part'); return; }
   if (ui.tab === 'holes' && ui.holeMode === 'face') {
     if (c.obj.obj.mode !== 'shell') { toast('Openings go on Shell objects'); return; }
     ui.selectedId = oid;
@@ -1009,6 +1150,8 @@ async function flagPiece(id: string) {
   try { await store.patch(id, { flag }); toast('Flagged. Claude can now open this piece.'); }
   catch (e) { toast(storeError(e)); }
 }
+
+partStore.onChange = () => { if (ui.tab === 'add' && !ui.showGallery && !document.activeElement?.closest('.piece-form')) renderPanel(); };
 
 store.onChange = () => {
   if (current.id && !store.get(current.id) && store.kind === 'cloud') setCurrent({ ...current, id: null, saved: '' });

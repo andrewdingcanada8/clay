@@ -55,7 +55,7 @@ Last updated: 2026-10-27. Benchmark numbers come from `bench/REPORT.md`, which `
 | ⬜ | Parametric sweep: height-over-length graph | Queued (4). Graph editor: arc length s horizontally, offset along the plane normal vertically (flat by default); e.g. a circle in XZ + rising line = spiral. |
 | ✅ | Saves: save, new, gallery, open, rename, duplicate, delete | Stored in the artifact's database (`pieces`), browser storage as fallback; thumbnails and the view (camera, quality, section) saved with each piece. |
 | ✅ | Flag a saved piece as a problem (SDF / Mesh, note) | Claude reads flagged rows and copies them to `bench/flagged/` as bench cases `flagged-<id>`. |
-| ⬜ | Parts: save a group as a reusable part | Queued (2). Added like a primitive and behaves as final geometry; its own subtractions/cavity don't affect the new piece. |
+| ✅ | Parts: save a group as a reusable part (Shell tab → Save as part), add from the Add tab | Placed parts build as their own group (finished geometry); "Cut" carves the part's envelope. Uniform scale only. Unpack turns a part back into a group. Library stored with the artifact (`parts`). |
 | ⬜ | Extrude an arbitrary 2D outline | |
 | ✅ | Smooth blends between joined shapes (per-group Blend cm) | SDF only (smooth min); the Mesh kernel shows a sharp union and warns. |
 | ✅ | SDF inner wall exact away from joins | Cavity grid stores only the correction to the analytic per-object depth (D = A + C), so rims and openings on large pieces stay round; the grid matters only at joins/blends. |

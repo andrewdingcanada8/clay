@@ -5,7 +5,7 @@
 import type { ProfilePoint } from './profile';
 import type { Vec3 } from './math';
 
-export type PrimitiveType = 'sphere' | 'box' | 'cylinder' | 'cone' | 'torus' | 'capsule' | 'prism' | 'revolve';
+export type PrimitiveType = 'sphere' | 'box' | 'cylinder' | 'cone' | 'torus' | 'capsule' | 'prism' | 'revolve' | 'sweep' | 'part';
 
 /**
  * Role of an object within its group:
@@ -42,6 +42,22 @@ export interface PrimitiveParams {
   n?: number; // prism sides
   r2?: number; // prism top circumradius (0 = point)
   points?: ProfilePoint[]; // revolve
+  part?: string; // part: id of a PartDef in doc.parts
+  // sweep: a section swept along a path drawn on a plane
+  plane?: 'xy' | 'xz' | 'yz';
+  /** Path points in the plane (r = first plane axis, y = second). */
+  path?: ProfilePoint[];
+  closed?: boolean;
+  /** Closed paths: times around (a coil when the lift rises). */
+  turns?: number;
+  /** Lift off the plane along its normal: r = position along the path 0..1, y = cm. */
+  lift?: ProfilePoint[];
+  section?: 'circle' | 'square' | 'custom';
+  /** Section width and height (circle: w is the diameter). */
+  w?: number;
+  d?: number;
+  /** Custom section outline (closed); fitted to w × d. */
+  shape?: ProfilePoint[];
 }
 
 export interface SceneObject {
@@ -81,6 +97,27 @@ export interface SceneDoc {
   sdfExactDistance: boolean;
   /** Mesh kernel: 'offset' = exact per-primitive offsets, 'minkowski' = exact erosion of the union (slow). */
   meshMethod: 'offset' | 'minkowski';
+  /** Definitions of the parts placed in this piece (copied in, so a piece is self-contained). */
+  parts?: PartDef[];
+}
+
+/**
+ * A saved group, reusable like a primitive. Placed in a piece it is finished
+ * geometry: its own hollow, subtractions and pins stay inside it.
+ */
+export interface PartDef {
+  id: string;
+  name: string;
+  thickness: number;
+  blend?: number;
+  /** Whether its Shell objects are hollowed (the piece's switch when it was saved). */
+  hollow: boolean;
+  /** Objects in part space: the part sits on the ground at the origin. */
+  objects: SceneObject[];
+  pins: PinHole[];
+  /** Parts placed inside this part. */
+  parts?: PartDef[];
+  thumb?: string;
 }
 
 let idCounter = 0;
@@ -104,7 +141,38 @@ export function defaultParams(type: PrimitiveType): PrimitiveParams {
     case 'capsule': return { r: 4.5, h: 12 };
     case 'prism': return { n: 6, r: 9, r2: 9, h: 15 };
     case 'revolve': return { points: defaultVaseProfile() };
+    case 'sweep': return defaultSweep();
+    case 'part': return {};
   }
+}
+
+/** A C-shaped handle, drawn upright (XY plane), round section. */
+export function defaultSweep(): PrimitiveParams {
+  return {
+    plane: 'xy',
+    path: [{ r: -1, y: -6, corner: true }, { r: 4, y: -5 }, { r: 6, y: 0 }, { r: 4, y: 5 }, { r: -1, y: 6, corner: true }],
+    closed: false,
+    turns: 1,
+    lift: [{ r: 0, y: 0 }, { r: 1, y: 0 }],
+    section: 'circle',
+    w: 2.4,
+    d: 2.4,
+    shape: [{ r: -1, y: -1 }, { r: 1, y: -1 }, { r: 0.6, y: 1 }, { r: -0.6, y: 1 }],
+  };
+}
+
+/** A coil: a circle drawn on the ground, lifted steadily over three turns. */
+export function defaultCoil(): PrimitiveParams {
+  return {
+    ...defaultSweep(),
+    plane: 'xz',
+    path: [{ r: 7, y: 0 }, { r: 0, y: 7 }, { r: -7, y: 0 }, { r: 0, y: -7 }],
+    closed: true,
+    turns: 3,
+    lift: [{ r: 0, y: -7, corner: true }, { r: 1, y: 7, corner: true }],
+    w: 2.2,
+    d: 2.2,
+  };
 }
 
 export function defaultVaseProfile(): ProfilePoint[] {
@@ -121,8 +189,10 @@ export function defaultVaseProfile(): ProfilePoint[] {
 export function scaleDoc(d: SceneDoc, k: number): SceneDoc {
   for (const o of d.objects) {
     const p = o.params as Record<string, unknown>;
-    for (const key of ['r', 'r2', 'x', 'y', 'z', 'h', 'R']) if (typeof p[key] === 'number') p[key] = (p[key] as number) * k;
+    for (const key of ['r', 'r2', 'x', 'y', 'z', 'h', 'R', 'w', 'd']) if (typeof p[key] === 'number') p[key] = (p[key] as number) * k;
     if (o.params.points) o.params.points = o.params.points.map((q) => ({ ...q, r: q.r * k, y: q.y * k }));
+    if (o.params.path) o.params.path = o.params.path.map((q) => ({ ...q, r: q.r * k, y: q.y * k }));
+    if (o.params.lift) o.params.lift = o.params.lift.map((q) => ({ ...q, y: q.y * k }));
     o.transform.position = o.transform.position.map((v) => v * k) as Vec3;
   }
   for (const pin of d.pins) {
@@ -135,7 +205,7 @@ export function scaleDoc(d: SceneDoc, k: number): SceneDoc {
 
 export const TYPE_LABEL: Record<PrimitiveType, string> = {
   sphere: 'Sphere', box: 'Box', cylinder: 'Cylinder', cone: 'Cone', torus: 'Torus',
-  capsule: 'Capsule', prism: 'Prism', revolve: 'Revolve',
+  capsule: 'Capsule', prism: 'Prism', revolve: 'Revolve', sweep: 'Sweep', part: 'Part',
 };
 
 export function makeObject(type: PrimitiveType, opts: Partial<SceneObject> = {}): SceneObject {

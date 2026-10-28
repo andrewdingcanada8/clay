@@ -330,7 +330,8 @@ function sampleRevolve(outline: number[], segFaces: string[]): SampledProfile {
 }
 
 export function compileScene(objects: SceneObject[]): CompiledObject[] {
-  return objects.filter((o) => !o.hidden).map(compileObject);
+  // placed parts are expanded before building (engine/parts); nothing to compile here
+  return objects.filter((o) => !o.hidden && o.type !== 'part').map(compileObject);
 }
 
 /** Which object/face of a scene a world-space surface point belongs to (nearest |sdf|). */
