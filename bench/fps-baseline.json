@@ -1,0 +1,242 @@
+{
+ "open-box": {
+  "map": 3.21,
+  "obj": 5.2,
+  "still": 1302.3,
+  "stillMax": 1420.6,
+  "moving": 343,
+  "movingMax": 391.1
+ },
+ "sphere-cube": {
+  "map": 2.35,
+  "obj": 5.6,
+  "still": 1380.6,
+  "stillMax": 1794.6,
+  "moving": 342.1,
+  "movingMax": 388.9
+ },
+ "chain-30": {
+  "map": 0.69,
+  "obj": 11.4,
+  "still": 2733.5,
+  "stillMax": 3079.3,
+  "moving": 706.5,
+  "movingMax": 725.9
+ },
+ "vase": {
+  "map": 2.84,
+  "obj": 3.9,
+  "still": 1391.5,
+  "stillMax": 1474.5,
+  "moving": 341.6,
+  "movingMax": 422.2
+ },
+ "bowl": {
+  "map": 3.67,
+  "obj": 6,
+  "still": 1484.7,
+  "stillMax": 1594.6,
+  "moving": 381.7,
+  "movingMax": 433.8
+ },
+ "cylinder-pins": {
+  "map": 2.84,
+  "obj": 4.4,
+  "still": 1361,
+  "stillMax": 1431.9,
+  "moving": 350.2,
+  "movingMax": 375.3
+ },
+ "cup-stick": {
+  "map": 2.81,
+  "obj": 7.8,
+  "still": 1423.5,
+  "stillMax": 1526.3,
+  "moving": 379.1,
+  "movingMax": 439.5
+ },
+ "vase-sticks": {
+  "map": 2.71,
+  "obj": 11.3,
+  "still": 1598.5,
+  "stillMax": 1644.8,
+  "moving": 398,
+  "movingMax": 408.2
+ },
+ "vase-solid-sticks": {
+  "map": 2.66,
+  "obj": 7.4,
+  "still": 1451,
+  "stillMax": 1578.7,
+  "moving": 365,
+  "movingMax": 401.4
+ },
+ "torus": {
+  "map": 2.01,
+  "obj": 2.8,
+  "still": 1259.3,
+  "stillMax": 1309.2,
+  "moving": 318.1,
+  "movingMax": 340.9
+ },
+ "lattice": {
+  "map": 2.68,
+  "obj": 20.4,
+  "still": 1924,
+  "stillMax": 2006.4,
+  "moving": 500.8,
+  "movingMax": 550.2
+ },
+ "vase-thin": {
+  "map": 2.87,
+  "obj": 4,
+  "still": 1364.7,
+  "stillMax": 1418.2,
+  "moving": 348.6,
+  "movingMax": 357.8
+ },
+ "chain-thin": {
+  "map": 1.06,
+  "obj": 7.4,
+  "still": 1829.4,
+  "stillMax": 1896.1,
+  "moving": 469.9,
+  "movingMax": 486.8
+ },
+ "transformed": {
+  "map": 2.72,
+  "obj": 5.9,
+  "still": 1406,
+  "stillMax": 1607.8,
+  "moving": 370.1,
+  "movingMax": 476.6
+ },
+ "rotated-box": {
+  "map": 2.65,
+  "obj": 3.7,
+  "still": 1282.7,
+  "stillMax": 1412.1,
+  "moving": 340.9,
+  "movingMax": 379
+ },
+ "tower": {
+  "map": 2.29,
+  "obj": 7.4,
+  "still": 1379.2,
+  "stillMax": 1435.6,
+  "moving": 351.1,
+  "movingMax": 366.7
+ },
+ "thick-wall": {
+  "map": 1.82,
+  "obj": 4.5,
+  "still": 1346.7,
+  "stillMax": 1471.4,
+  "moving": 351.9,
+  "movingMax": 406.7
+ },
+ "cut-sphere": {
+  "map": 2.31,
+  "obj": 6.2,
+  "still": 1427,
+  "stillMax": 1490.3,
+  "moving": 358,
+  "movingMax": 369
+ },
+ "mug-stick": {
+  "map": 3.17,
+  "obj": 9.4,
+  "still": 1509.5,
+  "stillMax": 1548.5,
+  "moving": 380.7,
+  "movingMax": 407.5
+ },
+ "mug-thin": {
+  "map": 3.21,
+  "obj": 9.6,
+  "still": 1557.2,
+  "stillMax": 1606.7,
+  "moving": 392.4,
+  "movingMax": 436.7
+ },
+ "two-groups": {
+  "map": 3.66,
+  "obj": 6.9,
+  "still": 2061.7,
+  "stillMax": 2141.3,
+  "moving": 529.9,
+  "movingMax": 541.4
+ },
+ "big-pins": {
+  "map": 3.16,
+  "obj": 4.9,
+  "still": 1347.7,
+  "stillMax": 1423.6,
+  "moving": 350.5,
+  "movingMax": 362.9
+ },
+ "frustums": {
+  "map": 1.66,
+  "obj": 4.1,
+  "still": 1305.4,
+  "stillMax": 1334.2,
+  "moving": 319.9,
+  "movingMax": 326.4
+ },
+ "sdf-narrow-join": {
+  "map": 2.3,
+  "obj": 4.7,
+  "still": 1353.6,
+  "stillMax": 1388.1,
+  "moving": 349.8,
+  "movingMax": 357.9
+ },
+ "sdf-pebble": {
+  "map": 2.37,
+  "obj": 3.2,
+  "still": 1333.8,
+  "stillMax": 1381.5,
+  "moving": 336.5,
+  "movingMax": 345.3
+ },
+ "sdf-blend": {
+  "map": 2.03,
+  "obj": 9.4,
+  "still": 1545.9,
+  "stillMax": 1644,
+  "moving": 396.5,
+  "movingMax": 439.6
+ },
+ "teapot": {
+  "map": 3.34,
+  "obj": 8.2,
+  "still": 1598.1,
+  "stillMax": 1688.9,
+  "moving": 415.1,
+  "movingMax": 471
+ },
+ "sweep-mug": {
+  "map": 3.03,
+  "obj": 5.3,
+  "still": 1570.6,
+  "stillMax": 1713,
+  "moving": 404.5,
+  "movingMax": 443
+ },
+ "coil": {
+  "map": 2.71,
+  "obj": 3.7,
+  "still": 3291.3,
+  "stillMax": 3514.8,
+  "moving": 858.5,
+  "movingMax": 920.1
+ },
+ "sweep-frame": {
+  "map": 1.62,
+  "obj": 3.1,
+  "still": 2209.9,
+  "stillMax": 2359.2,
+  "moving": 571.1,
+  "movingMax": 631.5
+ }
+}

@@ -1,242 +1,272 @@
 {
  "open-box": {
   "map": 3.21,
-  "obj": 5.2,
-  "still": 1302.3,
-  "stillMax": 1420.6,
-  "moving": 343,
-  "movingMax": 391.1
+  "warp": 3.57,
+  "obj": 3.2,
+  "still": 1373.1,
+  "stillMax": 1401.8,
+  "moving": 353.8,
+  "movingMax": 389.8
  },
  "sphere-cube": {
   "map": 2.35,
-  "obj": 5.6,
-  "still": 1380.6,
-  "stillMax": 1794.6,
-  "moving": 342.1,
-  "movingMax": 388.9
+  "warp": 3.33,
+  "obj": 3.9,
+  "still": 1377.8,
+  "stillMax": 1435.3,
+  "moving": 355.8,
+  "movingMax": 360.5
  },
  "chain-30": {
-  "map": 0.69,
-  "obj": 11.4,
-  "still": 2733.5,
-  "stillMax": 3079.3,
-  "moving": 706.5,
-  "movingMax": 725.9
+  "map": 0.53,
+  "warp": 1.36,
+  "obj": 1.6,
+  "still": 2145.5,
+  "stillMax": 2299.3,
+  "moving": 541.5,
+  "movingMax": 561.9
  },
  "vase": {
   "map": 2.84,
-  "obj": 3.9,
-  "still": 1391.5,
-  "stillMax": 1474.5,
-  "moving": 341.6,
-  "movingMax": 422.2
+  "warp": 4.54,
+  "obj": 2.8,
+  "still": 1398.4,
+  "stillMax": 1420.4,
+  "moving": 355.1,
+  "movingMax": 388.5
  },
  "bowl": {
   "map": 3.67,
-  "obj": 6,
-  "still": 1484.7,
-  "stillMax": 1594.6,
-  "moving": 381.7,
-  "movingMax": 433.8
+  "warp": 4.87,
+  "obj": 3.7,
+  "still": 1510.9,
+  "stillMax": 1594.5,
+  "moving": 383.1,
+  "movingMax": 402.7
  },
  "cylinder-pins": {
   "map": 2.84,
-  "obj": 4.4,
-  "still": 1361,
-  "stillMax": 1431.9,
-  "moving": 350.2,
-  "movingMax": 375.3
+  "warp": 3.9,
+  "obj": 2.8,
+  "still": 1362,
+  "stillMax": 1408.7,
+  "moving": 346.9,
+  "movingMax": 364.1
  },
  "cup-stick": {
   "map": 2.81,
-  "obj": 7.8,
-  "still": 1423.5,
-  "stillMax": 1526.3,
-  "moving": 379.1,
-  "movingMax": 439.5
+  "warp": 4.02,
+  "obj": 3.7,
+  "still": 1460.4,
+  "stillMax": 1504.2,
+  "moving": 379.5,
+  "movingMax": 388
  },
  "vase-sticks": {
-  "map": 2.71,
-  "obj": 11.3,
-  "still": 1598.5,
-  "stillMax": 1644.8,
-  "moving": 398,
-  "movingMax": 408.2
+  "map": 2.68,
+  "warp": 4.22,
+  "obj": 4.6,
+  "still": 1582,
+  "stillMax": 1643.7,
+  "moving": 400.4,
+  "movingMax": 410.3
  },
  "vase-solid-sticks": {
-  "map": 2.66,
-  "obj": 7.4,
+  "map": 2.65,
+  "warp": 4.12,
+  "obj": 3.9,
   "still": 1451,
-  "stillMax": 1578.7,
-  "moving": 365,
-  "movingMax": 401.4
+  "stillMax": 1493.1,
+  "moving": 381.6,
+  "movingMax": 451.3
  },
  "torus": {
   "map": 2.01,
-  "obj": 2.8,
-  "still": 1259.3,
-  "stillMax": 1309.2,
-  "moving": 318.1,
-  "movingMax": 340.9
+  "warp": 3.32,
+  "obj": 2,
+  "still": 1306.2,
+  "stillMax": 1345.9,
+  "moving": 331.7,
+  "movingMax": 382.1
  },
  "lattice": {
-  "map": 2.68,
-  "obj": 20.4,
-  "still": 1924,
-  "stillMax": 2006.4,
-  "moving": 500.8,
-  "movingMax": 550.2
+  "map": 2.57,
+  "warp": 3.3,
+  "obj": 8.4,
+  "still": 1798.9,
+  "stillMax": 1855.1,
+  "moving": 460.5,
+  "movingMax": 483.2
  },
  "vase-thin": {
   "map": 2.87,
-  "obj": 4,
-  "still": 1364.7,
-  "stillMax": 1418.2,
-  "moving": 348.6,
-  "movingMax": 357.8
+  "warp": 4.55,
+  "obj": 2.9,
+  "still": 1371.5,
+  "stillMax": 1412.2,
+  "moving": 351.3,
+  "movingMax": 367.6
  },
  "chain-thin": {
-  "map": 1.06,
-  "obj": 7.4,
-  "still": 1829.4,
-  "stillMax": 1896.1,
-  "moving": 469.9,
-  "movingMax": 486.8
+  "map": 0.88,
+  "warp": 1.74,
+  "obj": 2.4,
+  "still": 1636.5,
+  "stillMax": 1680.5,
+  "moving": 413.4,
+  "movingMax": 431
  },
  "transformed": {
-  "map": 2.72,
-  "obj": 5.9,
-  "still": 1406,
-  "stillMax": 1607.8,
-  "moving": 370.1,
-  "movingMax": 476.6
+  "map": 2.71,
+  "warp": 4.46,
+  "obj": 4.1,
+  "still": 1439.1,
+  "stillMax": 1548.3,
+  "moving": 366.6,
+  "movingMax": 409.8
  },
  "rotated-box": {
   "map": 2.65,
-  "obj": 3.7,
-  "still": 1282.7,
-  "stillMax": 1412.1,
-  "moving": 340.9,
-  "movingMax": 379
+  "warp": 3.52,
+  "obj": 2.7,
+  "still": 1375.6,
+  "stillMax": 1470.4,
+  "moving": 347.5,
+  "movingMax": 369.1
  },
  "tower": {
-  "map": 2.29,
-  "obj": 7.4,
-  "still": 1379.2,
-  "stillMax": 1435.6,
-  "moving": 351.1,
-  "movingMax": 366.7
+  "map": 2.27,
+  "warp": 3.15,
+  "obj": 4.6,
+  "still": 1406,
+  "stillMax": 1475.7,
+  "moving": 349.2,
+  "movingMax": 364.5
  },
  "thick-wall": {
-  "map": 1.82,
-  "obj": 4.5,
-  "still": 1346.7,
-  "stillMax": 1471.4,
-  "moving": 351.9,
-  "movingMax": 406.7
+  "map": 1.73,
+  "warp": 2.73,
+  "obj": 3,
+  "still": 1347.6,
+  "stillMax": 1409,
+  "moving": 359,
+  "movingMax": 387.3
  },
  "cut-sphere": {
   "map": 2.31,
-  "obj": 6.2,
-  "still": 1427,
-  "stillMax": 1490.3,
-  "moving": 358,
-  "movingMax": 369
+  "warp": 3.68,
+  "obj": 4.2,
+  "still": 1394,
+  "stillMax": 1535.5,
+  "moving": 359.9,
+  "movingMax": 368.2
  },
  "mug-stick": {
-  "map": 3.17,
-  "obj": 9.4,
-  "still": 1509.5,
-  "stillMax": 1548.5,
-  "moving": 380.7,
-  "movingMax": 407.5
+  "map": 3.16,
+  "warp": 4.7,
+  "obj": 5.4,
+  "still": 1529,
+  "stillMax": 1649.1,
+  "moving": 394.3,
+  "movingMax": 406.9
  },
  "mug-thin": {
-  "map": 3.21,
-  "obj": 9.6,
-  "still": 1557.2,
-  "stillMax": 1606.7,
-  "moving": 392.4,
-  "movingMax": 436.7
+  "map": 3.2,
+  "warp": 4.67,
+  "obj": 5.4,
+  "still": 1523.1,
+  "stillMax": 1636.4,
+  "moving": 381.9,
+  "movingMax": 411
  },
  "two-groups": {
-  "map": 3.66,
-  "obj": 6.9,
-  "still": 2061.7,
-  "stillMax": 2141.3,
-  "moving": 529.9,
-  "movingMax": 541.4
+  "map": 3.65,
+  "warp": 5.03,
+  "obj": 5.1,
+  "still": 2134.3,
+  "stillMax": 2224,
+  "moving": 545.8,
+  "movingMax": 640.5
  },
  "big-pins": {
   "map": 3.16,
-  "obj": 4.9,
-  "still": 1347.7,
-  "stillMax": 1423.6,
-  "moving": 350.5,
-  "movingMax": 362.9
+  "warp": 4.34,
+  "obj": 3.2,
+  "still": 1419.1,
+  "stillMax": 1456.4,
+  "moving": 360.7,
+  "movingMax": 385.6
  },
  "frustums": {
-  "map": 1.66,
-  "obj": 4.1,
-  "still": 1305.4,
-  "stillMax": 1334.2,
-  "moving": 319.9,
-  "movingMax": 326.4
+  "map": 1.65,
+  "warp": 2.38,
+  "obj": 2.9,
+  "still": 1300.4,
+  "stillMax": 1349.6,
+  "moving": 328.9,
+  "movingMax": 354.4
  },
  "sdf-narrow-join": {
   "map": 2.3,
-  "obj": 4.7,
-  "still": 1353.6,
-  "stillMax": 1388.1,
-  "moving": 349.8,
-  "movingMax": 357.9
+  "warp": 4.02,
+  "obj": 3.1,
+  "still": 1369.4,
+  "stillMax": 1443.9,
+  "moving": 363.8,
+  "movingMax": 420.9
  },
  "sdf-pebble": {
   "map": 2.37,
-  "obj": 3.2,
-  "still": 1333.8,
-  "stillMax": 1381.5,
-  "moving": 336.5,
-  "movingMax": 345.3
+  "warp": 3.98,
+  "obj": 2.4,
+  "still": 1367.9,
+  "stillMax": 1388.6,
+  "moving": 334.6,
+  "movingMax": 356.6
  },
  "sdf-blend": {
-  "map": 2.03,
-  "obj": 9.4,
-  "still": 1545.9,
-  "stillMax": 1644,
-  "moving": 396.5,
-  "movingMax": 439.6
+  "map": 2.01,
+  "warp": 3.23,
+  "obj": 6.9,
+  "still": 1493.5,
+  "stillMax": 1582.1,
+  "moving": 379.3,
+  "movingMax": 395.5
  },
  "teapot": {
-  "map": 3.34,
-  "obj": 8.2,
-  "still": 1598.1,
-  "stillMax": 1688.9,
-  "moving": 415.1,
-  "movingMax": 471
+  "map": 2.99,
+  "warp": 5.07,
+  "obj": 4.3,
+  "still": 1527,
+  "stillMax": 1562.6,
+  "moving": 396.2,
+  "movingMax": 473.8
  },
  "sweep-mug": {
   "map": 3.03,
-  "obj": 5.3,
-  "still": 1570.6,
-  "stillMax": 1713,
-  "moving": 404.5,
-  "movingMax": 443
+  "warp": 4.38,
+  "obj": 3.7,
+  "still": 1458.8,
+  "stillMax": 1506.1,
+  "moving": 383.4,
+  "movingMax": 393.1
  },
  "coil": {
   "map": 2.71,
-  "obj": 3.7,
-  "still": 3291.3,
-  "stillMax": 3514.8,
-  "moving": 858.5,
-  "movingMax": 920.1
+  "warp": 4.58,
+  "obj": 2.7,
+  "still": 2116.8,
+  "stillMax": 2268.1,
+  "moving": 551.2,
+  "movingMax": 656
  },
  "sweep-frame": {
-  "map": 1.62,
-  "obj": 3.1,
-  "still": 2209.9,
-  "stillMax": 2359.2,
-  "moving": 571.1,
-  "movingMax": 631.5
+  "map": 1.61,
+  "warp": 2.63,
+  "obj": 1.9,
+  "still": 1449.9,
+  "stillMax": 1491.7,
+  "moving": 372.9,
+  "movingMax": 441.6
  }
 }
