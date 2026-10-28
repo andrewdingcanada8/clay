@@ -1189,7 +1189,7 @@ function measureFps() {
   setTimeout(() => {
     const line = (label: string, ms: number[] & { w?: number; h?: number }) => {
       const s = [...ms].sort((a, b) => a - b), med = s[s.length >> 1], slow = s[Math.floor(s.length * 0.9)];
-      return `${label.padEnd(8)} ${med.toFixed(1)} ms  (${Math.round(1000 / med)} fps)  slowest ${slow.toFixed(1)} ms  ${ms.w}×${ms.h} px`;
+      return `${label.padEnd(8)}${String(Math.round(1000 / med)).padStart(3)} fps · ${med.toFixed(0)} ms (slowest ${slow.toFixed(0)})\n${''.padEnd(8)}${ms.w}×${ms.h} px`;
     };
     ui.fps = [line('moving', view.benchOrbit(24, true)), line('settled', view.benchOrbit(8, false))].join('\n');
     renderPanel();
