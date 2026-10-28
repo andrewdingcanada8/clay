@@ -2193,5 +2193,55 @@
   "whiteFrac": [],
   "width": 1560,
   "height": 780
+ },
+ "flagged-pmvrzc7lj484po|sdf": {
+  "id": "flagged-pmvrzc7lj484po",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 151020,
+   "vertices": 75508,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 4,
+   "cellSize": 0.24,
+   "activeCells": 723968,
+   "warnings": [],
+   "timings": {
+    "cavity": 0.4,
+    "activate": 410.4,
+    "sample": 1602.7,
+    "vertices": 3558.4,
+    "faces": 20.7
+   },
+   "totalMs": 5625.9
+  },
+  "whiteFrac": [],
+  "width": 1560,
+  "height": 780
+ },
+ "flagged-pmvrzc7lj484po|mesh": {
+  "id": "flagged-pmvrzc7lj484po",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 32094,
+   "vertices": 16053,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 18.8,
+    "primitives": 81.5,
+    "groups": 112.9,
+    "finish": 52,
+    "extract": 4.6
+   },
+   "totalMs": 274.5
+  },
+  "whiteFrac": [],
+  "width": 1560,
+  "height": 780
  }
 }

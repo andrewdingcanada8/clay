@@ -1,0 +1,189 @@
+{
+ "createdAt": 1793183805559,
+ "doc": {
+  "groups": [
+   {
+    "id": "g1",
+    "name": "Group 1",
+    "thickness": 0.6
+   }
+  ],
+  "kernel": "sdf",
+  "meshMethod": "offset",
+  "objects": [
+   {
+    "groupId": "g1",
+    "holes": [
+     "top"
+    ],
+    "id": "omvrz7pgj3q2pi",
+    "mode": "shell",
+    "name": "Revolve",
+    "params": {
+     "points": [
+      {
+       "corner": true,
+       "r": 6.2,
+       "y": -10.8
+      },
+      {
+       "r": 10.15,
+       "y": -8.3
+      },
+      {
+       "r": 12.3,
+       "y": -4.1
+      },
+      {
+       "r": 12.5,
+       "smooth": 0,
+       "y": -1.1
+      },
+      {
+       "r": 9.55,
+       "y": 2.05
+      },
+      {
+       "corner": true,
+       "r": 8.95,
+       "y": 6.35
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "type": "revolve"
+   },
+   {
+    "groupId": "g1",
+    "holes": [],
+    "id": "omvrzaomz47ag",
+    "mode": "solid",
+    "name": "Sweep",
+    "params": {
+     "closed": false,
+     "d": 2.4,
+     "lift": [
+      {
+       "r": 0,
+       "y": 0
+      },
+      {
+       "r": 1,
+       "y": 0
+      }
+     ],
+     "path": [
+      {
+       "corner": true,
+       "r": 5.2,
+       "y": 4.55
+      },
+      {
+       "r": 10.45,
+       "smooth": 0,
+       "y": -4.65
+      },
+      {
+       "r": 6,
+       "smooth": 0,
+       "y": 0
+      },
+      {
+       "corner": true,
+       "r": -0.1,
+       "y": 0.2
+      }
+     ],
+     "plane": "xy",
+     "section": "circle",
+     "shape": [
+      {
+       "r": -1,
+       "y": -1
+      },
+      {
+       "r": 1,
+       "y": -1
+      },
+      {
+       "r": 0.6,
+       "y": 1
+      },
+      {
+       "r": -0.6,
+       "y": 1
+      }
+     ],
+     "turns": 1,
+     "w": 2.4
+    },
+    "transform": {
+     "position": [
+      9.828,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "type": "sweep"
+   }
+  ],
+  "pins": [],
+  "sdfExactDistance": true,
+  "shell": {
+   "enabled": true
+  },
+  "version": 2
+ },
+ "flag": null,
+ "name": "Piece 2",
+ "updatedAt": 1793183805559,
+ "view": {
+  "camera": {
+   "pos": [
+    1.8011931925911906,
+    13.193842978277562,
+    21.878413040554033
+   ],
+   "target": [
+    10.392659785039095,
+    0.37460793522795804,
+    -1.892921503125184
+   ]
+  },
+  "kernel": "sdf",
+  "meshMethod": "offset",
+  "quality": "normal",
+  "section": {
+   "axis": "z",
+   "on": false,
+   "t": 0.5
+  }
+ },
+ "id": "pmvrzc7lj484po"
+}

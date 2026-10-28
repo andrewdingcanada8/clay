@@ -66,3 +66,5 @@ Quality: normal. Images: `bench/out/<case>-<kernel>.png`.
 | sweep-frame | mesh | 660 | 47198 | 0 | 0 | 0.0 |  |
 | sweep-corners | sdf | 2741 | 79896 | 0 | 0 | 0.0 |  |
 | sweep-corners | mesh | 279 | 24680 | 0 | 0 | 0.0 |  |
+| flagged-pmvrzc7lj484po | sdf | 5626 | 151020 | 0 | 4 | 0.0 |  |
+| flagged-pmvrzc7lj484po | mesh | 275 | 32094 | 0 | 0 | 0.0 |  |
