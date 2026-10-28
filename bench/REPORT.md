@@ -53,3 +53,9 @@ Quality: normal. Images: `bench/out/<case>-<kernel>.png`.
 | sdf-pebble | sdf | 624 | 150660 | 0 | 0 | 0.0 |  |
 | sdf-blend | sdf | 2840 | 158708 | 0 | 4 | 1.8 |  |
 | teapot | sdf | 5899 | 345160 | 0 | 18 | 25.7 |  |
+| sweep-mug | sdf | 7082 | 209296 | 0 | 1 | 26.0 |  |
+| sweep-mug | mesh | 153 | 22590 | 0 | 0 | 25.7 |  |
+| coil | sdf | 45872 | 498020 | 42 | 4 | 0.0 | 9 quads skipped at block borders |
+| coil | mesh | 306 | 74296 | 0 | 0 | 0.0 |  |
+| sweep-frame | sdf | 7832 | 149220 | 0 | 0 | 0.0 |  |
+| sweep-frame | mesh | 114 | 16642 | 0 | 0 | 0.0 |  |
