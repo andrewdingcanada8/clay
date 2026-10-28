@@ -152,6 +152,69 @@ export class Viewport {
     return out.toDataURL('image/jpeg', 0.78);
   }
 
+  /** Frame-time benchmark: orbit once around the piece, rendering `frames` frames
+   *  (each waited on with a 1-pixel read), at the moving or the settled resolution.
+   *  Returns per-frame milliseconds. */
+  benchOrbit(frames = 24, moving = false): number[] {
+    const saved = this.cameraState(), ratio = this.renderer.getPixelRatio();
+    const gizmo = this.gizmo.getHelper(), gizmoOn = gizmo.visible;
+    gizmo.visible = false;
+    if (moving && this.mode === 'sdf') { this.renderer.setPixelRatio(Math.max(0.5, this.basePixelRatio * 0.5)); this.resize(); }
+    else { this.renderer.setPixelRatio(this.basePixelRatio); this.resize(); }
+    const gl = this.renderer.getContext(), px = new Uint8Array(4);
+    const c = this.orbit.target.clone(), off = this.camera.position.clone().sub(c);
+    const r = Math.hypot(off.x, off.z), a0 = Math.atan2(off.z, off.x);
+    const out: number[] = [];
+    this.renderer.render(this.scene, this.camera); // warm-up
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    for (let i = 0; i < frames; i++) {
+      const a = a0 + (2 * Math.PI * i) / frames;
+      this.camera.position.set(c.x + r * Math.cos(a), c.y + off.y, c.z + r * Math.sin(a));
+      this.camera.lookAt(c);
+      const t0 = performance.now();
+      this.renderer.render(this.scene, this.camera);
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      out.push(performance.now() - t0);
+    }
+    gizmo.visible = gizmoOn;
+    this.renderer.setPixelRatio(ratio); this.resize();
+    this.setCameraState(saved);
+    return out;
+  }
+
+  /** Cost view (SDF): mean map() calls and object SDF evaluations per pixel over
+   *  `views` camera angles, counted in the shader, so independent of the GPU. */
+  benchCost(views = 4): { map: number; obj: number } {
+    const saved = this.cameraState();
+    const hide = [this.gizmo.getHelper(), this.ghost, this.grid, this.hand.object, this.result].filter((o) => o.visible);
+    for (const o of hide) o.visible = false;
+    const bg = this.scene.background;
+    this.scene.background = new THREE.Color(0x000000);
+    const clear = this.renderer.getClearColor(new THREE.Color()), clearA = this.renderer.getClearAlpha();
+    this.renderer.setClearColor(0x000000, 1);
+    this.sdf.setStyle({ cost: true });
+    const gl = this.renderer.getContext();
+    const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight, px = new Uint8Array(w * h * 4);
+    const c = this.orbit.target.clone(), off = this.camera.position.clone().sub(c);
+    const r = Math.hypot(off.x, off.z), a0 = Math.atan2(off.z, off.x);
+    let map = 0, obj = 0;
+    for (let i = 0; i < views; i++) {
+      const a = a0 + (2 * Math.PI * i) / views;
+      this.camera.position.set(c.x + r * Math.cos(a), c.y + off.y, c.z + r * Math.sin(a));
+      this.camera.lookAt(c);
+      this.renderer.render(this.scene, this.camera);
+      gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      for (let k = 0; k < px.length; k += 4) { map += px[k]; obj += px[k + 1] * 256 + px[k + 2]; }
+    }
+    this.sdf.setStyle({ cost: false });
+    this.renderer.setClearColor(clear, clearA);
+    this.scene.background = bg;
+    for (const o of hide) o.visible = true;
+    this.setCameraState(saved);
+    const n = views * w * h;
+    return { map: map / n, obj: obj / n };
+  }
+
   cameraState(): { pos: [number, number, number]; target: [number, number, number] } {
     return { pos: this.camera.position.toArray() as [number, number, number], target: this.orbit.target.toArray() as [number, number, number] };
   }

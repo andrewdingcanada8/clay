@@ -20,7 +20,7 @@ const MAX_GROUPS = 8;
 const MAX_GRIDS = 4;
 const MAX_PROFILES = 8;
 const MAX_PINS = 32;
-const ROWS = 8; // texels per object in the data texture
+const ROWS = 10; // texels per object in the data texture
 const TYPE_CODE: Record<string, number> = { sphere: 0, box: 1, cylinder: 2, cone: 3, torus: 4, capsule: 5, prism: 6, revolve: 7, sweep: 8 };
 const MAX_SWEEPS = 6;
 const SECTION_CODE: Record<string, number> = { circle: 0, square: 1, custom: 2 };
@@ -45,12 +45,14 @@ uniform highp sampler2D uSweep;
 uniform vec4 uClip;
 uniform int uClipOn;
 uniform int uFlat;
+uniform int uDbg;
 uniform vec3 uClay;
 uniform vec3 uCap;
 uniform vec3 uBoundsMin;
 uniform vec3 uBoundsMax;
 uniform float uPixelAngle;
 uniform int uGroupCount;
+uniform int uObjCount;
 uniform ivec4 uGroupRange[${MAX_GROUPS}];   // shells start, solids start, subs start, end
 uniform ivec2 uPinRange[${MAX_GROUPS}];
 uniform vec4 uGroupC[${MAX_GROUPS}];
@@ -188,13 +190,47 @@ float sdLocal(vec3 q, vec4 P, int type, int slot) {
   if (type == 6) return sdFrustum(q, P);
   return profile(slot, vec2(length(q.xz), q.y), 0);
 }
+int gObjN = 0, gMapN = 0; // evaluation counters for the cost view (uFlat == 2)
 float sdObj(int i, vec3 p) {
+  gObjN++;
   vec4 meta = row(i, 6);
   if (int(meta.x) == 8) return sdSweep(int(meta.y), row(i, 3), row(i, 7), toLocal(i, p)) * row(i, 4).w;
   return sdLocal(toLocal(i, p), row(i, 3), int(meta.x), int(meta.y)) * row(i, 4).w;
 }
 // lower bound from the object's bounding sphere
 float bound(int i, vec3 p) { vec4 b = row(i, 5); return length(p - b.xyz) - b.w; }
+
+// Per-ray object culling. Before marching, each object's local box is tested
+// against the ray segment, grown by every distance at which the object can still
+// change the field near the ray: the group's blend, the cavity smoothing and
+// grid offsets, through-opening depth (objects with openings), and the reach of
+// the normal and occlusion samples. Objects outside it cannot change map() at any
+// point the pixel evaluates, so skipping them leaves the image unchanged.
+uvec4 gMask = uvec4(0xffffffffu);
+bool active(int i) { return i >= 128 || ((gMask[i >> 5] >> uint(i & 31)) & 1u) == 1u; }
+bool segBox(vec3 ro, vec3 rd, float ta, float tb, vec3 lo, vec3 hi) {
+  vec3 inv = 1.0 / rd;
+  vec3 a = (lo - ro) * inv, b = (hi - ro) * inv;
+  vec3 mn = min(a, b), mx = max(a, b);
+  float t0 = max(max(mn.x, mn.y), max(mn.z, ta)), t1 = min(min(mx.x, mx.y), min(mx.z, tb));
+  return t0 <= t1;
+}
+// bit set per object hit by the segment [ta, tb], boxes grown by 'reach' (world units)
+uvec4 rayMask(vec3 ro, vec3 rd, float ta, float tb, float reach) {
+  uvec4 m = uvec4(0u);
+  for (int i = 0; i < 128; i++) {
+    if (i >= uObjCount) break;
+    vec4 meta = row(i, 6), S = row(i, 4);
+    int g = int(meta.w);
+    float cavH = g < ${MAX_GRIDS} ? uCavH[min(g, ${MAX_GRIDS - 1})] : 0.0;
+    float grow = reach + uK[g] + 3.0 * cavH + 0.05;
+    if (int(meta.z) != 0) grow += 2.0 * row(i, 5).w; // depth carries on through openings
+    vec3 o = toLocal(i, ro), d = toLocal(i, ro + rd) - o;
+    vec3 gl = grow / S.xyz;
+    if (segBox(o, d, ta, tb, row(i, 8).xyz - gl, row(i, 9).xyz + gl)) m[i >> 5] |= 1u << uint(i & 31);
+  }
+  return m;
+}
 
 // depth (world units) below this object's surface, ignoring faces that are openings;
 // outside the object it is the distance to its non-opening faces (signed or not)
@@ -285,11 +321,28 @@ ${range(MAX_GRIDS).map((i) => `  if (k == ${i}) {
   return -1e5;
 }
 
+// The shell loop's last four exact object distances at this point, so the cavity
+// loop below doesn't evaluate the same objects again.
+ivec4 cId; vec4 cD;
+float sdShell(int i, vec3 p) {
+  float d = sdObj(i, p);
+  cId = ivec4(i, cId.xyz); cD = vec4(d, cD.xyz);
+  return d;
+}
+float sdCached(int i, vec3 p) {
+  if (cId.x == i) return cD.x;
+  if (cId.y == i) return cD.y;
+  if (cId.z == i) return cD.z;
+  if (cId.w == i) return cD.w;
+  return sdObj(i, p);
+}
+
 int gKind;        // 0 clay, 1 section cap, 2 cavity wall
 float gCavH;
 bool gNoClip = false;
 
 float map(vec3 p) {
+  gMapN++;
   float s = 1e5;
   int kind = 0;
   gCavH = 0.0;
@@ -298,11 +351,14 @@ float map(vec3 p) {
     if (sdBox(p - uGroupC[g].xyz, uGroupE[g].xyz) >= s) continue;
     ivec4 R = uGroupRange[g];
     float fs = 1e5, fo = 1e5, cut = 1e5, cav = 1e5, kb = uK[g];
+    cId = ivec4(-1);
     for (int i = R.x; i < R.y; i++) {
+      if (!active(i)) continue;
       float b = bound(i, p);
-      fs = smin(fs, b < max(fs, 0.0) + 0.5 + kb ? sdObj(i, p) : b, kb);
+      fs = smin(fs, b < max(fs, 0.0) + 0.5 + kb ? sdShell(i, p) : b, kb);
     }
     for (int i = R.y; i < R.z; i++) {
+      if (!active(i)) continue;
       float b = bound(i, p);
       fo = smin(fo, b < max(min(fs, fo), 0.0) + 0.5 + kb ? sdObj(i, p) : b, kb);
     }
@@ -322,8 +378,9 @@ float map(vec3 p) {
       float tau = useGrid ? 0.5 * uCavH[min(g, ${MAX_GRIDS - 1})] : 0.02;
       float t1 = -1e5, t2 = -1e5, lb = -fs - 0.25 * kb * float(R.y - R.x - 1);
       for (int i = R.x; i < R.y; i++) {
+        if (!active(i)) continue;
         if (int(row(i, 6).z) == 0 && -bound(i, p) < max(lb, t1) - kA) continue;
-        float d = sdObj(i, p);
+        float d = sdCached(i, p);
         if (int(row(i, 6).z) == 0) d = -d;
         else {
           // Through an opening the depth carries on as if the face weren't there
@@ -342,6 +399,7 @@ float map(vec3 p) {
       cut = cav;
     }
     for (int i = R.z; i < R.w; i++) {
+      if (!active(i)) continue;
       float b = bound(i, p);
       cut = min(cut, b < cut + 0.5 ? sdObj(i, p) : b);
     }
@@ -368,8 +426,11 @@ vec3 calcNormal(vec3 p, float e) {
   }
   return normalize(n);
 }
+uvec4 gAOMask;
 float calcAO(vec3 p, vec3 n) {
   float occ = 0.0, sca = 1.0;
+  uvec4 m = gMask;
+  gMask = gAOMask;
   gNoClip = true; // occlusion comes from the clay only, not the section plane
   for (int i = min(uGroupCount, 0); i < 4; i++) {
     float h = 0.15 + 0.6 * float(i);
@@ -377,6 +438,7 @@ float calcAO(vec3 p, vec3 n) {
     occ += (h - d) * sca; sca *= 0.75;
   }
   gNoClip = false;
+  gMask = m;
   return clamp(1.0 - 0.18 * occ, 0.0, 1.0);
 }
 bool boxHit(vec3 ro, vec3 rd, out float t0, out float t1) {
@@ -394,7 +456,19 @@ void main() {
   float t0, t1;
   if (uGroupCount == 0 || !boxHit(ro, rd, t0, t1)) discard;
   float t = max(t0, 0.0);
+  // normal samples reach up to max(pixel footprint, quarter texel) from the hit;
+  // occlusion samples up to 1.95 along the normal, and see objects within that again
+  float nReach = uPixelAngle * t1 + 0.002;
+  for (int k = 0; k < ${MAX_GRIDS}; k++) nReach = max(nReach, 0.25 * uCavH[k]);
+  uvec4 marchMask = rayMask(ro, rd, t, t1, nReach), aoMask = rayMask(ro, rd, t, t1, 4.0);
+  gMask = marchMask;
+  gAOMask = aoMask;
   bool hit = false;
+  // nothing near this ray: it can't hit (the cost view still reports the pixel)
+  if (marchMask == uvec4(0u) && uObjCount <= 128) {
+    if (uFlat == 2) { pc_fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+    discard;
+  }
   for (int i = 0; i < 200; i++) {
     float d = map(ro + rd * t);
     float eps = clamp(uPixelAngle * t * 0.35, 0.0008, 0.008);
@@ -402,6 +476,8 @@ void main() {
     t += max(d * 0.92, eps * 0.5);
     if (t > t1) break;
   }
+  // cost view: map() calls and object evaluations for this pixel, no shading
+  if (uFlat == 2 && !hit) { pc_fragColor = vec4(float(min(gMapN, 255)) / 255.0, float(min(gObjN >> 8, 255)) / 255.0, float(gObjN & 255) / 255.0, 1.0); return; }
   if (!hit) discard;
   vec3 p = ro + rd * t;
   vec4 clip = uProjView * vec4(p, 1.0);
@@ -412,16 +488,17 @@ void main() {
   // texel so texel boundaries don't show as facets
   float ne = max(0.0008, uPixelAngle * t * 0.5);
   if (kind == 2 && gCavH > 0.0) ne = max(ne, 0.25 * gCavH);
-  vec3 n = calcNormal(p, ne);
+  vec3 n = (uDbg & 1) != 0 ? -rd : calcNormal(p, ne);
   if (dot(n, rd) > 0.0) n = -n;
   vec3 base = kind == 1 ? uCap : uClay;
   vec3 key = normalize(-rd + vec3(0.35, 0.65, 0.2));
   float dif = clamp(dot(n, key), 0.0, 1.0);
   float hemi = 0.55 + 0.45 * n.y;
-  float ao = calcAO(p, n);
+  float ao = (uDbg & 2) != 0 ? 1.0 : calcAO(p, n);
   vec3 col = base * (0.38 + 0.22 * hemi + 0.62 * dif) * (0.55 + 0.45 * ao);
   col += 0.06 * pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 3.0);
   pc_fragColor = vec4(pow(col, vec3(1.0 / 1.15)), 1.0);
+  if (uFlat == 2) pc_fragColor = vec4(float(min(gMapN, 255)) / 255.0, float(min(gObjN >> 8, 255)) / 255.0, float(gObjN & 255) / 255.0, 1.0);
 }
 `;
 
@@ -446,12 +523,14 @@ export class SdfRenderer {
       uClip: { value: new THREE.Vector4(0, 0, -1, 0) },
       uClipOn: { value: 0 },
       uFlat: { value: 0 },
+      uDbg: { value: 0 },
       uClay: { value: new THREE.Color(0xc8b6a4) },
       uCap: { value: new THREE.Color(0xc0634a) },
       uBoundsMin: { value: new THREE.Vector3() },
       uBoundsMax: { value: new THREE.Vector3() },
       uPixelAngle: { value: 0.0015 },
       uGroupCount: { value: 0 },
+      uObjCount: { value: 0 },
       // integer vector arrays must be flat Int32Arrays (three.js does not flatten them)
       uGroupRange: { value: new Int32Array(MAX_GROUPS * 4) },
       uPinRange: { value: new Int32Array(MAX_GROUPS * 2) },
@@ -499,9 +578,10 @@ export class SdfRenderer {
     u.uPixelAngle.value = (camera as THREE.PerspectiveCamera).isPerspectiveCamera ? 0.0015 : 0;
   }
 
-  setStyle(opts: { flat?: boolean; clay?: number; cap?: number }) {
+  setStyle(opts: { flat?: boolean; cost?: boolean; clay?: number; cap?: number }) {
     const u = this.material.uniforms;
     if (opts.flat !== undefined) u.uFlat.value = opts.flat ? 1 : 0;
+    if (opts.cost !== undefined) u.uFlat.value = opts.cost ? 2 : 0;
     if (opts.clay !== undefined) u.uClay.value.set(opts.clay);
     if (opts.cap !== undefined) u.uCap.value.set(opts.cap);
   }
@@ -546,6 +626,7 @@ export class SdfRenderer {
       (u.uHollow.value as number[])[k] = g.hollow ? 1 : 0;
     });
     u.uGroupCount.value = groups.length;
+    u.uObjCount.value = objs.length;
     const slots = this.updateProfiles(objs, groups);
     this.updateSweeps(objs, slots);
     this.writeData(objs, groups, slots);
@@ -649,6 +730,10 @@ export class SdfRenderer {
       data[k6] = TYPE_CODE[o.obj.type];
       data[k6 + 1] = slots.get(o) ?? 0;
       data[k6 + 2] = holeMask(o, g);
+      data[k6 + 3] = groups.indexOf(g);
+      const lb = o.localBounds, k8 = (i * ROWS + 8) * 4, k9 = (i * ROWS + 9) * 4;
+      data[k8] = lb.min[0]; data[k8 + 1] = lb.min[1]; data[k8 + 2] = lb.min[2];
+      data[k9] = lb.max[0]; data[k9 + 1] = lb.max[1]; data[k9 + 2] = lb.max[2];
     });
     if (!this.dataTex || this.dataTex.image.height !== n) {
       this.dataTex?.dispose();

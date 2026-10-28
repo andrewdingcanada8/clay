@@ -1,0 +1,18 @@
+{
+ "open-box": {
+  "map": 3.21,
+  "obj": 5.2,
+  "still": 1319.1,
+  "stillMax": 1486.6,
+  "moving": 336.8,
+  "movingMax": 356.4
+ },
+ "chain-30": {
+  "map": 0.69,
+  "obj": 11.4,
+  "still": 2691.5,
+  "stillMax": 2803.6,
+  "moving": 697.6,
+  "movingMax": 769.3
+ }
+}

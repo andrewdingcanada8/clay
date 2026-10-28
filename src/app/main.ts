@@ -1255,6 +1255,8 @@ sync(false);
   get doc() { return doc; },
   /** for scripts/example-thumbs.mjs */
   loadExample,
+  exampleIds: () => exampleList.map((e) => e.id),
+  setKernel: (k: SceneDoc['kernel']) => { if (doc.kernel !== k) update((d) => { d.kernel = k; }); },
   busy: () => busy || !!document.querySelector('.chip.busy'),
   project(x: number, y: number, z: number) {
     const v = new THREE.Vector3(x, y, z).project(view.camera);
