@@ -283,6 +283,13 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
       // Openings: extrude the cavity next to each hole face straight out through it.
       if (cavity && !cavity.isEmpty()) {
         for (const c of shells) {
+          // world normals of this object's flat openings
+          const openN: Vec3[] = [];
+          for (const fid of c.obj.holes) {
+            if (c.sweep && (fid === 'start' || fid === 'end')) continue;
+            const pl = c.faces.find((f) => f.id === fid)?.plane;
+            if (pl) openN.push(normalToWorld(c, ...pl.n));
+          }
           for (const fid of c.obj.holes) {
             if (c.sweep && (fid === 'start' || fid === 'end')) continue; // the sweep's hollow opens its own ends
             const face = c.faces.find((f) => f.id === fid);
@@ -301,7 +308,17 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
             const slab = keep(own.trimByPlane(n, n[0] * p[0] + n[1] * p[1] + n[2] * p[2] - t - delta));
             if (slab.isEmpty()) continue;
             const d = 2 * (t + delta);
-            cuts.push(keep(Manifold.hull([slab, keep(slab.translate([n[0] * d, n[1] * d, n[2] * d]))])));
+            // Sweep out through this face, and also toward neighbouring open faces so
+            // the strip of wall where two openings meet goes too (no ridge at the corner).
+            const dirs = [n, ...openN.filter((m) => m !== n && Math.abs(m[0] - n[0]) + Math.abs(m[1] - n[1]) + Math.abs(m[2] - n[2]) > 1e-6
+              && m[0] * n[0] + m[1] * n[1] + m[2] * n[2] > -0.5)].slice(0, 4);
+            const moved: Manifold[] = [slab];
+            for (let mask = 1; mask < 1 << dirs.length; mask++) {
+              const v: Vec3 = [0, 0, 0];
+              dirs.forEach((m, i) => { if (mask & (1 << i)) { v[0] += m[0] * d; v[1] += m[1] * d; v[2] += m[2] * d; } });
+              moved.push(keep(slab.translate(v)));
+            }
+            cuts.push(keep(Manifold.hull(moved)));
           }
         }
       }
