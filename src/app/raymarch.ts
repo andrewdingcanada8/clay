@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import type { CavityGrid } from '../engine/cavity';
 import { type SceneDoc, isCut } from '../engine/document';
 import { buildProfileTable, tableProfile } from '../engine/profileTable';
-import { MAX_PATH_POINTS, MAX_SECTION_POINTS } from '../engine/sweep';
+import { MAX_PATH_POINTS, MAX_SECTION_POINTS, sweepGeo } from '../engine/sweep';
 import type { CompiledObject } from '../engine/primitives';
 import { type CompiledGroup, OPENING_EPS, compileGroups } from '../engine/scene';
 
@@ -23,6 +23,12 @@ const MAX_PINS = 32;
 const ROWS = 10; // texels per object in the data texture
 const TYPE_CODE: Record<string, number> = { sphere: 0, box: 1, cylinder: 2, cone: 3, torus: 4, capsule: 5, prism: 6, revolve: 7, sweep: 8 };
 const MAX_SWEEPS = 6;
+// sweep texture rows per slot (indexed by path vertex / segment unless noted):
+// 0 point + length so far, 1 segment direction + length, 2/4 section normal square
+// to the segment at its start/end + flags of the vertex there (1 miter, 2 round
+// corner, 4 sharp), 3 section outline (by outline point), 5 plane between pieces
+// at a miter, 6-8 round corner axes and frame
+const SWEEP_ROWS = 9;
 const SECTION_CODE: Record<string, number> = { circle: 0, square: 1, custom: 2 };
 
 interface ProfileTex { tex: THREE.DataTexture; min: [number, number]; max: [number, number] }
@@ -53,6 +59,9 @@ uniform float uPixelAngle;
 uniform float uPixelSize; // orthographic cameras: world size of a pixel
 uniform int uGroupCount;
 uniform int uObjCount;
+uniform int uSweepCount;
+uniform int uSweepObj[${MAX_SWEEPS}]; // object index of each sweep slot
+uniform float uSweepGate;
 uniform ivec4 uGroupRange[${MAX_GROUPS}];   // shells start, solids start, subs start, end
 uniform ivec2 uPinRange[${MAX_GROUPS}];
 uniform vec4 uGroupC[${MAX_GROUPS}];
@@ -125,7 +134,7 @@ float sdFrustum(vec3 q, vec4 P) {
   return max(side, abs(q.y) - P.z);
 }
 
-vec4 sw(int slot, int r, int i) { return texelFetch(uSweep, ivec2(i, slot * 4 + r), 0); }
+vec4 sw(int slot, int r, int i) { return texelFetch(uSweep, ivec2(i, slot * ${SWEEP_ROWS} + r), 0); }
 // section in its own plane; P = (kind, half width, half height, -)
 float sweepSection(int slot, vec4 P, int polyN, vec2 uv) {
   if (P.x < 0.5) return length(uv) - P.y;
@@ -144,40 +153,91 @@ float sweepSection(int slot, vec4 P, int polyN, vec2 uv) {
   }
   return inside ? -sqrt(best) : sqrt(best);
 }
-// (section distance, distance past the end caps, position along the path); M = (points, outline points, loop, length)
-vec3 sweepLocate(int slot, vec4 P, vec4 M, vec3 q) {
-  int n = int(M.x);
-  bool loop = M.z > 0.5;
-  float best = 1e20, bt = 0.0;
+// Distance to a sweep (mirrors sweep.sweepEval): the prism of the segment nearest
+// by its centre line, its ends cut flat, square-capped, or on the bisecting plane
+// at a miter; where it meets a sharp corner, the piece beyond and the corner piece
+// (the section spun about the bend's axis); and round caps (the section spun about
+// its out-of-plane axis). Seams don't bound the depth inside. Open ends run on.
+// All candidates go through one loop with a single section evaluation, so the
+// (inlined) shader stays small.
+// P = (section kind, half width, half height, cap + 4 * miter), M = (points, outline points, loop, length)
+float swCapped(float d2, float e) { return min(max(d2, e), 0.0) + length(max(vec2(d2, e), 0.0)); }
+// Returns (distance, distance with the object's open ends running on, for the depth).
+vec2 sdSweep(int slot, vec4 P, vec4 M, vec3 q, int holeMask) {
+  int n = int(M.x), segs = n - 1, cap = int(P.w + 0.5) & 3;
+  bool loop = M.z > 0.5, roundCap = cap == 1;
+  bool openS = (holeMask & 2) != 0, openE = (holeMask & 4) != 0;
+  float ext = cap == 2 ? P.z : 0.0;
+  // the segment nearest by its centre line
+  float bd = 1e20;
   int bi = 0;
   vec3 a = sw(slot, 0, 0).xyz;
   for (int i = 0; i < ${MAX_PATH_POINTS - 1}; i++) {
-    if (i >= n - 1) break;
-    vec3 b = sw(slot, 0, i + 1).xyz;
-    vec3 e = b - a;
-    float t = dot(q - a, e) / max(dot(e, e), 1e-12);
-    float tc = clamp(t, 0.0, 1.0);
-    vec3 d = q - a - e * tc;
-    float dd = dot(d, d);
-    if (dd < best) {
-      best = dd; bi = i;
-      // only the path's ends extend past their segment (that's where the caps are)
-      bt = (!loop && ((i == 0 && t < 0.0) || (i == n - 2 && t > 1.0))) ? t : tc;
-    }
+    if (i >= segs) break;
+    vec3 b = sw(slot, 0, i + 1).xyz, e = b - a;
+    vec3 dv = q - a - e * clamp(dot(q - a, e) / max(dot(e, e), 1e-12), 0.0, 1.0);
+    float dd = dot(dv, dv);
+    if (dd < bd) { bd = dd; bi = i; }
     a = b;
   }
-  vec4 A = sw(slot, 0, bi), B = sw(slot, 0, bi + 1);
-  float tc = clamp(bt, 0.0, 1.0);
-  vec3 w = q - mix(A.xyz, B.xyz, bt);
-  vec3 N = normalize(mix(sw(slot, 1, bi).xyz, sw(slot, 1, bi + 1).xyz, tc));
-  vec3 Bn = normalize(mix(sw(slot, 2, bi).xyz, sw(slot, 2, bi + 1).xyz, tc));
-  float along = mix(A.w, B.w, bt);
-  float cap = loop ? -1e9 : max(-along, along - M.w);
-  return vec3(sweepSection(slot, P, int(M.y), vec2(dot(w, N), dot(w, Bn))), cap, along);
-}
-float sdSweep(int slot, vec4 P, vec4 M, vec3 q) {
-  vec3 r = sweepLocate(slot, P, M, q);
-  return min(max(r.x, r.y), 0.0) + length(max(r.xy, 0.0));
+  int g0 = int(sw(slot, 2, bi).w + 0.5), g1 = int(sw(slot, 4, bi).w + 0.5);
+  bool sharp0 = (g0 & 4) == 4 && (bi > 0 || loop), sharp1 = (g1 & 4) == 4 && (bi + 1 < segs || loop);
+  vec2 best = vec2(1e20);
+  // candidates: 0-2 segment pieces (nearest, before, after), 3-4 corners, 5-8 cap halves
+  for (int k = min(uGroupCount, 0); k < 9; k++) {
+    vec2 uv;
+    float eReal = -1e9, eSeam = -1e9, eRealO = -1e9, eSeamO = -1e9;
+    bool closedOnly = false;
+    if (k < 3) {
+      if ((k == 1 && !sharp0) || (k == 2 && !sharp1)) continue;
+      int i = k == 0 ? bi : k == 1 ? (bi > 0 ? bi - 1 : segs - 1) : (bi + 1 < segs ? bi + 1 : 0);
+      vec4 A = sw(slot, 0, i), DL = sw(slot, 1, i), Na = sw(slot, 2, i), Nb = sw(slot, 4, i);
+      vec3 w = q - A.xyz, d = DL.xyz;
+      float xa = dot(w, d), L = DL.w;
+      vec3 N = normalize(mix(Na.xyz, Nb.xyz, L > 0.0 ? clamp(xa / L, 0.0, 1.0) : 0.0));
+      uv = vec2(dot(w, N), dot(w, cross(d, N)));
+      // closed, and with the open ends running on
+      float along = A.w + xa;
+      if (!loop && !roundCap) {
+        eReal = max(-along, along - M.w) - ext;
+        eRealO = max(openS ? -1e9 : -along, openE ? -1e9 : along - M.w) - ext;
+      }
+      int f0 = int(Na.w + 0.5), f1 = int(Nb.w + 0.5);
+      float sIn = -1e9, sOut = -1e9;
+      if (!loop && i == 0) sIn = roundCap ? -xa : -1e9;
+      else if ((f0 & 4) == 4) sIn = (f0 & 1) == 1 ? -dot(w, sw(slot, 5, i).xyz) : -xa;
+      if (!loop && i == segs - 1) sOut = roundCap ? xa - L : -1e9;
+      else if ((f1 & 4) == 4) sOut = (f1 & 1) == 1 ? dot(q - sw(slot, 0, i + 1).xyz, sw(slot, 5, i + 1).xyz) : xa - L;
+      eSeam = max(sIn, sOut);
+      eSeamO = max(!loop && i == 0 && openS ? -1e9 : sIn, !loop && i == segs - 1 && openE ? -1e9 : sOut);
+    } else if (k < 5) {
+      int j = k == 3 ? bi : bi + 1;
+      if ((k == 3 ? !sharp0 || (g0 & 2) == 0 : !sharp1 || (g1 & 2) == 0)) continue;
+      vec3 w = q - sw(slot, 0, j).xyz;
+      vec4 J0 = sw(slot, 6, j), J1 = sw(slot, 7, j), J2 = sw(slot, 8, j);
+      vec3 ax = J0.xyz, co = vec3(J0.w, J1.xy), Nn = vec3(J1.zw, J2.x), Bn = J2.yzw;
+      float yb = dot(w, ax), rho = length(w - ax * yb);
+      uv = rho * vec2(dot(co, Nn), dot(co, Bn)) + yb * vec2(dot(ax, Nn), dot(ax, Bn));
+      vec3 dA = sw(slot, 1, j > 0 ? j - 1 : segs - 1).xyz, dB = sw(slot, 1, j < segs ? j : 0).xyz;
+      eSeam = max(-dot(w, dA), dot(w, dB));
+      eSeamO = eSeam;
+    } else {
+      int e = (k - 5) / 2;
+      if (loop || !roundCap || bi != (e == 0 ? 0 : segs - 1)) continue;
+      closedOnly = e == 0 ? openS : openE; // an open end has no cap in the depth
+      int j = e == 0 ? 0 : n - 1, seg = e == 0 ? 0 : segs - 1;
+      vec3 w = q - sw(slot, 0, j).xyz;
+      vec3 d = sw(slot, 1, seg).xyz * (e == 0 ? -1.0 : 1.0);
+      vec3 N = sw(slot, e == 0 ? 2 : 4, seg).xyz;
+      float al = dot(w, d), rho = length(vec2(dot(w, cross(d, N)), al));
+      uv = vec2(dot(w, N), (k & 1) == 1 ? rho : -rho);
+      eSeam = eSeamO = -al;
+    }
+    float d2 = sweepSection(slot, P, int(M.y), uv);
+    best.x = min(best.x, eSeam > 0.0 ? swCapped(d2, max(eReal, eSeam)) : swCapped(d2, eReal));
+    if (!closedOnly) best.y = min(best.y, eSeamO > 0.0 ? swCapped(d2, max(eRealO, eSeamO)) : swCapped(d2, eRealO));
+  }
+  return best;
 }
 
 float sdLocal(vec3 q, vec4 P, int type, int slot) {
@@ -191,10 +251,14 @@ float sdLocal(vec3 q, vec4 P, int type, int slot) {
   return profile(slot, vec2(length(q.xz), q.y), 0);
 }
 int gObjN = 0, gMapN = 0; // evaluation counters for the cost view (uFlat == 2)
+// Sweeps at the point map() is evaluating, by slot: (distance, distance with open
+// ends running on), both in world units. Filled once per map() call by sweepAll,
+// so the long sweep code appears once in the shader instead of at every sdObj.
+vec2 gSw[${MAX_SWEEPS}];
 float sdObj(int i, vec3 p) {
   gObjN++;
   vec4 meta = row(i, 6);
-  if (int(meta.x) == 8) return sdSweep(int(meta.y), row(i, 3), row(i, 7), toLocal(i, p)) * row(i, 4).w;
+  if (int(meta.x) == 8) return gSw[int(meta.y)].x;
   return sdLocal(toLocal(i, p), row(i, 3), int(meta.x), int(meta.y)) * row(i, 4).w;
 }
 // lower bound from the object's bounding sphere
@@ -277,14 +341,8 @@ float holeDepth(int i, vec3 p) {
     return d;
   }
   if (type == 8) {
-    vec4 M = row(i, 7);
-    vec3 r = sweepLocate(slot, P, M, q);
-    if (!bit(mask, 0)) d = -r.x;
-    if (M.z < 0.5) {
-      if (!bit(mask, 1)) d = min(d, r.z);
-      if (!bit(mask, 2)) d = min(d, M.w - r.z);
-    }
-    return d * S.w;
+    // depth below the sweep with its open ends running on (as scene.openDepth)
+    return bit(mask, 0) ? 1e5 : -gSw[slot].y;
   }
   return profile(slot, vec2(length(q.xz), q.y), 1) * S.w;
 }
@@ -345,8 +403,23 @@ int gKind;        // 0 clay, 1 section cap, 2 cavity wall
 float gCavH;
 bool gNoClip = false;
 
+// Each nearby sweep, once per map() call (see gSw). Farther than the gate, its
+// bounding sphere stands in: every caller that wants it exact is nearer than that.
+void sweepAll(vec3 p) {
+  for (int k = min(uGroupCount, 0); k < ${MAX_SWEEPS}; k++) {
+    if (k >= uSweepCount) break;
+    int i = uSweepObj[k];
+    float b = bound(i, p);
+    if (!objOn(i) || b > uSweepGate) { gSw[k] = vec2(b); continue; }
+    gObjN++;
+    vec4 meta = row(i, 6);
+    gSw[k] = sdSweep(k, row(i, 3), row(i, 7), toLocal(i, p), int(meta.z)) * row(i, 4).w;
+  }
+}
+
 float map(vec3 p) {
   gMapN++;
+  sweepAll(p);
   float s = 1e5;
   int kind = 0;
   gCavH = 0.0;
@@ -555,6 +628,9 @@ export class SdfRenderer {
       uPixelSize: { value: 0 },
       uGroupCount: { value: 0 },
       uObjCount: { value: 0 },
+      uSweepCount: { value: 0 },
+      uSweepObj: { value: range(MAX_SWEEPS).map(() => 0) },
+      uSweepGate: { value: 4 },
       // integer vector arrays must be flat Int32Arrays (three.js does not flatten them)
       uGroupRange: { value: new Int32Array(MAX_GROUPS * 4) },
       uPinRange: { value: new Int32Array(MAX_GROUPS * 2) },
@@ -656,6 +732,14 @@ export class SdfRenderer {
     u.uObjCount.value = objs.length;
     const slots = this.updateProfiles(objs, groups);
     this.updateSweeps(objs, slots);
+    // sweeps are evaluated once per map() call (see sweepAll)
+    const sweepObjs = u.uSweepObj.value as number[];
+    let ns = 0;
+    objs.forEach((o, i) => { if (o.obj.type === 'sweep' && ns < MAX_SWEEPS && slots.get(o) === ns) sweepObjs[ns++] = i; });
+    u.uSweepCount.value = ns;
+    // beyond this, a sweep's bounding sphere stands in for it: farther than any
+    // caller needs it exactly (blends, occlusion samples, cut walls)
+    u.uSweepGate.value = 4 + Math.max(0, ...groups.map((g) => g.k)) + 2 * Math.max(0, ...groups.map((g) => g.t));
     this.writeData(objs, groups, slots);
     this.bounds.makeEmpty();
     for (const g of groups) {
@@ -740,6 +824,7 @@ export class SdfRenderer {
         case 'sweep': {
           const { path, sec } = o.sweep!;
           data[k3] = SECTION_CODE[sec.kind]; data[k3 + 1] = sec.hw; data[k3 + 2] = sec.hd;
+          data[k3 + 3] = { flat: 0, round: 1, square: 2 }[o.sweep!.style.cap] + (o.sweep!.style.join === 'miter' ? 4 : 0);
           const k7 = (i * ROWS + 7) * 4;
           data[k7] = path.n; data[k7 + 1] = sec.polyN; data[k7 + 2] = path.loop ? 1 : 0; data[k7 + 3] = path.length;
           break;
@@ -772,9 +857,9 @@ export class SdfRenderer {
   }
 
   /** Revolve profiles as 2D distance tables (R: signed distance, G: depth to non-opening segments). */
-  private sweepData = new Float32Array(MAX_PATH_POINTS * MAX_SWEEPS * 4 * 4);
+  private sweepData = new Float32Array(MAX_PATH_POINTS * MAX_SWEEPS * SWEEP_ROWS * 4);
   private sweepTex = (() => {
-    const t = new THREE.DataTexture(this.sweepData, MAX_PATH_POINTS, MAX_SWEEPS * 4, THREE.RGBAFormat, THREE.FloatType);
+    const t = new THREE.DataTexture(this.sweepData, MAX_PATH_POINTS, MAX_SWEEPS * SWEEP_ROWS, THREE.RGBAFormat, THREE.FloatType);
     t.minFilter = t.magFilter = THREE.NearestFilter;
     t.needsUpdate = true;
     return t;
@@ -793,15 +878,22 @@ export class SdfRenderer {
       if (this.sweepKeys[slot] !== key) {
         this.sweepKeys[slot] = key;
         changed = true;
-        const { path, sec } = o.sweep;
+        const { path, sec, style } = o.sweep;
+        const g = sweepGeo(path, style.join);
         const put = (r: number, i: number, a: number, b: number, c: number, d: number) => {
-          const k = ((slot * 4 + r) * W + i) * 4;
+          const k = ((slot * SWEEP_ROWS + r) * W + i) * 4;
           this.sweepData[k] = a; this.sweepData[k + 1] = b; this.sweepData[k + 2] = c; this.sweepData[k + 3] = d;
         };
         for (let i = 0; i < path.n; i++) {
           put(0, i, path.P[3 * i], path.P[3 * i + 1], path.P[3 * i + 2], path.s[i]);
-          put(1, i, path.N[3 * i], path.N[3 * i + 1], path.N[3 * i + 2], 0);
-          put(2, i, path.B[3 * i], path.B[3 * i + 1], path.B[3 * i + 2], 0);
+          put(5, i, g.M[3 * i], g.M[3 * i + 1], g.M[3 * i + 2], 0);
+          const J = g.J.subarray(12 * i, 12 * i + 12);
+          put(6, i, J[0], J[1], J[2], J[3]); put(7, i, J[4], J[5], J[6], J[7]); put(8, i, J[8], J[9], J[10], J[11]);
+        }
+        for (let i = 0; i < g.segs; i++) {
+          put(1, i, g.D[3 * i], g.D[3 * i + 1], g.D[3 * i + 2], g.L[i]);
+          put(2, i, g.Na[3 * i], g.Na[3 * i + 1], g.Na[3 * i + 2], g.miter[i] + 2 * g.hasJ[i] + 4 * g.sharp[i]);
+          put(4, i, g.Nb[3 * i], g.Nb[3 * i + 1], g.Nb[3 * i + 2], g.miter[i + 1] + 2 * g.hasJ[i + 1] + 4 * g.sharp[i + 1]);
         }
         for (let k = 0; k < sec.polyN; k++) put(3, k, sec.poly[2 * k], sec.poly[2 * k + 1], 0, 0);
       }

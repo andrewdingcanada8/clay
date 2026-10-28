@@ -352,6 +352,19 @@ export function examples(): Example[] {
     ], 0.25),
     probes: [],
   });
+  {
+    // sharp L-shaped paths: corners and ends in each style
+    const L = [{ r: 0, y: -3, corner: true }, { r: 0, y: 1.5, corner: true }, { r: 3, y: 1.5, corner: true }];
+    list.push({
+      id: 'sweep-corners', title: 'Sweep corners and ends', notes: 'Sharp L-shaped sweeps. Left: round corner, round ends (hollow). Middle: miter corner, square ends, square section (hollow). Right: round corner, flat ends, solid.',
+      doc: doc([
+        obj('sweep', { ...defaultSweep(), path: L, section: 'circle', w: 1.6, join: 'round', cap: 'round' }, { name: 'Round', pos: [-6, 0, 0] }),
+        obj('sweep', { ...defaultSweep(), path: L, section: 'square', w: 1.6, d: 1.6, join: 'miter', cap: 'square' }, { name: 'Miter', pos: [-1, 0, 0] }),
+        obj('sweep', { ...defaultSweep(), path: L, section: 'square', w: 1.2, d: 1.6, join: 'round', cap: 'flat' }, { name: 'Solid', pos: [4, 0, 0], mode: 'solid' }),
+      ], 0.25),
+      probes: [],
+    });
+  }
 
   // Scenes are authored small, then scaled to hand size (a vase ~19 cm across).
   // Walls are set per scene in real clay terms; the thin cases stay extreme.
@@ -372,5 +385,5 @@ const WALLS: Record<string, number> = {
   'cup-stick': 0.6, 'vase-sticks': 0.6, 'vase-solid-sticks': 0.6, torus: 0.6, lattice: 0.5,
   'vase-thin': 0.2, 'chain-thin': 0.2, transformed: 0.7, 'rotated-box': 0.7, tower: 0.6,
   'thick-wall': 2.5, 'cut-sphere': 0.7, 'mug-stick': 0.6, 'mug-thin': 0.08, 'two-groups': 0.6, 'big-pins': 0.6, frustums: 0.6,
-  'sdf-narrow-join': 0.8, 'sdf-pebble': 0.8, 'sdf-blend': 0.6, teapot: 1.0, 'sweep-mug': 0.6, coil: 0.5, 'sweep-frame': 0.5,
+  'sdf-narrow-join': 0.8, 'sdf-pebble': 0.8, 'sdf-blend': 0.6, teapot: 1.0, 'sweep-mug': 0.6, coil: 0.5, 'sweep-frame': 0.5, 'sweep-corners': 0.5,
 };

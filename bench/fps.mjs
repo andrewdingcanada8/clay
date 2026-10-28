@@ -21,6 +21,8 @@ const page0 = dist ? `file://${dist}/index.html` : new URL('../dist-single/index
 
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: dpr });
+page.on('pageerror', (e) => console.log('page error:', e.message));
+page.on('console', (m) => { if (m.type() === 'error') console.log('console error:', m.text().slice(0, 300)); });
 await page.goto(page0, { waitUntil: 'commit', timeout: 120000 });
 await page.waitForFunction(() => window.__clay, null, { timeout: 300000 });
 const ids = args.length ? args : await page.evaluate(() => window.__clay.exampleIds());

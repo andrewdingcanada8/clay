@@ -58,9 +58,11 @@ Quality: normal. Images: `bench/out/<case>-<kernel>.png`.
 | sdf-blend | mesh | 349 | 52490 | 0 | 0 | 1.6 | Group 1: smooth blend needs the SDF kernel; shown as a sharp union |
 | teapot | sdf | 5874 | 345160 | 0 | 18 | 25.7 |  |
 | teapot | mesh | 208 | 36750 | 0 | 0 | 25.6 |  |
-| sweep-mug | sdf | 7152 | 209296 | 0 | 1 | 26.0 |  |
-| sweep-mug | mesh | 133 | 22590 | 0 | 0 | 25.7 |  |
-| coil | sdf | 47844 | 509948 | 42 | 3 | 0.0 | 12 quads skipped at block borders |
-| coil | mesh | 282 | 74286 | 0 | 0 | 0.0 |  |
-| sweep-frame | sdf | 8042 | 149220 | 0 | 0 | 0.0 |  |
-| sweep-frame | mesh | 104 | 16642 | 0 | 0 | 0.0 |  |
+| sweep-mug | sdf | 7446 | 216992 | 0 | 1 | 26.0 |  |
+| sweep-mug | mesh | 142 | 22590 | 0 | 0 | 25.7 |  |
+| coil | sdf | 53163 | 592920 | 0 | 2 | 0.0 |  |
+| coil | mesh | 283 | 74288 | 0 | 0 | 0.0 |  |
+| sweep-frame | sdf | 8007 | 146960 | 0 | 0 | 0.0 |  |
+| sweep-frame | mesh | 660 | 47198 | 0 | 0 | 0.0 |  |
+| sweep-corners | sdf | 2741 | 79896 | 0 | 0 | 0.0 |  |
+| sweep-corners | mesh | 279 | 24680 | 0 | 0 | 0.0 |  |

@@ -1813,21 +1813,21 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 209296,
-   "vertices": 104647,
+   "triangles": 216992,
+   "vertices": 108495,
    "boundaryEdges": 0,
    "nonManifoldEdges": 1,
-   "cellSize": 0.17569555114146787,
-   "activeCells": 1189376,
+   "cellSize": 0.1723670493009698,
+   "activeCells": 1321472,
    "warnings": [],
    "timings": {
-    "cavity": 0.2,
-    "activate": 270.4,
-    "sample": 2499.1,
-    "vertices": 4276.2,
-    "faces": 36.9
+    "cavity": 0.3,
+    "activate": 267.4,
+    "sample": 2630.7,
+    "vertices": 4458.8,
+    "faces": 30.4
    },
-   "totalMs": 7152.4
+   "totalMs": 7446.3
   },
   "whiteFrac": [
    [
@@ -1854,13 +1854,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 7.3,
-    "primitives": 36,
-    "groups": 41.7,
-    "finish": 41.3,
-    "extract": 3
+    "wasm": 18.5,
+    "primitives": 37.1,
+    "groups": 38.9,
+    "finish": 40.5,
+    "extract": 2.9
    },
-   "totalMs": 133.3
+   "totalMs": 141.5
   },
   "whiteFrac": [
    [
@@ -1881,23 +1881,21 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 509948,
-   "vertices": 254991,
-   "boundaryEdges": 42,
-   "nonManifoldEdges": 3,
-   "cellSize": 0.1424981962021845,
-   "activeCells": 1410048,
-   "warnings": [
-    "12 quads skipped at block borders"
-   ],
+   "triangles": 592920,
+   "vertices": 296458,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 2,
+   "cellSize": 0.13214285714285715,
+   "activeCells": 1672704,
+   "warnings": [],
    "timings": {
-    "cavity": 0.3,
-    "activate": 32.3,
-    "sample": 7965.2,
-    "vertices": 39612.7,
-    "faces": 54
+    "cavity": 0.2,
+    "activate": 34.7,
+    "sample": 9148.3,
+    "vertices": 43712.9,
+    "faces": 58.1
    },
-   "totalMs": 47843.8
+   "totalMs": 53163.1
   },
   "whiteFrac": [],
   "width": 1560,
@@ -1909,19 +1907,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 74286,
-   "vertices": 37143,
+   "triangles": 74288,
+   "vertices": 37144,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 6.8,
-    "primitives": 76,
-    "groups": 53.4,
-    "finish": 125.8,
+    "wasm": 8,
+    "primitives": 81.5,
+    "groups": 55.4,
+    "finish": 118.3,
     "extract": 9.6
    },
-   "totalMs": 282.2
+   "totalMs": 283.1
   },
   "whiteFrac": [],
   "width": 1560,
@@ -1933,21 +1931,21 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 149220,
-   "vertices": 74610,
+   "triangles": 146960,
+   "vertices": 73480,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "cellSize": 0.2,
-   "activeCells": 556032,
+   "activeCells": 551936,
    "warnings": [],
    "timings": {
-    "cavity": 0.4,
-    "activate": 8.5,
-    "sample": 1597.3,
-    "vertices": 6380,
-    "faces": 22
+    "cavity": 0.5,
+    "activate": 16.2,
+    "sample": 1648,
+    "vertices": 6289.3,
+    "faces": 20.9
    },
-   "totalMs": 8042.4
+   "totalMs": 8007.3
   },
   "whiteFrac": [],
   "width": 1560,
@@ -1959,19 +1957,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 16642,
-   "vertices": 8289,
+   "triangles": 47198,
+   "vertices": 23269,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 8.9,
-    "primitives": 26.7,
-    "groups": 31.4,
-    "finish": 30.6,
-    "extract": 2.9
+    "wasm": 6.7,
+    "primitives": 99.8,
+    "groups": 253.7,
+    "finish": 283.2,
+    "extract": 6.3
    },
-   "totalMs": 103.5
+   "totalMs": 659.8
   },
   "whiteFrac": [],
   "width": 1560,
@@ -2145,5 +2143,55 @@
   ],
   "width": 1560,
   "height": 1040
+ },
+ "sweep-corners|sdf": {
+  "id": "sweep-corners",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 79896,
+   "vertices": 39958,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.2,
+   "activeCells": 358912,
+   "warnings": [],
+   "timings": {
+    "cavity": 0.4,
+    "activate": 14.1,
+    "sample": 683,
+    "vertices": 2013.4,
+    "faces": 18.6
+   },
+   "totalMs": 2740.5
+  },
+  "whiteFrac": [],
+  "width": 1560,
+  "height": 780
+ },
+ "sweep-corners|mesh": {
+  "id": "sweep-corners",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 24680,
+   "vertices": 12350,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [],
+   "timings": {
+    "wasm": 15.6,
+    "primitives": 88.5,
+    "groups": 137.6,
+    "finish": 29.6,
+    "extract": 3.9
+   },
+   "totalMs": 279.1
+  },
+  "whiteFrac": [],
+  "width": 1560,
+  "height": 780
  }
 }

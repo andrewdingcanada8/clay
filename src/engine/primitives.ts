@@ -5,7 +5,7 @@ import type { PrimitiveType, SceneObject } from './document';
 import { type AABB, type Vec3, clamp, emptyAABB, eulerXYZ, growAABB, mulMat3TVec, mulMat3Vec, polygonSDF } from './math';
 import { type SampledProfile, sampleProfile } from './profile';
 import type { ProfileTable } from './profileTable';
-import { type SweepPath, type SweepSection, buildSweepPath, buildSweepSection, sweepLocate, sweepSDF } from './sweep';
+import { type SweepPath, type SweepSection, type SweepStyle, buildSweepPath, buildSweepSection, sectionRadius, sweepEval, sweepStyle } from './sweep';
 
 export interface FaceInfo {
   id: string;
@@ -33,7 +33,7 @@ export interface CompiledObject {
   /** Prism: regular n-gon frustum (bottom/top circumradius). */
   frustum?: { n: number; r1: number; r2: number; h: number };
   /** Sweep: the path with its frames, and the section. */
-  sweep?: { path: SweepPath; sec: SweepSection };
+  sweep?: { path: SweepPath; sec: SweepSection; style: SweepStyle };
   /** Cached revolve depth tables, by opening faces (see scene.holeDepth). */
   depthTables?: Map<string, ProfileTable>;
   /** Cached bounding sphere (see scene.boundSphere). */
@@ -302,14 +302,10 @@ export function compileObject(obj: SceneObject): CompiledObject {
       break;
     }
     case 'sweep': {
-      const path = buildSweepPath(p), sec = buildSweepSection(p);
-      sweep = { path, sec };
-      sdfLocal = (x, y, z) => sweepSDF(path, sec, x, y, z);
-      faceAtLocal = (x, y, z) => {
-        const { d2, cap, along } = sweepLocate(path, sec, x, y, z);
-        if (path.loop || cap < d2 - 1e-9) return 'surface';
-        return along < path.length / 2 ? 'start' : 'end';
-      };
+      const path = buildSweepPath(p), sec = buildSweepSection(p), style = sweepStyle(p);
+      sweep = { path, sec, style };
+      sdfLocal = (x, y, z) => sweepEval(path, sec, style, x, y, z).d;
+      faceAtLocal = (x, y, z) => sweepEval(path, sec, style, x, y, z).part;
       faces = [{ id: 'surface', label: 'Surface' }];
       if (!path.loop) {
         const n = path.n - 1;
@@ -318,7 +314,8 @@ export function compileObject(obj: SceneObject): CompiledObject {
           { id: 'end', label: 'Finish end', plane: { n: [path.T[3 * n], path.T[3 * n + 1], path.T[3 * n + 2]], p: [path.P[3 * n], path.P[3 * n + 1], path.P[3 * n + 2]] } },
         );
       }
-      const r = Math.hypot(sec.hw, sec.hd);
+      // a miter tip reaches up to 2R from the path, a square cap R + half the width
+      const r = sectionRadius(sec) * (style.join === 'miter' ? 2 : 1) + (style.cap === 'square' ? sec.hd : 0);
       for (let i = 0; i < path.n; i++) { growAABB(lb, path.P[3 * i] - r, path.P[3 * i + 1] - r, path.P[3 * i + 2] - r); growAABB(lb, path.P[3 * i] + r, path.P[3 * i + 1] + r, path.P[3 * i + 2] + r); }
       break;
     }

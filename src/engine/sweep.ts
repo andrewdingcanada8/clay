@@ -155,57 +155,212 @@ export function buildSweepSection(p: PrimitiveParams): SweepSection {
 
 /** Signed distance to the section in its own plane (u along N, v along B). */
 export function sectionSDF(sec: SweepSection, u: number, v: number): number {
-  if (sec.kind === 'circle') return Math.hypot(u, v) - sec.hw;
+  if (sec.kind === 'circle') return Math.sqrt(u * u + v * v) - sec.hw;
   if (sec.kind === 'square') {
     const dx = Math.abs(u) - sec.hw, dy = Math.abs(v) - sec.hd;
-    return Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) + Math.min(Math.max(dx, dy), 0);
+    const mx = Math.max(dx, 0), my = Math.max(dy, 0);
+    return Math.sqrt(mx * mx + my * my) + Math.min(Math.max(dx, dy), 0);
   }
   return polygonSDF(sec.poly, sec.polyN, u, v).d;
 }
 
-export interface SweepSample {
-  /** section distance, distance past the caps (negative inside), along-path position */
-  d2: number;
-  cap: number;
-  along: number;
+/** How the sweep ends (open paths) and turns sharp corners, as with a stroke. */
+export interface SweepStyle {
+  /** round: the section spun about the bend's axis; miter: both sides run on to
+   *  the bisecting plane (turns sharper than 120° are rounded instead). */
+  join: 'round' | 'miter';
+  /** flat: cut square to the path; round: the section spun about its out-of-plane
+   *  axis; square: the path runs on by half the section's width. */
+  cap: 'flat' | 'round' | 'square';
 }
 
-/** Locate a point against the swept path: nearest segment, then section coordinates. */
-export function sweepLocate(path: SweepPath, sec: SweepSection, x: number, y: number, z: number): SweepSample {
-  const { P, N, B, s, n } = path;
-  let best = Infinity, bi = 0, bt = 0;
-  for (let i = 0; i < n - 1; i++) {
-    const ax = P[3 * i], ay = P[3 * i + 1], az = P[3 * i + 2];
-    const ex = P[3 * i + 3] - ax, ey = P[3 * i + 4] - ay, ez = P[3 * i + 5] - az;
-    const ee = ex * ex + ey * ey + ez * ez || 1;
-    let t = ((x - ax) * ex + (y - ay) * ey + (z - az) * ez) / ee;
-    const tc = Math.max(0, Math.min(1, t));
-    const dx = x - ax - ex * tc, dy = y - ay - ey * tc, dz = z - az - ez * tc;
-    const dd = dx * dx + dy * dy + dz * dz;
-    if (dd < best) {
-      best = dd; bi = i;
-      // only the path's ends extend past their segment (that's where the caps are)
-      if (!(i === 0 && t < 0 && !path.loop) && !(i === n - 2 && t > 1 && !path.loop)) t = tc;
-      bt = t;
+export function sweepStyle(p: PrimitiveParams): SweepStyle {
+  return { join: p.join ?? 'round', cap: p.cap ?? 'flat' };
+}
+
+/** Miters for turns up to this (cosine of the turn angle, 120°); sharper ones are rounded. */
+export const MITER_MIN_COS = -0.5;
+
+/** A distance and an outside-distance past a cut, combined (like a capped extrusion). */
+const capped = (d2: number, e: number) => { const a = Math.max(d2, 0), b = Math.max(e, 0); return Math.min(Math.max(d2, e), 0) + Math.sqrt(a * a + b * b); };
+/** The same for a cut between two pieces of the sweep: inside it doesn't bound the
+ *  depth (the neighbouring piece carries on), so depth inside stays the depth below
+ *  the swept surface, never the distance to an internal seam. */
+const seam = (d2: number, e: number) => (e > 0 ? capped(d2, e) : d2);
+
+/** Largest distance of the section outline from the path. */
+export function sectionRadius(sec: SweepSection): number {
+  return sec.kind === 'circle' ? sec.hw : Math.hypot(sec.hw, sec.hd);
+}
+
+/** Turns gentler than this (4°) get no revolved corner piece: the notch left on the
+ *  outside of a turn of angle θ is only R·θ²/8 deep (0.002 cm on a 2 cm section). */
+export const CORNER_MIN_COS = Math.cos((4 * Math.PI) / 180);
+
+/**
+ * Signed distance to the swept solid, as the union of exact pieces: each path
+ * segment's prism (its ends cut flat, on the bisecting plane at a miter, or run on
+ * at a square cap), the section spun about the bend's axis at round corners, and
+ * about its out-of-plane axis at round caps. `open` ends run on without end (the
+ * hollow passes out through them). `part` says which bit of surface is nearest.
+ */
+/**
+ * Per-path geometry for sweepEval, computed once per path and join style: segment
+ * directions and lengths, section frames square to each segment at both ends, the
+ * plane between neighbouring pieces at each vertex, and each round corner's axes.
+ */
+export interface SweepGeo {
+  segs: number;
+  D: Float64Array; // segment direction (3 per segment)
+  L: Float64Array;
+  Na: Float64Array; // section normal at the segment's start and end, square to it
+  Nb: Float64Array;
+  /** plane between the pieces at vertex i (3 per vertex): the bisector at a miter,
+   *  else 0 (the seam is square to each segment) */
+  M: Float64Array;
+  miter: Uint8Array;
+  /** the path turns more than 4° at vertex i: neighbouring pieces are evaluated too */
+  sharp: Uint8Array;
+  /** round corner at vertex i: bend axis (3), outward direction (3), the incoming
+   *  segment's frame (N 3, B 3), and whether there is a corner at all */
+  J: Float64Array;
+  hasJ: Uint8Array;
+}
+const geoCache = new WeakMap<SweepPath, Map<string, SweepGeo>>();
+
+export function sweepGeo(path: SweepPath, join: SweepStyle['join']): SweepGeo {
+  let byJoin = geoCache.get(path);
+  if (!byJoin) geoCache.set(path, (byJoin = new Map()));
+  const hit = byJoin.get(join);
+  if (hit) return hit;
+  const { P, N, n, loop } = path;
+  const segs = n - 1;
+  const D = new Float64Array(3 * segs), L = new Float64Array(segs), Na = new Float64Array(3 * segs), Nb = new Float64Array(3 * segs);
+  const square = (Nv: number[], d: number[]) => norm3(sub(Nv, d.map((c) => c * dot3(Nv, d))));
+  for (let i = 0; i < segs; i++) {
+    const e = [P[3 * i + 3] - P[3 * i], P[3 * i + 4] - P[3 * i + 1], P[3 * i + 5] - P[3 * i + 2]];
+    L[i] = Math.hypot(e[0], e[1], e[2]);
+    const d = norm3(e);
+    D.set(d, 3 * i);
+    Na.set(square([N[3 * i], N[3 * i + 1], N[3 * i + 2]], d), 3 * i);
+    Nb.set(square([N[3 * i + 3], N[3 * i + 4], N[3 * i + 5]], d), 3 * i);
+  }
+  const M = new Float64Array(3 * n), miter = new Uint8Array(n), sharp = new Uint8Array(n), J = new Float64Array(12 * n), hasJ = new Uint8Array(n);
+  const dir = (i: number) => [D[3 * i], D[3 * i + 1], D[3 * i + 2]];
+  for (let j = 0; j < n; j++) {
+    // the segments meeting at vertex j
+    const a = j > 0 ? j - 1 : loop ? segs - 1 : -1, b = j < segs ? j : loop ? 0 : -1;
+    if (a < 0 || b < 0) continue;
+    const dA = dir(a), dB = dir(b), c = dot3(dA, dB);
+    sharp[j] = c < CORNER_MIN_COS ? 1 : 0;
+    if (join === 'miter' && c >= MITER_MIN_COS) { miter[j] = 1; M.set(norm3([dA[0] + dB[0], dA[1] + dB[1], dA[2] + dB[2]]), 3 * j); continue; }
+    if (c >= CORNER_MIN_COS) continue;
+    const ax = norm3(cross3(dA, dB));
+    const k = norm3(sub(dB, dA.map((v) => v * c)));
+    const Nn = [Nb[3 * a], Nb[3 * a + 1], Nb[3 * a + 2]]; // the incoming segment's frame at its end
+    const Bn = cross3(dA, Nn);
+    J.set([...ax, -k[0], -k[1], -k[2], ...Nn, ...Bn], 12 * j);
+    hasJ[j] = 1;
+  }
+  const g = { segs, D, L, Na, Nb, M, miter, sharp, J, hasJ };
+  byJoin.set(join, g);
+  return g;
+}
+
+/** sqrt of a sum of squares (Math.hypot is slow in hot loops) */
+const hyp = (a: number, b: number, c = 0) => Math.sqrt(a * a + b * b + c * c);
+
+/**
+ * Signed distance to the swept solid, as a union of exact pieces: each path
+ * segment's prism (its ends cut flat, on the bisecting plane at a miter, or run on
+ * at a square cap), the section spun about the bend's axis at round corners, and
+ * about its out-of-plane axis at round caps. Only the pieces that can be nearest are
+ * evaluated: the segment nearest by its centre line, and where it meets a sharp
+ * corner (over 4°) the piece beyond and the corner piece; along a smooth path one
+ * piece is exact enough (the gap left outside a gentle turn is ~R·θ²/8 deep).
+ * Seams between pieces don't bound the depth inside. `open` ends run on without
+ * end (the hollow passes out through them). `part` says which bit of surface is
+ * nearest. The shader (raymarch.ts, sdSweep) mirrors this.
+ */
+export function sweepEval(
+  path: SweepPath, sec: SweepSection, style: SweepStyle, x: number, y: number, z: number,
+  open: { start?: boolean; end?: boolean } = {},
+): { d: number; part: 'surface' | 'start' | 'end' } {
+  const { P, n, loop } = path;
+  const { segs, D, L, Na, Nb, M, miter, sharp, J, hasJ } = sweepGeo(path, style.join);
+  const R = sectionRadius(sec), ext = style.cap === 'square' ? sec.hd : 0, roundCap = style.cap === 'round';
+  let best = Infinity, part: 'surface' | 'start' | 'end' = 'surface';
+  // the prism of segment i, cut at its ends
+  const piece = (i: number) => {
+    const wx = x - P[3 * i], wy = y - P[3 * i + 1], wz = z - P[3 * i + 2];
+    const dx = D[3 * i], dy = D[3 * i + 1], dz = D[3 * i + 2];
+    const xa = wx * dx + wy * dy + wz * dz, Li = L[i];
+    const t = Li > 0 ? Math.max(0, Math.min(1, xa / Li)) : 0;
+    let nx = Na[3 * i] + (Nb[3 * i] - Na[3 * i]) * t, ny = Na[3 * i + 1] + (Nb[3 * i + 1] - Na[3 * i + 1]) * t, nz = Na[3 * i + 2] + (Nb[3 * i + 2] - Na[3 * i + 2]) * t;
+    const nl = hyp(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
+    const bx = dy * nz - dz * ny, by = dz * nx - dx * nz, bz = dx * ny - dy * nx;
+    const d2 = sectionSDF(sec, wx * nx + wy * ny + wz * nz, wx * bx + wy * by + wz * bz);
+    // the path's own ends (flat or square caps) are real surface for every piece,
+    // measured along the path so a path curling back isn't cut by its end plane
+    let eReal = -1e9, eSeam = -1e9, endPart: 'start' | 'end' = 'start';
+    if (!loop && !roundCap) {
+      const along = path.s[i] + xa;
+      if (!open.start) eReal = -along - ext;
+      if (!open.end && along - path.length - ext > eReal) { eReal = along - path.length - ext; endPart = 'end'; }
+    }
+    // seams with the neighbouring pieces at sharp corners (always evaluated with
+    // them), and round caps; through gentle turns a piece just runs on
+    if (!loop && i === 0) { if (!open.start && roundCap) eSeam = -xa; }
+    else if (sharp[i]) eSeam = miter[i] ? -(wx * M[3 * i] + wy * M[3 * i + 1] + wz * M[3 * i + 2]) : -xa;
+    if (!loop && i === segs - 1) { if (!open.end && roundCap) eSeam = Math.max(eSeam, xa - Li); }
+    else if (sharp[i + 1]) {
+      const j = i + 1, vx = x - P[3 * j], vy = y - P[3 * j + 1], vz = z - P[3 * j + 2];
+      eSeam = Math.max(eSeam, miter[j] ? vx * M[3 * j] + vy * M[3 * j + 1] + vz * M[3 * j + 2] : xa - Li);
+    }
+    const v = eSeam > 0 ? capped(d2, Math.max(eReal, eSeam)) : capped(d2, eReal);
+    if (v < best) { best = v; part = eReal > d2 && eReal >= eSeam ? endPart : 'surface'; }
+  };
+  // the round corner at vertex j: the section spun about the bend's axis, in the wedge outside it
+  const corner = (j: number) => {
+    if (!hasJ[j]) return;
+    const wx = x - P[3 * j], wy = y - P[3 * j + 1], wz = z - P[3 * j + 2], o = 12 * j;
+    const yb = wx * J[o] + wy * J[o + 1] + wz * J[o + 2];
+    const rho = hyp(wx - J[o] * yb, wy - J[o + 1] * yb, wz - J[o + 2] * yb);
+    const cN = J[o + 3] * J[o + 6] + J[o + 4] * J[o + 7] + J[o + 5] * J[o + 8], aN = J[o] * J[o + 6] + J[o + 1] * J[o + 7] + J[o + 2] * J[o + 8];
+    const cB = J[o + 3] * J[o + 9] + J[o + 4] * J[o + 10] + J[o + 5] * J[o + 11], aB = J[o] * J[o + 9] + J[o + 1] * J[o + 10] + J[o + 2] * J[o + 11];
+    const a = j > 0 ? j - 1 : segs - 1, b = j < segs ? j : 0;
+    const wedge = Math.max(-(wx * D[3 * a] + wy * D[3 * a + 1] + wz * D[3 * a + 2]), wx * D[3 * b] + wy * D[3 * b + 1] + wz * D[3 * b + 2]);
+    const v = seam(sectionSDF(sec, rho * cN + yb * aN, rho * cB + yb * aB), wedge);
+    if (v < best) { best = v; part = 'surface'; }
+  };
+  // the segment nearest by its centre line
+  let bi = 0, bd = Infinity;
+  for (let i = 0; i < segs; i++) {
+    const wx = x - P[3 * i], wy = y - P[3 * i + 1], wz = z - P[3 * i + 2];
+    const t = Math.max(0, Math.min(L[i], wx * D[3 * i] + wy * D[3 * i + 1] + wz * D[3 * i + 2]));
+    const ex = wx - D[3 * i] * t, ey = wy - D[3 * i + 1] * t, ez = wz - D[3 * i + 2] * t;
+    const dd = ex * ex + ey * ey + ez * ez;
+    if (dd < bd) { bd = dd; bi = i; }
+  }
+  piece(bi);
+  if (sharp[bi] && (bi > 0 || loop)) { piece(bi > 0 ? bi - 1 : segs - 1); corner(bi); }
+  if (sharp[bi + 1] && (bi + 1 < segs || loop)) { piece(bi + 1 < segs ? bi + 1 : 0); corner(bi + 1); }
+  // round caps: the section spun about its out-of-plane axis past each closed end
+  if (!loop && roundCap) {
+    for (let e = 0; e < 2; e++) {
+      if (e === 0 ? open.start || bi !== 0 : open.end || bi !== segs - 1) continue;
+      const j = e === 0 ? 0 : n - 1, seg = e === 0 ? 0 : segs - 1, sg = e === 0 ? -1 : 1;
+      const wx = x - P[3 * j], wy = y - P[3 * j + 1], wz = z - P[3 * j + 2];
+      const dx = D[3 * seg] * sg, dy = D[3 * seg + 1] * sg, dz = D[3 * seg + 2] * sg;
+      const F = e === 0 ? Na : Nb, nx = F[3 * seg], ny = F[3 * seg + 1], nz = F[3 * seg + 2];
+      const bx = dy * nz - dz * ny, by = dz * nx - dx * nz, bz = dx * ny - dy * nx;
+      const al = wx * dx + wy * dy + wz * dz, u = wx * nx + wy * ny + wz * nz, rho = hyp(wx * bx + wy * by + wz * bz, al);
+      const v = seam(Math.min(sectionSDF(sec, u, rho), sectionSDF(sec, u, -rho)), -al);
+      if (v < best) { best = v; part = e === 0 ? 'start' : 'end'; }
     }
   }
-  const i = bi, t = bt;
-  const lerp = (A: Float64Array, k: number) => A[3 * i + k] + (A[3 * i + 3 + k] - A[3 * i + k]) * Math.max(0, Math.min(1, t));
-  const px = P[3 * i] + (P[3 * i + 3] - P[3 * i]) * t, py = P[3 * i + 1] + (P[3 * i + 4] - P[3 * i + 1]) * t, pz = P[3 * i + 2] + (P[3 * i + 5] - P[3 * i + 2]) * t;
-  const nx = lerp(N, 0), ny = lerp(N, 1), nz = lerp(N, 2);
-  const bx = lerp(B, 0), by = lerp(B, 1), bz = lerp(B, 2);
-  const nl = Math.hypot(nx, ny, nz) || 1, bl = Math.hypot(bx, by, bz) || 1;
-  const wx = x - px, wy = y - py, wz = z - pz;
-  const u = (wx * nx + wy * ny + wz * nz) / nl, v = (wx * bx + wy * by + wz * bz) / bl;
-  const along = s[i] + (s[i + 1] - s[i]) * t;
-  const cap = path.loop ? -1e9 : Math.max(-along, along - path.length);
-  return { d2: sectionSDF(sec, u, v), cap, along };
-}
-
-/** Signed distance to the swept solid. */
-export function sweepSDF(path: SweepPath, sec: SweepSection, x: number, y: number, z: number): number {
-  const { d2, cap } = sweepLocate(path, sec, x, y, z);
-  return Math.min(Math.max(d2, cap), 0) + Math.hypot(Math.max(d2, 0), Math.max(cap, 0));
+  void R;
+  return { d: best, part };
 }
 
 /** Section outline as a ring of (u, v) points, counter-clockwise. */
@@ -245,48 +400,28 @@ function earClip(ring: number[]): number[] {
   return out;
 }
 
-/**
- * Closed triangle mesh of the ring swept along the path (sweep-local space).
- * `trim` pulls the open ends in by that distance (start, end), `extend` pushes
- * them out (used for hollows and their openings).
- */
-export function sweepMesh(path: SweepPath, ring: number[], trim: number | [number, number] = 0, extend: { start?: number; end?: number } = {}): { positions: Float32Array; indices: Uint32Array } {
-  const [trim0, trim1] = typeof trim === 'number' ? [trim, trim] : trim;
-  const m = ring.length / 2;
-  // stations along the path: [s, P, N, B]
-  type St = { p: number[]; n: number[]; b: number[] };
-  const at = (i: number): St => ({ p: [path.P[3 * i], path.P[3 * i + 1], path.P[3 * i + 2]], n: [path.N[3 * i], path.N[3 * i + 1], path.N[3 * i + 2]], b: [path.B[3 * i], path.B[3 * i + 1], path.B[3 * i + 2]] });
-  const interp = (s: number): St => {
-    let i = 0;
-    while (i < path.n - 2 && path.s[i + 1] < s) i++;
-    const t = (s - path.s[i]) / ((path.s[i + 1] - path.s[i]) || 1);
-    const A = at(i), B = at(i + 1);
-    const l = (u: number[], v: number[]) => u.map((x, k) => x + (v[k] - x) * t);
-    return { p: l(A.p, B.p), n: norm3(l(A.n, B.n)), b: norm3(l(A.b, B.b)) };
-  };
-  let st: St[];
-  if (path.loop) st = Array.from({ length: path.n - 1 }, (_, i) => at(i));
-  else {
-    const s0 = trim0, s1 = path.length - trim1;
-    if (s1 <= s0) return { positions: new Float32Array(0), indices: new Uint32Array(0) };
-    st = [interp(s0)];
-    for (let i = 0; i < path.n; i++) if (path.s[i] > s0 + 1e-6 && path.s[i] < s1 - 1e-6) st.push(at(i));
-    st.push(interp(s1));
-    const push = (e: St, dir: number[], d: number) => ({ ...e, p: e.p.map((x, k) => x + dir[k] * d) });
-    if (extend.start) { const T0 = norm3(sub(st[1].p, st[0].p)); st[0] = push(st[0], T0, -extend.start); }
-    if (extend.end) { const k = st.length - 1, T1 = norm3(sub(st[k].p, st[k - 1].p)); st[k] = push(st[k], T1, extend.end); }
-  }
-  const K = st.length;
+/** Where a ring sits: its centre and section axes, optionally slid along `d` onto
+ *  the plane through `V` with normal `m` (a miter between two segments). */
+interface Station { p: number[]; n: number[]; b: number[]; miter?: { d: number[]; m: number[]; V: number[] } }
+
+/** Closed triangle mesh of a ring carried through stations; flat caps unless `loop`. */
+function tubeMesh(st: Station[], ring: number[], loop: boolean): { positions: Float32Array; indices: Uint32Array } {
+  const m = ring.length / 2, K = st.length;
   const pos = new Float32Array(K * m * 3);
   st.forEach((e, i) => {
     for (let k = 0; k < m; k++) {
       const u = ring[2 * k], v = ring[2 * k + 1];
-      for (let a = 0; a < 3; a++) pos[3 * (i * m + k) + a] = e.p[a] + e.n[a] * u + e.b[a] * v;
+      let q = [0, 1, 2].map((a) => e.p[a] + e.n[a] * u + e.b[a] * v);
+      if (e.miter) {
+        const { d, m: mm, V } = e.miter;
+        const t = -dot3(sub(q, V), mm) / (dot3(d, mm) || 1);
+        q = q.map((c, a) => c + d[a] * t);
+      }
+      pos.set(q, 3 * (i * m + k));
     }
   });
   const tri: number[] = [];
-  const rings = path.loop ? K : K - 1;
-  for (let i = 0; i < rings; i++) {
+  for (let i = 0; i < (loop ? K : K - 1); i++) {
     const i2 = (i + 1) % K;
     for (let k = 0; k < m; k++) {
       const k2 = (k + 1) % m;
@@ -294,7 +429,7 @@ export function sweepMesh(path: SweepPath, ring: number[], trim: number | [numbe
       tri.push(a, b, c, a, c, d);
     }
   }
-  if (!path.loop) {
+  if (!loop) {
     const cap = earClip(ring);
     for (let j = 0; j < cap.length; j += 3) {
       tri.push(cap[j + 2], cap[j + 1], cap[j]); // start faces backwards
@@ -309,4 +444,110 @@ export function sweepMesh(path: SweepPath, ring: number[], trim: number | [numbe
   }
   if (vol < 0) for (let j = 0; j < tri.length; j += 3) { const t = tri[j]; tri[j] = tri[j + 2]; tri[j + 2] = t; }
   return { positions: pos, indices: Uint32Array.from(tri) };
+}
+
+/** A revolved piece: the section (u along n, v along b) spun about `axis` through
+ *  `V`, kept where w·keep[i] >= 0 for each plane (w = point − V). */
+export interface SweepSpin { V: number[]; axis: number[]; out: number[]; n: number[]; b: number[]; keep: number[][]; mirror: boolean }
+
+/** Corners turning more than this are joined by a revolved piece in the mesh (the
+ *  tube is mitred through gentler ones, where round and miter differ by < 1%). */
+const MESH_CORNER_COS = Math.cos((12 * Math.PI) / 180);
+
+/**
+ * The swept solid as mesh pieces to union: tube runs (split at sharp round
+ * corners, mitred elsewhere), and revolved pieces for round corners and caps.
+ * `ends` moves the open path's ends out (+) or in (−) along the path; `round`
+ * adds a round cap at that end.
+ */
+export function sweepParts(
+  path: SweepPath, ring: number[], style: SweepStyle,
+  ends: { start: number; end: number; roundStart: boolean; roundEnd: boolean },
+): { runs: { positions: Float32Array; indices: Uint32Array }[]; spins: SweepSpin[] } {
+  const g = sweepGeo(path, style.join);
+  const { P, n, loop } = path;
+  const { segs, D, Na, Nb } = g;
+  const pt = (i: number) => [P[3 * i], P[3 * i + 1], P[3 * i + 2]];
+  const v3 = (A: Float64Array, i: number) => [A[3 * i], A[3 * i + 1], A[3 * i + 2]];
+  const verts = loop ? n - 1 : n; // a loop's last point is its first
+  const segIn = (j: number) => (j > 0 ? j - 1 : loop ? segs - 1 : -1), segOut = (j: number) => (j < segs ? j : loop ? 0 : -1);
+  // the tube splits at sharp corners: a revolved piece joins round ones, and the
+  // two runs meet on the bisecting plane at a miter
+  const turnCos = (j: number) => { const a = segIn(j), b = segOut(j); return a < 0 || b < 0 ? 1 : dot3(v3(D, a), v3(D, b)); };
+  const split = (j: number) => turnCos(j) < MESH_CORNER_COS;
+  const isMiter = (j: number) => style.join === 'miter' && turnCos(j) >= MITER_MIN_COS;
+  // a ring at vertex j slid onto the bisecting plane, along the segment arriving
+  // (or, `leaving`, the one leaving)
+  const across = (j: number, leaving = false): Station => {
+    const a = segIn(j), b = segOut(j), dA = v3(D, a), dB = v3(D, b);
+    const d = leaving ? dB : dA, N = leaving ? v3(Na, b) : v3(Nb, a);
+    return { p: pt(j), n: N, b: cross3(d, N), miter: { d, m: norm3([dA[0] + dB[0], dA[1] + dB[1], dA[2] + dB[2]]), V: pt(j) } };
+  };
+  // how far before a miter the inner side of the ring reaches back: rings closer
+  // than this would fold over the bisecting plane, so they're left out
+  let R = 0;
+  for (let i = 0; i < ring.length; i += 2) R = Math.max(R, Math.hypot(ring[i], ring[i + 1]));
+  const miterReach = (j: number) => { const c = turnCos(j); return R * Math.sqrt(Math.max(0, (1 - c) / (1 + c))) * 1.05; };
+  const square = (j: number, seg: number, atEnd: boolean, shift = 0): Station => {
+    const d = v3(D, seg), N = v3(atEnd ? Nb : Na, seg);
+    return { p: pt(j).map((c, a) => c + d[a] * shift), n: N, b: cross3(d, N) };
+  };
+  const runs: { positions: Float32Array; indices: Uint32Array }[] = [];
+  const spins: SweepSpin[] = [];
+  const splits = Array.from({ length: verts }, (_, j) => j).filter(split);
+  if (loop && !splits.length) {
+    runs.push(tubeMesh(Array.from({ length: verts }, (_, j) => across(j)), ring, true));
+  } else {
+    // runs from split to split (a loop wraps round), or from end to end
+    const starts = loop ? splits : [0, ...splits];
+    for (let r = 0; r < starts.length; r++) {
+      const j0 = starts[r];
+      const j1 = loop ? splits[(r + 1) % splits.length] : r + 1 < starts.length ? starts[r + 1] : n - 1;
+      const st: Station[] = [];
+      const m0 = !(!loop && j0 === 0) && isMiter(j0), m1 = !(!loop && j1 === n - 1) && isMiter(j1);
+      if (!loop && j0 === 0) st.push(square(0, 0, false, -ends.start));
+      else st.push(m0 ? across(j0, true) : square(j0, segOut(j0), false));
+      const s0 = path.s[j0], s1 = j1 === 0 && loop ? path.length : path.s[j1];
+      const r0 = m0 ? miterReach(j0) : 0, r1 = m1 ? miterReach(j1) : 0;
+      for (let j = (j0 + 1) % verts, guard = 0; j !== j1 && guard < verts; j = (j + 1) % verts, guard++) {
+        const sj = path.s[j] < s0 ? path.s[j] + path.length : path.s[j];
+        if (sj - s0 < r0 || s1 + (s1 < s0 ? path.length : 0) - sj < r1) continue;
+        st.push(across(j));
+      }
+      if (!loop && j1 === n - 1) st.push(square(n - 1, segs - 1, true, ends.end));
+      else st.push(m1 ? across(j1) : square(j1, segIn(j1), true));
+      runs.push(tubeMesh(st, ring, false));
+    }
+    for (const j of splits) {
+      if (isMiter(j)) continue;
+      const a = segIn(j), b = segOut(j), dA = v3(D, a), dB = v3(D, b), c = dot3(dA, dB);
+      const k = norm3(sub(dB, dA.map((v) => v * c)));
+      const N = v3(Nb, a);
+      spins.push({ V: pt(j), axis: norm3(cross3(dA, dB)), out: [-k[0], -k[1], -k[2]], n: N, b: cross3(dA, N), keep: [dA, dB.map((v) => -v)], mirror: false });
+    }
+  }
+  // round caps: the section spun about its out-of-plane axis past each end
+  if (!loop) {
+    for (const [on, j, seg, sgn, F] of [[ends.roundStart, 0, 0, -1, Na], [ends.roundEnd, n - 1, segs - 1, 1, Nb]] as const) {
+      if (!on) continue;
+      const d = v3(D, seg).map((v) => v * sgn), N = v3(F, seg);
+      const B = cross3(v3(D, seg), N);
+      spins.push({ V: pt(j), axis: N, out: B, n: N, b: B, keep: [d], mirror: true });
+    }
+  }
+  return { runs, spins };
+}
+
+/**
+ * Closed triangle mesh of the ring swept along the path (sweep-local space), mitred
+ * through every corner (a quick preview; the kernels use sweepParts).
+ */
+export function sweepMesh(path: SweepPath, ring: number[]): { positions: Float32Array; indices: Uint32Array } {
+  const { runs } = sweepParts(path, ring, { join: 'miter', cap: 'flat' }, { start: 0, end: 0, roundStart: false, roundEnd: false });
+  if (runs.length === 1) return runs[0];
+  // a mitre limit split the tube: show the runs together
+  let nv = 0;
+  const pos: number[] = [], idx: number[] = [];
+  for (const r of runs) { pos.push(...r.positions); idx.push(...Array.from(r.indices, (i) => i + nv)); nv += r.positions.length / 3; }
+  return { positions: Float32Array.from(pos), indices: Uint32Array.from(idx) };
 }

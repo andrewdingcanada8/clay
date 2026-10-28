@@ -408,6 +408,11 @@ function sweepControls(o: SceneObject) {
     ${seg<NonNullable<SceneObject['params']['plane']>>('plane', p.plane ?? 'xy', [['xy', 'XY · upright'], ['xz', 'XZ · flat'], ['yz', 'YZ · upright']])}
     <label class="toggle"><input type="checkbox" id="sweep-closed" data-act="sweep-closed" ${p.closed ? 'checked' : ''}> Closed loop</label>
     ${p.closed ? slider('p.turns', 'Turns', p.turns ?? 1, 1, 12, 1) : ''}
+    <div class="sub">Sharp corners</div>
+    ${seg<NonNullable<SceneObject['params']['join']>>('join', p.join ?? 'round', [['round', 'Round'], ['miter', 'Miter']])}
+    ${!p.closed ? `<div class="sub">Ends</div>
+    ${seg<NonNullable<SceneObject['params']['cap']>>('cap', p.cap ?? 'flat', [['flat', 'Flat'], ['round', 'Round'], ['square', 'Square']])}` : ''}
+    <p class="hint">Round turns the section about the corner (round ends spin it a half turn); miter runs both sides on to a sharp point (turns sharper than 120° are rounded); square ends run on by half the width.</p>
     <div class="row"><button class="btn primary" data-act="edit-path">Edit path (${p.path?.length ?? 0} points)</button><button class="btn" data-act="edit-lift">Edit lift</button></div>
     <p class="hint">${len.toFixed(1)} cm along the path. The lift raises the path off its plane as it goes; on a closed loop with several turns, a rising lift makes a coil.</p>`;
 }
@@ -868,6 +873,8 @@ function onSeg(name: string, value: string) {
     case 'meshMethod': update((d) => { d.meshMethod = value as SceneDoc['meshMethod']; }); break;
     case 'quality': ui.quality = value as Quality; sync(false); break;
     case 'section': update((d) => { d.objects.find((x) => x.id === ui.selectedId)!.params.section = value as 'circle' | 'square' | 'custom'; }); break;
+    case 'join': update((d) => { d.objects.find((x) => x.id === ui.selectedId)!.params.join = value as 'round' | 'miter'; }); break;
+    case 'cap': update((d) => { d.objects.find((x) => x.id === ui.selectedId)!.params.cap = value as 'flat' | 'round' | 'square'; }); break;
     case 'plane': update((d) => { d.objects.find((x) => x.id === ui.selectedId)!.params.plane = value as 'xy' | 'xz' | 'yz'; }); break;
     case 'galleryTab': ui.galleryTab = value as 'mine' | 'examples'; closeCards(); break;
     case 'axis': ui.section.axis = value as 'x' | 'y' | 'z'; view.setSection(true, ui.section.axis, ui.section.t); break;

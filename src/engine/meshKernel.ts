@@ -18,7 +18,7 @@ import { type BuildResult, Timer } from './kernel';
 import type { Vec3 } from './math';
 import { edgeStats } from './meshCheck';
 import { type CompiledObject, compileScene, normalToWorld, revolveOutline, toWorld } from './primitives';
-import { sectionRing, sweepMesh } from './sweep';
+import { type SweepSpin, sectionRing, sweepParts } from './sweep';
 import { pinDepth } from './scene';
 
 let wasmPromise: Promise<ManifoldToplevel> | null = null;
@@ -183,10 +183,17 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
     };
   };
 
-  // Sweep: the section ring swept along the path; the hollow is the section offset
-  // inward, with the ends pulled in by the wall.
+  const union = (ms: (Manifold | null)[]): Manifold | null => {
+    const list = ms.filter((m): m is Manifold => !!m && !m.isEmpty());
+    if (!list.length) return null;
+    return list.length === 1 ? list[0] : keep(Manifold.union(list));
+  };
+
+  // Sweep: the section ring swept along the path (tube runs, plus revolved pieces at
+  // round corners and caps); the hollow is the same with the section offset inward
+  // and the ends pulled in by the wall.
   const sweepFrom = (c: CompiledObject): Built => {
-    const { path, sec } = c.sweep!;
+    const { path, sec, style } = c.sweep!;
     const [sx, sy, sz] = c.scale;
     const uniform = Math.abs(sx - sy) < 1e-6 && Math.abs(sx - sz) < 1e-6;
     const k = uniform ? sx : Math.cbrt(sx * sy * sz);
@@ -197,11 +204,32 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
       m.merge();
       return keep(keep(new Manifold(m)).transform(mat as never));
     };
+    // a revolved piece: the ring (u, v) mapped into the plane of `out` and `axis`,
+    // revolved about `axis` through V, and kept on the given sides
+    const spinOf = (sp: SweepSpin, ring2: number[]) => {
+      const dot = (a: number[], b: number[]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+      const pts: [number, number][] = [];
+      for (let i = 0; i < ring2.length; i += 2) {
+        const u = ring2[i], v = ring2[i + 1];
+        pts.push([u * dot(sp.n, sp.out) + v * dot(sp.b, sp.out), u * dot(sp.n, sp.axis) + v * dot(sp.b, sp.axis)]);
+      }
+      let cs = keep(new CrossSection([ccw(pts)], 'Positive'));
+      if (sp.mirror) cs = keep(cs.add(keep(cs.mirror([1, 0]))));
+      const y = cross(sp.axis as Vec3, sp.out as Vec3);
+      let m = keep(keep(cs.revolve(segs)).transform([...sp.out, 0, ...y, 0, ...sp.axis, 0, ...sp.V, 1] as never));
+      for (const k of sp.keep) m = keep(m.trimByPlane(k as Vec3, dot(k, sp.V)));
+      return m.isEmpty() ? null : keep(m.transform(mat as never));
+    };
+    const solidOf = (ring2: number[], ends: Parameters<typeof sweepParts>[3]) => {
+      const { runs, spins } = sweepParts(path, ring2, style, ends);
+      return union([...runs.map(make), ...spins.map((sp) => spinOf(sp, ring2))]);
+    };
     const ring = sectionRing(sec, segs);
     const pairs: [number, number][] = [];
     for (let i = 0; i < ring.length; i += 2) pairs.push([ring[i], ring[i + 1]]);
+    const roundCap = style.cap === 'round', ext = style.cap === 'square' ? sec.hd : 0;
     return {
-      solid: make(sweepMesh(path, ring))!,
+      solid: solidOf(ring, { start: ext, end: ext, roundStart: roundCap, roundEnd: roundCap })!,
       approx: !uniform,
       cavity: (delta) => {
         const t = -delta / k; // inward, in sweep units
@@ -210,11 +238,13 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
         const polys = inner.toPolygons();
         let big = polys[0], area = 0;
         for (const q of polys) { const a = Math.abs(signedArea(q as [number, number][])); if (a > area) { area = a; big = q; } }
-        // an open end: the hollow runs straight out through it; otherwise it stops a wall short
+        // an open end: the hollow runs straight out through it; a round cap's hollow
+        // is the inner section spun the same way; otherwise it stops a wall short
         const open = (f: string) => c.obj.holes.includes(f);
         const out = 2 * t + 0.5;
-        return make(sweepMesh(path, (ccw(big as [number, number][]) as [number, number][]).flat(),
-          [open('start') ? 0 : t, open('end') ? 0 : t], { start: open('start') ? out : 0, end: open('end') ? out : 0 }));
+        const end = (f: string) => (open(f) ? out : roundCap ? 0 : ext - t);
+        return solidOf((ccw(big as [number, number][]) as [number, number][]).flat(),
+          { start: end('start'), end: end('end'), roundStart: roundCap && !open('start'), roundEnd: roundCap && !open('end') });
       },
     };
   };
@@ -233,11 +263,7 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
   for (const c of objs) built.set(c.obj.id, build(c));
   timer.lap('primitives');
 
-  const union = (ms: (Manifold | null)[]): Manifold | null => {
-    const list = ms.filter((m): m is Manifold => !!m && !m.isEmpty());
-    if (!list.length) return null;
-    return list.length === 1 ? list[0] : keep(Manifold.union(list));
-  };
+
   const byId = new Map(objs.map((o) => [o.obj.id, o]));
   const pinCylinder = (pin: SceneDoc['pins'][number], t: number, hollow: boolean): Manifold | null => {
     const o = byId.get(pin.objectId);

@@ -12,7 +12,6 @@ export type PrimitiveType = 'sphere' | 'box' | 'cylinder' | 'cone' | 'torus' | '
  *  shell    — forms the hollow body; the group's cavity is grown inward from the
  *             outer surface of all shell objects together.
  *  solid    — never hollowed itself, but still cut by its group's cavity.
- *  subtract — joins the cavity: carved out of its group (no wall around it).
  */
 /** subtract: carved from the shell shape before hollowing (the cut gets a wall);
  *  cutout: carved from the finished piece, walls and all (opens into the hollow). */
@@ -61,6 +60,9 @@ export interface PrimitiveParams {
   d?: number;
   /** Custom section outline (closed); fitted to w × d. */
   shape?: ProfilePoint[];
+  /** Sweeps: how sharp corners turn and open ends finish (see sweep.SweepStyle). */
+  join?: 'round' | 'miter';
+  cap?: 'flat' | 'round' | 'square';
 }
 
 export interface SceneObject {

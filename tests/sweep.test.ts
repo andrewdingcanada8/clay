@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { defaultCoil, defaultSweep, emptyDoc, makeObject } from '../src/engine/document';
-import { buildSweepPath, buildSweepSection, sectionRing, sweepMesh, sweepSDF } from '../src/engine/sweep';
+import { type SweepStyle, buildSweepPath, buildSweepSection, sectionRing, sweepEval, sweepMesh } from '../src/engine/sweep';
+import type { PrimitiveParams } from '../src/engine/document';
+
+const flatRound: SweepStyle = { join: 'round', cap: 'flat' };
+const sweepSDF = (path: ReturnType<typeof buildSweepPath>, sec: ReturnType<typeof buildSweepSection>, x: number, y: number, z: number, style = flatRound) => sweepEval(path, sec, style, x, y, z).d;
 import { compileObject } from '../src/engine/primitives';
 import { buildSDF } from '../src/engine/sdfKernel';
 
@@ -52,5 +56,34 @@ describe('sweep', () => {
     expect(r.stats.boundaryEdges).toBe(0);
     expect(r.indices.length).toBeGreaterThan(0);
     expect(compileObject(d.objects[0]).faces.map((f) => f.id)).toEqual(['surface', 'start', 'end']);
+  });
+
+  // an L: from (0,-5) up to a sharp corner at (0,0), then right to (5,0); round section r = 1
+  const L = (style: Partial<PrimitiveParams> = {}): PrimitiveParams => ({ ...straight, w: 2, path: [{ r: 0, y: -5, corner: true }, { r: 0, y: 0, corner: true }, { r: 5, y: 0, corner: true }], ...style });
+  const at = (p: PrimitiveParams, x: number, y: number, z = 0) => {
+    const path = buildSweepPath(p), sec = buildSweepSection(p);
+    return sweepEval(path, sec, { join: p.join ?? 'round', cap: p.cap ?? 'flat' }, x, y, z).d;
+  };
+
+  it('a sharp corner does not run on past the bend', () => {
+    // straight on past the corner (up) and back past it (left): outside the tube
+    expect(at(L(), 0, 3)).toBeCloseTo(2, 3);
+    expect(at(L(), -3, 0)).toBeCloseTo(2, 3);
+    expect(at(L(), 0.5, -2)).toBeCloseTo(-0.5, 3); // inside the first leg
+  });
+
+  it('round corners are a quarter torus; miters are sharp', () => {
+    const d = 1.5 / Math.SQRT2; // 1.5 out from the corner, diagonally up-left
+    expect(at(L(), -d, d)).toBeCloseTo(0.5, 3);
+    expect(at(L({ join: 'miter' }), -0.9, 0.9)).toBeLessThan(0); // inside the miter's square corner
+    expect(at(L({ join: 'round' }), -0.9, 0.9)).toBeGreaterThan(0);
+  });
+
+  it('round caps are the section spun; square caps run on by half the width', () => {
+    expect(at(L({ cap: 'round' }), 0, -6.5)).toBeCloseTo(0.5, 3); // hemisphere of radius 1 past (0,-5)
+    expect(at(L({ cap: 'round' }), 0.6, -5.6)).toBeLessThan(0);
+    expect(at(L({ cap: 'flat' }), 0, -5.5)).toBeCloseTo(0.5, 3);
+    expect(at(L({ cap: 'square' }), 0, -5.5)).toBeCloseTo(-0.5, 3);
+    expect(at(L({ cap: 'square' }), 0, -6.5)).toBeCloseTo(0.5, 3);
   });
 });
