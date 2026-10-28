@@ -204,8 +204,9 @@ function update(mut: (d: SceneDoc) => void, interactive = false) {
 // becomes its own group (see engine/parts). Group indices below refer to it.
 function cavityKey(r: SceneDoc, gi: number): string {
   const g = r.groups[gi];
-  const shells = r.objects.filter((o) => o.groupId === g.id && o.mode === 'shell' && !o.hidden);
-  return JSON.stringify([ui.quality, g.blend ?? 0, shells.map((o) => [o.type, o.params, o.transform, o.holes])]);
+  // the cavity follows the shell objects and the cuts carved before hollowing
+  const shells = r.objects.filter((o) => o.groupId === g.id && o.mode !== 'solid' && !o.hidden);
+  return JSON.stringify([ui.quality, g.blend ?? 0, shells.map((o) => [o.type, o.mode, o.params, o.transform, o.holes, !!o.openCut])]);
 }
 
 function currentGrids(r: SceneDoc): (CavityGrid | null)[] {
@@ -493,7 +494,8 @@ function editPanel() {
     else body = `
     <div class="section"><h3>${TYPE_LABEL[o.type]} · role in its group</h3>
       ${seg<ObjectMode>('mode', o.mode, [['shell', 'Shell'], ['solid', 'Solid'], ['subtract', 'Subtract']])}
-      <p class="hint">${o.mode === 'shell' ? 'Forms the hollow body. The cavity grows inward from the outside of all Shell objects in the group.' : o.mode === 'solid' ? 'Never hollowed itself, but cut where the group\'s cavity passes through it.' : 'Carved out of its group together with the cavity. No wall forms around it.'}</p>
+      <p class="hint">${o.mode === 'shell' ? 'Forms the hollow body. The cavity grows inward from the outside of all Shell objects in the group.' : o.mode === 'solid' ? 'Never hollowed itself, but cut where the group\'s cavity passes through it.' : o.openCut ? 'Carved out of its group straight through the wall: the cut opens into the hollow.' : 'Carved out of the group\'s shape before it is hollowed, so the cut surface gets a wall like any other.'}</p>
+      ${o.mode === 'subtract' ? `<label class="toggle"><input type="checkbox" data-act="open-cut" ${o.openCut ? 'checked' : ''}> Open cut (passes through the wall)</label>` : ''}
       ${doc.groups.length > 1 ? `<div class="row">${doc.groups.map((g) => `<button class="face-chip" data-move-group="${g.id}" aria-pressed="${g.id === o.groupId}">${escapeHtml(g.name)}</button>`).join('')}</div>` : ''}
     </div>
     <div class="section"><h3>Shape</h3>
@@ -734,6 +736,7 @@ panel.addEventListener('change', (e) => {
   }
   const act = el.dataset.act;
   if (act === 'shell-toggle') update((d) => { d.shell.enabled = el.checked; });
+  if (act === 'open-cut') { update((d) => { d.objects.find((x) => x.id === ui.selectedId)!.openCut = el.checked || undefined; }); renderPanel(); }
   if (act === 'sweep-closed') {
     update((d) => {
       const p = d.objects.find((x) => x.id === ui.selectedId)!.params;

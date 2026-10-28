@@ -38,8 +38,8 @@ Quality: normal. Images: `bench/out/<case>-<kernel>.png`.
 | tower | mesh | 35 | 408 | 0 | 0 | 53.3 |  |
 | thick-wall | sdf | 1550 | 94984 | 0 | 0 | 0.9 |  |
 | thick-wall | mesh | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
-| cut-sphere | sdf | 2899 | 236972 | 0 | 5 | 18.3 |  |
-| cut-sphere | mesh | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
+| cut-sphere | sdf | 3508 | 269300 | 0 | 5 | 5.1 |  |
+| cut-sphere | mesh | 186 | 16936 | 0 | 0 | 5.0 |  |
 | mug-stick | sdf | 4147 | 165512 | 0 | 128 | 17.1 |  |
 | mug-stick | mesh | — | — | — | — | — | ERROR: Error: Error creating WebGL context. |
 | mug-thin | sdf | 21422 | 925152 | 85 | 110 | 20.2 | Mesh wall for Group 1 drawn at 0.25 cm, not 0.08 cm (grid too coarse at this size).; 44 quads skipped at block borders |
@@ -52,7 +52,8 @@ Quality: normal. Images: `bench/out/<case>-<kernel>.png`.
 | sdf-narrow-join | sdf | 1160 | 174300 | 0 | 0 | 1.9 |  |
 | sdf-pebble | sdf | 614 | 150660 | 0 | 0 | 0.0 |  |
 | sdf-blend | sdf | 2987 | 158708 | 0 | 4 | 1.8 |  |
-| teapot | sdf | 5891 | 345160 | 0 | 18 | 25.7 |  |
+| teapot | sdf | 6004 | 345160 | 0 | 18 | 25.7 |  |
+| teapot | mesh | 236 | 36750 | 0 | 0 | 25.6 |  |
 | sweep-mug | sdf | 7254 | 209296 | 0 | 1 | 26.0 |  |
 | sweep-mug | mesh | 153 | 22590 | 0 | 0 | 25.7 |  |
 | coil | sdf | 47144 | 509948 | 42 | 3 | 0.0 | 12 quads skipped at block borders |

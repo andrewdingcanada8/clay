@@ -1,17 +1,21 @@
 // Groups and the shared scene field.
 //
 // For each group g:
-//   G_g   = min(shell SDFs, solid SDFs)                 the group's material (a smooth
-//                                                        min with radius k when the
-//                                                        group blends)
-//   C_g   = max(F_shell, t - D)                         its cavity: inside the shell
-//                                                        objects and deeper than t from
-//                                                        their non-opening surface
-//   Cut_g = min(C_g, subtract SDFs, pin cylinders)      everything carved from the group
-//   S_g   = max(G_g, -Cut_g)
+//   Sub_g = min(subtract SDFs)                          carved before hollowing
+//   F_g   = max(min(shell SDFs), -Sub_g)                the shell shape (a smooth min
+//                                                        with radius k when the group
+//                                                        blends)
+//   G_g   = max(min(shell SDFs, solid SDFs), -Sub_g)    the group's material
+//   C_g   = max(F_g, t - D)                             its cavity: inside the shell
+//                                                        shape and deeper than t from
+//                                                        its non-opening surface
+//   S_g   = max(G_g, -min(C_g, pin cylinders))
 // and the scene is S = min over groups. Groups never cut each other.
 //
-// D is the depth below the group's shell surface, ignoring faces marked as openings.
+// D is the depth below the shell shape's surface, ignoring faces marked as openings.
+// The cut surface of a subtract object is part of that surface (so it gets a wall)
+// unless the object is an open cut. Inside F, depth below it is exactly
+// min(depth below the shell union, distance into each closed cut).
 // The analytic per-object depth A (deepest depth inside any single shell object) is
 // exact except near joins, blends and openings shared between objects; there a
 // precomputed grid (cavity.ts) gives D. hybridDepth uses A wherever the grid agrees
@@ -127,6 +131,13 @@ export function shellSDF(g: CompiledGroup, x: number, y: number, z: number): num
   return f;
 }
 
+/** The shell shape: the shell union with the subtract objects carved out. */
+export function shapeSDF(g: CompiledGroup, x: number, y: number, z: number): number {
+  let f = shellSDF(g, x, y, z);
+  for (const o of g.subs) f = Math.max(f, -sdfWorld(o, x, y, z));
+  return f;
+}
+
 const tmp: Vec3 = [0, 0, 0];
 
 /**
@@ -202,6 +213,7 @@ function openDepth(c: CompiledObject, holes: Set<string>, x: number, y: number, 
 export function approxDepth(g: CompiledGroup, x: number, y: number, z: number): number {
   let d = -Infinity;
   for (const o of g.shells) d = Math.max(d, holeDepth(o, g.holes, x, y, z));
+  for (const o of g.subs) if (!o.obj.openCut) d = Math.min(d, sdfWorld(o, x, y, z));
   return d;
 }
 
@@ -238,6 +250,8 @@ export function baseDepth(g: CompiledGroup, x: number, y: number, z: number, cla
   let d = t2 === -Infinity ? t1 : -smin(-t1, -t2, k);
   // inside a blend the blended field itself is the better depth estimate (as the shader)
   if (g.k > 0) d = -smin(-d, fs, k);
+  // a closed cut's surface bounds the depth too
+  for (const o of g.subs) if (!o.obj.openCut) d = Math.min(d, sdfWorld(o, x, y, z));
   return Math.max(-clampV, Math.min(clampV, d));
 }
 
@@ -261,20 +275,21 @@ export function evalScene(groups: CompiledGroup[], depth: DepthFn, x: number, y:
     const dx = Math.max(b.min[0] - x, 0, x - b.max[0]), dy = Math.max(b.min[1] - y, 0, y - b.max[1]), dz = Math.max(b.min[2] - z, 0, z - b.max[2]);
     const boxD = Math.hypot(dx, dy, dz);
     if (boxD > Math.min(s, cull)) continue;
-    let fs = Infinity, fo = Infinity;
+    let fs = Infinity, fo = Infinity, sub = Infinity;
     for (const o of g.shells) fs = smin(fs, sdfWorld(o, x, y, z), g.k);
     for (const o of g.solids) fo = smin(fo, sdfWorld(o, x, y, z), g.k);
-    const G = smin(fs, fo, g.k);
+    for (const o of g.subs) sub = Math.min(sub, sdfWorld(o, x, y, z));
+    const U = smin(fs, fo, g.k);
+    const G = Math.max(U, -sub), F = Math.max(fs, -sub);
     let cut = Infinity, kind: typeof last.kind = 'material';
-    if (g.hollow && fs < OPENING_EPS) {
-      const c = Math.max(fs - OPENING_EPS, g.t - depth(g, x, y, z));
+    if (g.hollow && F < OPENING_EPS) {
+      const c = Math.max(F - OPENING_EPS, g.t - depth(g, x, y, z));
       if (c < cut) { cut = c; kind = 'cavity'; }
     }
-    for (const o of g.subs) { const d = sdfWorld(o, x, y, z); if (d < cut) { cut = d; kind = 'sub'; } }
     for (const p of g.pins) { const d = pinSDF(p, x, y, z); if (d < cut) { cut = d; kind = 'pin'; } }
     let sg = G;
     if (-cut > G) sg = -cut;
-    else kind = 'material';
+    else kind = -sub > U ? 'sub' : 'material';
     if (sg < s) { s = sg; last.group = g.index; last.kind = kind; }
   }
   return s;

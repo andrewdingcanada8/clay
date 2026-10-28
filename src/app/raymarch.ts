@@ -50,6 +50,7 @@ uniform vec3 uCap;
 uniform vec3 uBoundsMin;
 uniform vec3 uBoundsMax;
 uniform float uPixelAngle;
+uniform float uPixelSize; // orthographic cameras: world size of a pixel
 uniform int uGroupCount;
 uniform int uObjCount;
 uniform ivec4 uGroupRange[${MAX_GROUPS}];   // shells start, solids start, subs start, end
@@ -226,6 +227,7 @@ uvec4 rayMask(vec3 ro, vec3 rd, float ta, float tb, float reach, out vec2 span) 
     float cavH = g < ${MAX_GRIDS} ? uCavH[min(g, ${MAX_GRIDS - 1})] : 0.0;
     float grow = reach + uK[g] + 3.0 * cavH + 0.05;
     if (int(meta.z) != 0) grow += 2.0 * row(i, 5).w; // depth carries on through openings
+    if (i >= uGroupRange[g].z) grow += 2.0 * uT[g];  // a cut's wall lies up to t inside the shape
     vec3 o = toLocal(i, ro), d = toLocal(i, ro + rd) - o;
     vec3 gl = grow / S.xyz;
     vec2 st = segBox(o, d, ta, tb, row(i, 8).xyz - gl, row(i, 9).xyz + gl);
@@ -364,13 +366,14 @@ float map(vec3 p) {
       float b = bound(i, p);
       fo = smin(fo, b < max(min(fs, fo), 0.0) + 0.5 + kb ? sdObj(i, p) : b, kb);
     }
-    float G = smin(fs, fo, kb);
-    if (uHollow[g] == 1 && fs < ${OPENING_EPS.toFixed(3)}) {
+    float G = smin(fs, fo, kb), D = -1e5;
+    bool deep = uHollow[g] == 1 && fs < ${OPENING_EPS.toFixed(3)};
+    bool useGrid = g < ${MAX_GRIDS} && uUseGrid[min(g, ${MAX_GRIDS - 1})] == 1;
+    if (deep) {
       // Depth below the shell surface. A: the deepest single-object depth, exact
       // wherever one object's surface is nearest. The cavity grid stores the
       // correction to A, which only matters near joins, blends and shared openings.
       // (smooth max over two texels where the deepest object switches; see scene.baseDepth)
-      bool useGrid = g < ${MAX_GRIDS} && uUseGrid[min(g, ${MAX_GRIDS - 1})] == 1;
       float kA = useGrid ? 2.0 * uCavH[min(g, ${MAX_GRIDS - 1})] : 0.0;
       // The smooth max takes the two deepest terms only, so it doesn't depend on
       // object order and terms far below the deepest can be skipped exactly. -fs
@@ -393,17 +396,28 @@ float map(vec3 p) {
         }
         if (d > t1) { t2 = t1; t1 = d; } else t2 = max(t2, d);
       }
-      float D = -smin(-t1, -t2, kA);
+      D = -smin(-t1, -t2, kA);
       // inside a blend the blended field itself is the better depth estimate
       if (kb > 0.0) D = -smin(-D, fs, kA);
-      if (useGrid) D = gridDepth(g, p, uT[g], D);
-      cav = max(fs - ${OPENING_EPS.toFixed(3)}, uT[g] - D);
-      cut = cav;
     }
+    // Cuts are carved from the shape before it is hollowed, and a closed cut's
+    // surface bounds the depth too (see scene.baseDepth). Where the bound shows a
+    // cut can't change either, its bound stands in for it.
+    float sub = 1e5;
     for (int i = R.z; i < R.w; i++) {
       if (!objOn(i)) continue;
+      bool open = int(row(i, 6).z) != 0;
       float b = bound(i, p);
-      cut = min(cut, b < cut + 0.5 ? sdObj(i, p) : b);
+      float d = b < max(-G, open ? -1e5 : D) + 0.5 ? sdObj(i, p) : b;
+      sub = min(sub, d);
+      if (!open) D = min(D, d);
+    }
+    G = max(G, -sub);
+    float F = max(fs, -sub);
+    if (deep && F < ${OPENING_EPS.toFixed(3)}) {
+      if (useGrid) D = gridDepth(g, p, uT[g], D);
+      cav = max(F - ${OPENING_EPS.toFixed(3)}, uT[g] - D);
+      cut = cav;
     }
     ivec2 PR = uPinRange[g];
     for (int k = PR.x; k < PR.y; k++) cut = min(cut, sdPin(p, uPins[2 * k].xyz, uPins[2 * k + 1].xyz, uPins[2 * k].w));
@@ -474,13 +488,18 @@ void main() {
   }
   // every surface lies inside the boxes the ray crosses: march only that stretch
   if (uObjCount <= 128) { t = max(t, span.x); t1 = min(t1, span.y); }
+  float d = 1e5, eps = 0.0;
+  bool done = false;
   for (int i = 0; i < 200; i++) {
-    float d = map(ro + rd * t);
-    float eps = clamp(uPixelAngle * t * 0.35, 0.0008, 0.008);
+    d = map(ro + rd * t);
+    eps = clamp((uPixelAngle * t + uPixelSize) * 0.35, 0.0008, 0.008);
     if (d < eps) { hit = true; break; }
     t += max(d * 0.92, eps * 0.5);
-    if (t > t1) break;
+    if (t > t1) { done = true; break; }
   }
+  // A ray running just alongside a flat face (seen edge-on) creeps along it in
+  // tiny steps and can use up its steps before touching it: it is a hit.
+  if (!hit && !done && d < 8.0 * eps) hit = true;
   // cost view: map() calls and object evaluations for this pixel, no shading
   if (uFlat == 2 && !hit) { pc_fragColor = vec4(float(min(gMapN, 255)) / 255.0, float(min(gObjN >> 8, 255)) / 255.0, float(gObjN & 255) / 255.0, 1.0); return; }
   if (!hit) discard;
@@ -533,6 +552,7 @@ export class SdfRenderer {
       uBoundsMin: { value: new THREE.Vector3() },
       uBoundsMax: { value: new THREE.Vector3() },
       uPixelAngle: { value: 0.0015 },
+      uPixelSize: { value: 0 },
       uGroupCount: { value: 0 },
       uObjCount: { value: 0 },
       // integer vector arrays must be flat Int32Arrays (three.js does not flatten them)
@@ -570,16 +590,19 @@ export class SdfRenderer {
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
     this.mesh = new THREE.Mesh(geo, this.material);
     this.mesh.frustumCulled = false;
-    this.mesh.onBeforeRender = (_r, _s, camera) => this.beforeRender(camera);
+    this.mesh.onBeforeRender = (r, _s, camera) => this.beforeRender(camera, r);
   }
 
-  private beforeRender(camera: THREE.Camera) {
+  private beforeRender(camera: THREE.Camera, renderer: THREE.WebGLRenderer) {
     const u = this.material.uniforms;
     camera.updateMatrixWorld();
     const pv = new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
     u.uProjView.value.copy(pv);
     u.uInvProjView.value.copy(pv).invert();
-    u.uPixelAngle.value = (camera as THREE.PerspectiveCamera).isPerspectiveCamera ? 0.0015 : 0;
+    const persp = (camera as THREE.PerspectiveCamera).isPerspectiveCamera;
+    u.uPixelAngle.value = persp ? 0.0015 : 0;
+    const o = camera as THREE.OrthographicCamera;
+    u.uPixelSize.value = persp ? 0 : (o.top - o.bottom) / o.zoom / renderer.getContext().drawingBufferHeight;
   }
 
   setStyle(opts: { flat?: boolean; cost?: boolean; clay?: number; cap?: number }) {
@@ -826,6 +849,7 @@ export class SdfRenderer {
 
 /** Bit mask of a primitive's faces that are openings (layout matches holeDepth in the shader). */
 function holeMask(o: CompiledObject, g: CompiledGroup): number {
+  if (o.obj.mode === 'subtract') return o.obj.openCut ? 1 : 0; // an open cut gets no wall
   const h = (f: string) => g.holes.has(`${o.obj.id}|${f}`);
   let names: string[] = [];
   switch (o.obj.type) {

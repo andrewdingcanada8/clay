@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildSDF } from '../src/engine/sdfKernel';
 import { emptyDoc, makeObject } from '../src/engine/document';
+import { approxDepth, compileGroups, evalScene } from '../src/engine/scene';
 
 function signedVolume(p: Float32Array, idx: Uint32Array) {
   let v = 0;
@@ -51,5 +52,32 @@ describe('analytic depth', () => {
     const gc = compileGroups(c)[0];
     // on the axis, 1 cm above the base: nearest is the base
     expect(baseDepth(gc, 0, -3, 0, 100, 0.01)).toBeCloseTo(1, 1);
+  });
+});
+
+describe('cuts are carved before hollowing', () => {
+  // sphere r=3 with the cap x > 1 cut off by a box, 0.4 cm walls
+  const make = (openCut: boolean) => {
+    const sphere = makeObject('sphere', { params: { r: 3 }, mode: 'shell' });
+    const box = makeObject('box', { params: { x: 4, y: 8, z: 8 }, mode: 'subtract' });
+    box.transform.position = [3, 0, 0];
+    if (openCut) box.openCut = true;
+    const d = { ...emptyDoc(), objects: [sphere, box] };
+    d.groups = d.groups.map((g) => ({ ...g, thickness: 0.4 }));
+    const [g] = compileGroups(d);
+    return (x: number, y: number, z: number) => evalScene([g], approxDepth, x, y, z);
+  };
+  it('a closed cut gets a wall', () => {
+    const S = make(false);
+    expect(S(0.8, 0, 0)).toBeLessThan(0);   // inside the wall along the cut plane
+    expect(S(0.4, 0, 0)).toBeGreaterThan(0); // the cavity starts 0.4 in
+    expect(S(1.2, 0, 0)).toBeGreaterThan(0); // the cut itself is empty
+    expect(S(-2.8, 0, 0)).toBeLessThan(0);   // the far wall is unchanged
+  });
+  it('an open cut passes through the wall', () => {
+    const S = make(true);
+    expect(S(0.8, 0, 0)).toBeGreaterThan(0);
+    expect(S(0.4, 0, 0)).toBeGreaterThan(0);
+    expect(S(0.8, 2.75, 0)).toBeLessThan(0); // the sphere's own wall still stands
   });
 });

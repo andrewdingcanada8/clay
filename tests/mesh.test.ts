@@ -29,3 +29,28 @@ describe('mesh kernel openings', () => {
     }
   });
 });
+
+describe('mesh kernel cuts', () => {
+  it('a closed cut keeps a wall; an open one opens the hollow', async () => {
+    for (const openCut of [false, true]) {
+      const sphere = makeObject('sphere', { params: { r: 3 }, mode: 'shell' });
+      const box = makeObject('box', { params: { x: 4, y: 8, z: 8 }, mode: 'subtract' });
+      box.transform.position = [3, 0, 0];
+      if (openCut) box.openCut = true;
+      const d = { ...emptyDoc(), objects: [sphere, box], kernel: 'mesh' as const };
+      d.groups = d.groups.map((g) => ({ ...g, thickness: 0.4 }));
+      const r = await buildMeshKernel(d, 'normal');
+      expect(r.stats.boundaryEdges).toBe(0);
+      // a closed cut: the cavity's face along the cut lies a wall in, at x = 0.6;
+      // an open cut: the cavity runs out to the cut plane, x = 1
+      const P = r.positions, I = r.indices;
+      let inner = 0;
+      for (let k = 0; k < I.length; k += 3) {
+        const c = [0, 1, 2].map((a) => (P[3 * I[k] + a] + P[3 * I[k + 1] + a] + P[3 * I[k + 2] + a]) / 3);
+        if (Math.abs(c[0] - 0.6) < 0.02 && Math.hypot(c[1], c[2]) < 2) inner++;
+      }
+      if (openCut) expect(inner).toBe(0);
+      else expect(inner).toBeGreaterThan(0);
+    }
+  });
+});

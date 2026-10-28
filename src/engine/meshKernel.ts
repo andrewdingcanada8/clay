@@ -257,7 +257,8 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
     return keep(cyl.transform([...xv, 0, ...yv, 0, ...z, 0, ...start, 1] as never));
   };
 
-  // Each group: (shell ∪ solid) − (cavity ∪ subtract ∪ pins). Groups never cut each other.
+  // Each group: (shell ∪ solid) − (cavity ∪ subtract ∪ pins), the cavity hollowed from
+  // (shell − closed cuts). Groups never cut each other.
   const groupResults: Manifold[] = [];
   for (const g of doc.groups) {
     const members = objs.filter((c) => c.obj.groupId === g.id);
@@ -272,13 +273,17 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
     const cuts: (Manifold | null)[] = subs.map((c) => built.get(c.obj.id)!.solid);
     const hollow = shell && !!shellU;
     if (hollow && shellU) {
+      // Cuts are carved before hollowing: a closed cut keeps a wall of thickness t
+      // around it, so the cavity stays that far from it.
+      const ball = keep(Manifold.sphere(t, Math.max(12, Math.round(segs / 3))));
+      const closed = union(subs.filter((c) => !c.obj.openCut).map((c) => built.get(c.obj.id)!.solid));
       let cavity: Manifold | null;
       if (doc.meshMethod === 'minkowski') {
-        const ball = keep(Manifold.sphere(t, Math.max(12, Math.round(segs / 3))));
-        cavity = keep(shellU.minkowskiDifference(ball));
+        cavity = keep((closed ? keep(shellU.subtract(closed)) : shellU).minkowskiDifference(ball));
       } else {
         cavity = union(shells.map((c) => built.get(c.obj.id)!.cavity(-t)));
       }
+      const cavCuts: (Manifold | null)[] = [];
       for (const c of shells) if (built.get(c.obj.id)!.approx) warnings.push(`${c.obj.name}: X/Z scale differs, wall thickness approximate`);
       // Openings: extrude the cavity next to each hole face straight out through it.
       if (cavity && !cavity.isEmpty()) {
@@ -318,11 +323,14 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
               dirs.forEach((m, i) => { if (mask & (1 << i)) { v[0] += m[0] * d; v[1] += m[1] * d; v[2] += m[2] * d; } });
               moved.push(keep(slab.translate(v)));
             }
-            cuts.push(keep(Manifold.hull(moved)));
+            cavCuts.push(keep(Manifold.hull(moved)));
           }
         }
       }
-      cuts.push(cavity);
+      cavCuts.push(cavity);
+      let cav = union(cavCuts);
+      if (cav && closed && doc.meshMethod !== 'minkowski') cav = keep(cav.subtract(keep(closed.minkowskiSum(ball))));
+      cuts.push(cav);
     }
     const memberIds = new Set(members.map((c) => c.obj.id));
     for (const pin of doc.pins) if (memberIds.has(pin.objectId)) cuts.push(pinCylinder(pin, t, hollow));

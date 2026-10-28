@@ -70,6 +70,8 @@ export interface SceneObject {
   groupId: string;
   /** Face ids of this object that become openings when shelled. */
   holes: string[];
+  /** Subtract objects: the cut opens into the hollow (no wall forms on it). */
+  openCut?: boolean;
   hidden?: boolean;
 }
 

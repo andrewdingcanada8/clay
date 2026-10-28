@@ -12,7 +12,7 @@
 // and measures the distance to that seed's small tangent disc.
 
 import type { Quality } from './document';
-import { type CompiledGroup, baseDepth, shellSDF } from './scene';
+import { type CompiledGroup, baseDepth, shapeSDF, shellSDF } from './scene';
 import { type CompiledObject, faceAtWorld, normalToWorld, sdfWorld, toWorld } from './primitives';
 
 export interface CavityGrid {
@@ -57,7 +57,7 @@ export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid 
   for (let bk = 0; bk * B < nz; bk++) for (let bj = 0; bj * B < ny; bj++) for (let bi = 0; bi * B < nx; bi++) {
     const i1 = Math.min(nx, (bi + 1) * B + 1), j1 = Math.min(ny, (bj + 1) * B + 1), k1 = Math.min(nz, (bk + 1) * B + 1);
     const cx = posX((bi * B + i1 - 1) / 2), cy = posY((bj * B + j1 - 1) / 2), cz = posZ((bk * B + k1 - 1) / 2);
-    const fc = shellSDF(g, cx, cy, cz);
+    const fc = shapeSDF(g, cx, cy, cz);
     if (fc > hi + R || fc < lo - R) {
       // whole block outside the band: mark with the clamped value (filled later)
       const v = fc > 0 ? -clampV : clampV;
@@ -70,7 +70,7 @@ export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid 
     }
     for (let k = bk * B; k < k1; k++) for (let j = bj * B; j < j1; j++) for (let i = bi * B; i < i1; i++) {
       const q = idx(i, j, k);
-      if (Number.isNaN(F[q]) || !Number.isFinite(F[q])) F[q] = shellSDF(g, posX(i), posY(j), posZ(k));
+      if (Number.isNaN(F[q]) || !Number.isFinite(F[q])) F[q] = shapeSDF(g, posX(i), posY(j), posZ(k));
     }
   }
 
@@ -80,9 +80,9 @@ export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid 
   const nearest = new Int32Array(N).fill(-1);
   const e = h * 0.05;
   const grad = (x: number, y: number, z: number): [number, number, number] => {
-    const gx = shellSDF(g, x + e, y, z) - shellSDF(g, x - e, y, z);
-    const gy = shellSDF(g, x, y + e, z) - shellSDF(g, x, y - e, z);
-    const gz = shellSDF(g, x, y, z + e) - shellSDF(g, x, y, z - e);
+    const gx = shapeSDF(g, x + e, y, z) - shapeSDF(g, x - e, y, z);
+    const gy = shapeSDF(g, x, y + e, z) - shapeSDF(g, x, y - e, z);
+    const gz = shapeSDF(g, x, y, z + e) - shapeSDF(g, x, y, z - e);
     const l = Math.hypot(gx, gy, gz) || 1;
     return [gx / l, gy / l, gz / l];
   };
@@ -91,15 +91,17 @@ export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid 
     // blended fields aren't, so iterate until the point sits on the surface)
     let n = grad(x, y, z);
     for (let it = 0; it < 4; it++) {
-      const f = shellSDF(g, x, y, z);
+      const f = shapeSDF(g, x, y, z);
       x -= n[0] * f; y -= n[1] * f; z -= n[2] * f;
       n = grad(x, y, z);
       if (Math.abs(f) < 1e-4 * h || g.k <= 0) break;
     }
-    // which shell object this bit of surface belongs to
+    // which shell object (or cut, index >= shells.length) this bit of surface belongs to
     let best = 0, bd = Infinity;
     g.shells.forEach((o, i) => { const d = Math.abs(sdfWorld(o, x, y, z)); if (d < bd) { bd = d; best = i; } });
-    if (g.holes.size && isOpening(g.shells[best], x, y, z, n)) return;
+    g.subs.forEach((o, i) => { const d = Math.abs(sdfWorld(o, x, y, z)); if (d < bd) { bd = d; best = g.shells.length + i; } });
+    if (best >= g.shells.length) { if (g.subs[best - g.shells.length].obj.openCut) return; }
+    else if (g.holes.size && isOpening(g.shells[best], x, y, z, n)) return;
     const s = sx.length;
     sObj.push(best);
     sx.push(x); sy.push(y); sz.push(z); snx.push(n[0]); sny.push(n[1]); snz.push(n[2]);
@@ -191,14 +193,23 @@ export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid 
       const lat = Math.hypot(lx, ly, lz);
       // The seed stands for a small tangent disc of its surface. Next to a joint
       // the disc must not reach into the part of the surface buried inside another
-      // shell object, or the wall gets pulled in along the joint.
+      // shell object or carved away by a cut (nor, for a cut's seed, out of the
+      // shells), or the wall gets pulled in along the joint.
       let r = rho;
-      if (lat > 1e-9 && g.shells.length > 1) {
+      if (lat > 1e-9 && g.shells.length + g.subs.length > 1) {
         const k = Math.min(lat, rho) / lat;
         const fx = sx[s] + lx * k, fy = sy[s] + ly * k, fz = sz[s] + lz * k;
-        for (let oi = 0; oi < g.shells.length; oi++) {
-          if (oi === sObj[s]) continue;
-          if (sdfWorld(g.shells[oi], fx, fy, fz) < -0.02 * h) { r = 0; break; }
+        if (sObj[s] >= g.shells.length) {
+          if (shellSDF(g, fx, fy, fz) > 0.02 * h) r = 0;
+        } else {
+          for (let oi = 0; oi < g.shells.length; oi++) {
+            if (oi === sObj[s]) continue;
+            if (sdfWorld(g.shells[oi], fx, fy, fz) < -0.02 * h) { r = 0; break; }
+          }
+        }
+        if (r > 0) for (let oi = 0; oi < g.subs.length; oi++) {
+          if (g.shells.length + oi === sObj[s]) continue;
+          if (sdfWorld(g.subs[oi], fx, fy, fz) < -0.02 * h) { r = 0; break; }
         }
       }
       d = Math.min(clampV, Math.hypot(vn, Math.max(0, lat - r)));
