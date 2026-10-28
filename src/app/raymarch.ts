@@ -45,7 +45,6 @@ uniform highp sampler2D uSweep;
 uniform vec4 uClip;
 uniform int uClipOn;
 uniform int uFlat;
-uniform int uDbg;
 uniform vec3 uClay;
 uniform vec3 uCap;
 uniform vec3 uBoundsMin;
@@ -207,17 +206,19 @@ float bound(int i, vec3 p) { vec4 b = row(i, 5); return length(p - b.xyz) - b.w;
 // the normal and occlusion samples. Objects outside it cannot change map() at any
 // point the pixel evaluates, so skipping them leaves the image unchanged.
 uvec4 gMask = uvec4(0xffffffffu);
-bool active(int i) { return i >= 128 || ((gMask[i >> 5] >> uint(i & 31)) & 1u) == 1u; }
-bool segBox(vec3 ro, vec3 rd, float ta, float tb, vec3 lo, vec3 hi) {
+bool objOn(int i) { return i >= 128 || ((gMask[i >> 5] >> uint(i & 31)) & 1u) == 1u; }
+// the part [t0, t1] of the segment [ta, tb] inside the box (empty if t0 > t1)
+vec2 segBox(vec3 ro, vec3 rd, float ta, float tb, vec3 lo, vec3 hi) {
   vec3 inv = 1.0 / rd;
   vec3 a = (lo - ro) * inv, b = (hi - ro) * inv;
   vec3 mn = min(a, b), mx = max(a, b);
-  float t0 = max(max(mn.x, mn.y), max(mn.z, ta)), t1 = min(min(mx.x, mx.y), min(mx.z, tb));
-  return t0 <= t1;
+  return vec2(max(max(mn.x, mn.y), max(mn.z, ta)), min(min(mx.x, mx.y), min(mx.z, tb)));
 }
-// bit set per object hit by the segment [ta, tb], boxes grown by 'reach' (world units)
-uvec4 rayMask(vec3 ro, vec3 rd, float ta, float tb, float reach) {
+// bit set per object hit by the segment [ta, tb], boxes grown by 'reach' (world units);
+// span: the first entry and last exit over those boxes
+uvec4 rayMask(vec3 ro, vec3 rd, float ta, float tb, float reach, out vec2 span) {
   uvec4 m = uvec4(0u);
+  span = vec2(1e9, -1e9);
   for (int i = 0; i < 128; i++) {
     if (i >= uObjCount) break;
     vec4 meta = row(i, 6), S = row(i, 4);
@@ -227,7 +228,8 @@ uvec4 rayMask(vec3 ro, vec3 rd, float ta, float tb, float reach) {
     if (int(meta.z) != 0) grow += 2.0 * row(i, 5).w; // depth carries on through openings
     vec3 o = toLocal(i, ro), d = toLocal(i, ro + rd) - o;
     vec3 gl = grow / S.xyz;
-    if (segBox(o, d, ta, tb, row(i, 8).xyz - gl, row(i, 9).xyz + gl)) m[i >> 5] |= 1u << uint(i & 31);
+    vec2 st = segBox(o, d, ta, tb, row(i, 8).xyz - gl, row(i, 9).xyz + gl);
+    if (st.x <= st.y) { m[i >> 5] |= 1u << uint(i & 31); span = vec2(min(span.x, st.x), max(span.y, st.y)); }
   }
   return m;
 }
@@ -353,12 +355,12 @@ float map(vec3 p) {
     float fs = 1e5, fo = 1e5, cut = 1e5, cav = 1e5, kb = uK[g];
     cId = ivec4(-1);
     for (int i = R.x; i < R.y; i++) {
-      if (!active(i)) continue;
+      if (!objOn(i)) continue;
       float b = bound(i, p);
       fs = smin(fs, b < max(fs, 0.0) + 0.5 + kb ? sdShell(i, p) : b, kb);
     }
     for (int i = R.y; i < R.z; i++) {
-      if (!active(i)) continue;
+      if (!objOn(i)) continue;
       float b = bound(i, p);
       fo = smin(fo, b < max(min(fs, fo), 0.0) + 0.5 + kb ? sdObj(i, p) : b, kb);
     }
@@ -378,7 +380,7 @@ float map(vec3 p) {
       float tau = useGrid ? 0.5 * uCavH[min(g, ${MAX_GRIDS - 1})] : 0.02;
       float t1 = -1e5, t2 = -1e5, lb = -fs - 0.25 * kb * float(R.y - R.x - 1);
       for (int i = R.x; i < R.y; i++) {
-        if (!active(i)) continue;
+        if (!objOn(i)) continue;
         if (int(row(i, 6).z) == 0 && -bound(i, p) < max(lb, t1) - kA) continue;
         float d = sdCached(i, p);
         if (int(row(i, 6).z) == 0) d = -d;
@@ -399,7 +401,7 @@ float map(vec3 p) {
       cut = cav;
     }
     for (int i = R.z; i < R.w; i++) {
-      if (!active(i)) continue;
+      if (!objOn(i)) continue;
       float b = bound(i, p);
       cut = min(cut, b < cut + 0.5 ? sdObj(i, p) : b);
     }
@@ -460,7 +462,8 @@ void main() {
   // occlusion samples up to 1.95 along the normal, and see objects within that again
   float nReach = uPixelAngle * t1 + 0.002;
   for (int k = 0; k < ${MAX_GRIDS}; k++) nReach = max(nReach, 0.25 * uCavH[k]);
-  uvec4 marchMask = rayMask(ro, rd, t, t1, nReach), aoMask = rayMask(ro, rd, t, t1, 4.0);
+  vec2 span, aoSpan;
+  uvec4 marchMask = rayMask(ro, rd, t, t1, nReach, span), aoMask = rayMask(ro, rd, t, t1, 4.0, aoSpan);
   gMask = marchMask;
   gAOMask = aoMask;
   bool hit = false;
@@ -469,6 +472,8 @@ void main() {
     if (uFlat == 2) { pc_fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
     discard;
   }
+  // every surface lies inside the boxes the ray crosses: march only that stretch
+  if (uObjCount <= 128) { t = max(t, span.x); t1 = min(t1, span.y); }
   for (int i = 0; i < 200; i++) {
     float d = map(ro + rd * t);
     float eps = clamp(uPixelAngle * t * 0.35, 0.0008, 0.008);
@@ -488,13 +493,13 @@ void main() {
   // texel so texel boundaries don't show as facets
   float ne = max(0.0008, uPixelAngle * t * 0.5);
   if (kind == 2 && gCavH > 0.0) ne = max(ne, 0.25 * gCavH);
-  vec3 n = (uDbg & 1) != 0 ? -rd : calcNormal(p, ne);
+  vec3 n = calcNormal(p, ne);
   if (dot(n, rd) > 0.0) n = -n;
   vec3 base = kind == 1 ? uCap : uClay;
   vec3 key = normalize(-rd + vec3(0.35, 0.65, 0.2));
   float dif = clamp(dot(n, key), 0.0, 1.0);
   float hemi = 0.55 + 0.45 * n.y;
-  float ao = (uDbg & 2) != 0 ? 1.0 : calcAO(p, n);
+  float ao = calcAO(p, n);
   vec3 col = base * (0.38 + 0.22 * hemi + 0.62 * dif) * (0.55 + 0.45 * ao);
   col += 0.06 * pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 3.0);
   pc_fragColor = vec4(pow(col, vec3(1.0 / 1.15)), 1.0);
@@ -523,7 +528,6 @@ export class SdfRenderer {
       uClip: { value: new THREE.Vector4(0, 0, -1, 0) },
       uClipOn: { value: 0 },
       uFlat: { value: 0 },
-      uDbg: { value: 0 },
       uClay: { value: new THREE.Color(0xc8b6a4) },
       uCap: { value: new THREE.Color(0xc0634a) },
       uBoundsMin: { value: new THREE.Vector3() },

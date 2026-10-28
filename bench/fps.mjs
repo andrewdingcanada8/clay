@@ -2,7 +2,9 @@
 // waits for exact walls, then orbits the camera and times every frame, both at the
 // settled (full) resolution and at the reduced resolution used while moving.
 // Software GL (SwiftShader) here, so absolute numbers are far below a phone GPU;
-// compare runs against each other.
+// compare runs against each other. map/px and obj/px count map() calls and object
+// evaluations per pixel in the shader; warp is the mean over 8x4 pixel tiles of the
+// tile's largest map() count (GPUs run such groups in lockstep), the best GPU proxy.
 // Usage: npm run build:single && node bench/fps.mjs [--frames 12] [--kernel sdf|mesh] [--dpr 1]
 //   [--out bench/fps.json (compared against)] [--save file] [--dist dir (another build)] [id ...]
 import { createRequire } from 'node:module';
@@ -36,12 +38,12 @@ for (const id of ids) {
     still: window.__clay.view.benchOrbit(n, false),
     moving: window.__clay.view.benchOrbit(n, true),
   }), frames);
-  results[id] = { map: +r.cost.map.toFixed(2), obj: +r.cost.obj.toFixed(1), still: +med(r.still).toFixed(1), stillMax: +Math.max(...r.still).toFixed(1), moving: +med(r.moving).toFixed(1), movingMax: +Math.max(...r.moving).toFixed(1) };
+  results[id] = { map: +r.cost.map.toFixed(2), warp: +r.cost.warp.toFixed(2), obj: +r.cost.obj.toFixed(1), still: +med(r.still).toFixed(1), stillMax: +Math.max(...r.still).toFixed(1), moving: +med(r.moving).toFixed(1), movingMax: +Math.max(...r.moving).toFixed(1) };
   const prev = existsSync(out) ? JSON.parse(readFileSync(out, 'utf8'))[id] : null;
-  const vs = prev ? `   (was ${prev.map} / ${prev.obj} / ${prev.still} / ${prev.moving})` : '';
-  console.log(`${id.padEnd(18)} map/px ${String(results[id].map).padStart(6)}  obj/px ${String(results[id].obj).padStart(7)}  still ${String(results[id].still).padStart(7)} ms  moving ${String(results[id].moving).padStart(7)} ms${vs}`);
+  const vs = prev ? `   (was ${prev.map} / ${prev.warp ?? '-'} / ${prev.obj} / ${prev.still} / ${prev.moving})` : '';
+  console.log(`${id.padEnd(18)} map/px ${String(results[id].map).padStart(6)}  warp ${String(results[id].warp).padStart(6)}  obj/px ${String(results[id].obj).padStart(7)}  still ${String(results[id].still).padStart(7)} ms  moving ${String(results[id].moving).padStart(7)} ms${vs}`);
 }
 await browser.close();
 const total = (k) => Object.values(results).reduce((a, r) => a + r[k], 0).toFixed(0);
-console.log(`totals: map/px ${total('map')}  obj/px ${total('obj')}  still ${total('still')} ms  moving ${total('moving')} ms`);
+console.log(`totals: map/px ${total('map')}  warp ${total('warp')}  obj/px ${total('obj')}  still ${total('still')} ms  moving ${total('moving')} ms`);
 writeFileSync(save, JSON.stringify(results, null, 1));

@@ -1,18 +1,47 @@
 {
  "open-box": {
   "map": 3.21,
-  "obj": 5.2,
-  "still": 1319.1,
-  "stillMax": 1486.6,
-  "moving": 336.8,
-  "movingMax": 356.4
+  "warp": 3.57,
+  "obj": 3.2,
+  "still": 1431.8,
+  "stillMax": 1434.5,
+  "moving": 348.4,
+  "movingMax": 418.5
  },
  "chain-30": {
-  "map": 0.69,
-  "obj": 11.4,
-  "still": 2691.5,
-  "stillMax": 2803.6,
-  "moving": 697.6,
-  "movingMax": 769.3
+  "map": 0.53,
+  "warp": 1.36,
+  "obj": 1.6,
+  "still": 2080.3,
+  "stillMax": 2110.5,
+  "moving": 550.3,
+  "movingMax": 596.6
+ },
+ "vase-sticks": {
+  "map": 2.68,
+  "warp": 4.22,
+  "obj": 4.6,
+  "still": 1576.8,
+  "stillMax": 1643.7,
+  "moving": 405.6,
+  "movingMax": 409.7
+ },
+ "coil": {
+  "map": 2.71,
+  "warp": 4.58,
+  "obj": 2.7,
+  "still": 2192.2,
+  "stillMax": 2249.4,
+  "moving": 578,
+  "movingMax": 585.2
+ },
+ "lattice": {
+  "map": 2.57,
+  "warp": 3.3,
+  "obj": 8.4,
+  "still": 1768.1,
+  "stillMax": 1812.6,
+  "moving": 457.1,
+  "movingMax": 473.2
  }
 }

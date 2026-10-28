@@ -61,6 +61,8 @@ interface UIState {
   profilePoint: number;
   showGallery: boolean;
   galleryTab: 'mine' | 'examples';
+  /** result of the last frame-rate measurement (View tab) */
+  fps: string | null;
   /** gallery card states (piece id): open ⋯ menu, renaming, flagging, confirming delete */
   menuFor: string | null;
   renameFor: string | null;
@@ -103,7 +105,7 @@ const future: string[] = [];
 const ui: UIState = {
   tab: 'edit', sheetOpen: true, selectedId: doc.objects[0]?.id ?? null, gizmo: 'translate', holeMode: 'face', pinRadius: 0.5,
   quality: 'normal', section: { on: false, axis: 'z', t: 0.5 }, wire: false, hand: true, lockScale: false,
-  profileEditing: null, curveField: 'points', profilePoint: -1, showGallery: false, galleryTab: 'mine',
+  profileEditing: null, curveField: 'points', profilePoint: -1, showGallery: false, galleryTab: 'mine', fps: null,
   menuFor: null, renameFor: null, flagFor: null, deleteFor: null, pending: null,
   partNaming: null, libMenu: null, libRename: null, libDelete: null,
 };
@@ -584,6 +586,10 @@ function viewPanel() {
       ...Object.entries(s.timings).map(([k, v]) => `  ${k.padEnd(10)} ${v} ms`),
       ...s.warnings.map((w) => `! ${w}`),
     ].filter(Boolean).join('\n')) : 'building…'}</div></div>`}
+    <div class="section"><h3>Frame rate</h3>
+      <p class="hint">Turns the camera once around the piece and times every frame on this device.</p>
+      <button class="btn" data-act="measure-fps" ${ui.fps === 'measuring…' ? 'disabled' : ''}>Measure</button>
+      ${ui.fps ? `<div class="stats">${escapeHtml(ui.fps)}</div>` : ''}</div>
     <div class="row"><button class="btn danger" data-act="new">New empty scene</button></div>`;
 }
 
@@ -833,6 +839,7 @@ panel.addEventListener('click', (e) => {
     case 'profile-fit': profileEditor?.fit(); break;
     case 'close-gallery': ui.showGallery = false; ui.pending = null; renderPanel(); break;
     case 'new-piece': newPiece(); break;
+    case 'measure-fps': measureFps(); break;
     case 'save-piece': savePiece(); break;
     case 'pending-save': resolvePending('save'); break;
     case 'pending-discard': resolvePending('discard'); break;
@@ -1173,6 +1180,20 @@ function galleryPanel() {
     ${seg<'mine' | 'examples'>('galleryTab', ui.galleryTab, [['mine', `My pieces (${pieces.length})`], ['examples', 'Examples']])}
     <p class="hint">${store.kind === 'cloud' ? 'Saved with this artifact, on any device you open it on. Claude can read flagged pieces.' : 'Saved in this browser only.'}</p>
     ${body}</div>`;
+}
+
+function measureFps() {
+  ui.fps = 'measuring…';
+  renderPanel();
+  // let the panel paint first; the measurement blocks while it runs
+  setTimeout(() => {
+    const line = (label: string, ms: number[] & { w?: number; h?: number }) => {
+      const s = [...ms].sort((a, b) => a - b), med = s[s.length >> 1], slow = s[Math.floor(s.length * 0.9)];
+      return `${label.padEnd(8)} ${med.toFixed(1)} ms  (${Math.round(1000 / med)} fps)  slowest ${slow.toFixed(1)} ms  ${ms.w}×${ms.h} px`;
+    };
+    ui.fps = [line('moving', view.benchOrbit(24, true)), line('settled', view.benchOrbit(8, false))].join('\n');
+    renderPanel();
+  }, 60);
 }
 
 function closeCards() {

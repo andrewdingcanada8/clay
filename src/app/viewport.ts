@@ -47,6 +47,12 @@ export class Viewport {
   private mode: 'sdf' | 'mesh' = 'sdf';
   private basePixelRatio = Math.min(window.devicePixelRatio, 2);
   private settleTimer = 0;
+  /** SDF: resolution while the view moves, as a fraction of the settled one. Adapts
+   *  to the frame rate (see adaptMoving); the settled frame is always full resolution. */
+  private movingScale = 0.5;
+  private moving = false;
+  private frameTimes: number[] = [];
+  private lastAdapt = 0;
 
   constructor(private host: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
@@ -97,14 +103,38 @@ export class Viewport {
     this.setupTap();
     new ResizeObserver(() => this.resize()).observe(host);
     this.resize();
-    const loop = () => {
+    const loop = (now: number) => {
       requestAnimationFrame(loop);
       if (this.orbit.update() || this.needsRender) {
         this.needsRender = false;
         this.renderer.render(this.scene, this.camera);
+        if (this.moving && this.mode === 'sdf') this.adaptMoving(now);
       }
     };
-    loop();
+    requestAnimationFrame(loop);
+  }
+
+  /** While moving, keep frames between ~18 and ~30 ms by scaling the resolution
+   *  (from 0.3 to 1 of the settled one), judged on the interval between frames. */
+  private adaptMoving(now: number) {
+    const f = this.frameTimes;
+    f.push(now);
+    if (f.length > 9) f.shift();
+    if (f.length < 9 || now - this.lastAdapt < 400) return;
+    const dt = (f[8] - f[0]) / 8;
+    let k = this.movingScale;
+    if (dt > 30) k = Math.max(0.3, k * Math.sqrt(24 / dt));
+    else if (dt < 18) k = Math.min(1, k * 1.15);
+    if (Math.abs(k - this.movingScale) < 0.02) return;
+    this.movingScale = k;
+    this.lastAdapt = now;
+    f.length = 0;
+    this.renderer.setPixelRatio(this.movingRatio());
+    this.resize();
+  }
+
+  private movingRatio() {
+    return Math.max(0.35, this.basePixelRatio * this.movingScale);
   }
 
   invalidate() {
@@ -155,16 +185,17 @@ export class Viewport {
   /** Frame-time benchmark: orbit once around the piece, rendering `frames` frames
    *  (each waited on with a 1-pixel read), at the moving or the settled resolution.
    *  Returns per-frame milliseconds. */
-  benchOrbit(frames = 24, moving = false): number[] {
+  benchOrbit(frames = 24, moving = false): number[] & { w?: number; h?: number } {
     const saved = this.cameraState(), ratio = this.renderer.getPixelRatio();
     const gizmo = this.gizmo.getHelper(), gizmoOn = gizmo.visible;
     gizmo.visible = false;
-    if (moving && this.mode === 'sdf') { this.renderer.setPixelRatio(Math.max(0.5, this.basePixelRatio * 0.5)); this.resize(); }
+    if (moving && this.mode === 'sdf') { this.renderer.setPixelRatio(this.movingRatio()); this.resize(); }
     else { this.renderer.setPixelRatio(this.basePixelRatio); this.resize(); }
     const gl = this.renderer.getContext(), px = new Uint8Array(4);
     const c = this.orbit.target.clone(), off = this.camera.position.clone().sub(c);
     const r = Math.hypot(off.x, off.z), a0 = Math.atan2(off.z, off.x);
-    const out: number[] = [];
+    const out: number[] & { w?: number; h?: number } = [];
+    out.w = gl.drawingBufferWidth; out.h = gl.drawingBufferHeight;
     this.renderer.render(this.scene, this.camera); // warm-up
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
     for (let i = 0; i < frames; i++) {
@@ -184,7 +215,7 @@ export class Viewport {
 
   /** Cost view (SDF): mean map() calls and object SDF evaluations per pixel over
    *  `views` camera angles, counted in the shader, so independent of the GPU. */
-  benchCost(views = 4): { map: number; obj: number } {
+  benchCost(views = 4): { map: number; obj: number; warp: number } {
     const saved = this.cameraState();
     const hide = [this.gizmo.getHelper(), this.ghost, this.grid, this.hand.object, this.result].filter((o) => o.visible);
     for (const o of hide) o.visible = false;
@@ -197,7 +228,7 @@ export class Viewport {
     const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight, px = new Uint8Array(w * h * 4);
     const c = this.orbit.target.clone(), off = this.camera.position.clone().sub(c);
     const r = Math.hypot(off.x, off.z), a0 = Math.atan2(off.z, off.x);
-    let map = 0, obj = 0;
+    let map = 0, obj = 0, warp = 0;
     for (let i = 0; i < views; i++) {
       const a = a0 + (2 * Math.PI * i) / views;
       this.camera.position.set(c.x + r * Math.cos(a), c.y + off.y, c.z + r * Math.sin(a));
@@ -205,6 +236,13 @@ export class Viewport {
       this.renderer.render(this.scene, this.camera);
       gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
       for (let k = 0; k < px.length; k += 4) { map += px[k]; obj += px[k + 1] * 256 + px[k + 2]; }
+      // GPUs run pixels in lockstep groups that cost as much as their slowest pixel:
+      // mean over 8x4 tiles of the tile's largest map() count, per pixel
+      for (let ty = 0; ty + 4 <= h; ty += 4) for (let tx = 0; tx + 8 <= w; tx += 8) {
+        let m = 0;
+        for (let y = ty; y < ty + 4; y++) for (let x = tx; x < tx + 8; x++) m = Math.max(m, px[(y * w + x) * 4]);
+        warp += m * 32;
+      }
     }
     this.sdf.setStyle({ cost: false });
     this.renderer.setClearColor(clear, clearA);
@@ -212,7 +250,7 @@ export class Viewport {
     for (const o of hide) o.visible = true;
     this.setCameraState(saved);
     const n = views * w * h;
-    return { map: map / n, obj: obj / n };
+    return { map: map / n, obj: obj / n, warp: warp / n };
   }
 
   cameraState(): { pos: [number, number, number]; target: [number, number, number] } {
@@ -234,7 +272,9 @@ export class Viewport {
       this.renderer.setPixelRatio(ratio);
       this.resize();
     };
-    if (on && this.mode === 'sdf') apply(Math.max(0.5, this.basePixelRatio * 0.5));
+    this.moving = on;
+    this.frameTimes.length = 0;
+    if (on && this.mode === 'sdf') apply(this.movingRatio());
     else this.settleTimer = window.setTimeout(() => apply(this.basePixelRatio), on ? 0 : 180);
   }
 
