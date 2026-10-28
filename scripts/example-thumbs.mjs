@@ -16,11 +16,12 @@ await page.waitForFunction(() => window.__clay, null, { timeout: 300000 });
 const ids = process.argv.slice(2).length ? process.argv.slice(2)
   : await page.evaluate(async () => (await import('/src/examples.ts')).examples().map((e) => e.id));
 for (const id of ids) {
+  await page.waitForFunction(() => window.__clay, null, { timeout: 300000 }); // survives dev-server reloads
   await page.evaluate((id) => window.__clay.loadExample(id), id);
   await page.waitForTimeout(500);
   await page.waitForFunction(() => {
     const t = [...document.querySelectorAll('.chip')].map((c) => c.textContent).join(' ');
-    return !window.__clay.busy() && !/refining|building/.test(t);
+    return window.__clay && !window.__clay.busy() && !/refining|building/.test(t);
   }, null, { timeout: 180000 });
   const data = await page.evaluate(() => {
     const v = window.__clay.view;
