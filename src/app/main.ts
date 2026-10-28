@@ -92,6 +92,10 @@ function save(doc: SceneDoc) {
 }
 
 const exampleList = examples();
+/** Example previews, rendered by scripts/example-thumbs.mjs (same framing as piece thumbnails). */
+const EXAMPLE_THUMBS: Record<string, string> = Object.fromEntries(Object.entries(
+  import.meta.glob('../assets/example-thumbs/*.jpg', { eager: true, query: '?inline', import: 'default' }) as Record<string, string>,
+).map(([path, url]) => [path.split('/').pop()!.replace(/\.jpg$/, ''), url]));
 let doc: SceneDoc = loadSaved() ?? cloneDoc(exampleList.find((e) => e.id === 'vase-sticks')!.doc);
 let committed = JSON.stringify(doc);
 const past: string[] = [];
@@ -584,7 +588,9 @@ function viewPanel() {
 }
 
 function examplesPanel() {
-  return `<div class="examples">${exampleList.map((e) => `<button class="example" data-example="${e.id}"><b>${escapeHtml(e.title)}</b><small>${escapeHtml(e.notes)}</small></button>`).join('')}</div>`;
+  return `<div class="pieces">${exampleList.map((e) => `<div class="piece">
+    <button class="piece-open" data-example="${e.id}" aria-label="Open ${escapeHtml(e.title)}">${EXAMPLE_THUMBS[e.id] ? `<img src="${EXAMPLE_THUMBS[e.id]}" alt="" loading="lazy">` : '<span class="piece-empty">No preview</span>'}</button>
+    <div class="piece-meta"><div class="piece-title"><b>${escapeHtml(e.title)}</b></div><small class="clamp2">${escapeHtml(e.notes)}</small></div></div>`).join('')}</div>`;
 }
 
 type CurveField = 'points' | 'path' | 'shape' | 'lift';
@@ -1247,6 +1253,9 @@ sync(false);
 (window as unknown as { __clay: unknown }).__clay = {
   view,
   get doc() { return doc; },
+  /** for scripts/example-thumbs.mjs */
+  loadExample,
+  busy: () => busy || !!document.querySelector('.chip.busy'),
   project(x: number, y: number, z: number) {
     const v = new THREE.Vector3(x, y, z).project(view.camera);
     const r = view.renderer.domElement.getBoundingClientRect();

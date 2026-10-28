@@ -211,3 +211,4 @@ input[type="number"] {
 .pending { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--warn); border-radius: 10px; }
 .pending .row { flex-wrap: wrap; }
 .sub { margin-top: 6px; font: 600 11px var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

@@ -119,12 +119,29 @@ export class Viewport {
     for (const o of hidden) o.visible = false;
     const src = this.renderer.domElement;
     const cw = Math.min(src.width, (src.height * w) / h), ch = (cw * h) / w;
-    // frame() fits the canvas's narrower side; widen the box so the piece also fits the crop
+    // Fit the piece's box corners (not its bounding sphere, which leaves it small)
+    // to ~88% of the crop, keeping the current view direction.
     const box = this.bounds();
     if (box) {
-      const k = Math.max(1, Math.min(src.width, src.height) / cw) * 0.92;
       const c = box.getCenter(new THREE.Vector3());
-      this.frame(box.clone().translate(c.clone().negate()).applyMatrix4(new THREE.Matrix4().makeScale(k, k, k)).translate(c));
+      const dir = this.camera.position.clone().sub(this.orbit.target).normalize();
+      const fx = cw / src.width, fy = ch / src.height, fill = 0.88;
+      const corners = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => new THREE.Vector3(
+        i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z));
+      const fits = (d: number) => {
+        this.camera.position.copy(c).addScaledVector(dir, d);
+        this.camera.lookAt(c);
+        this.camera.updateMatrixWorld();
+        return corners.every((p) => {
+          const q = p.clone().project(this.camera);
+          return q.z < 1 && Math.abs(q.x) <= fill * fx && Math.abs(q.y) <= fill * fy;
+        });
+      };
+      let lo = 0.1, hi = box.getSize(new THREE.Vector3()).length() * 20 + 1;
+      for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (fits(m)) hi = m; else lo = m; }
+      this.orbit.target.copy(c);
+      this.camera.position.copy(c).addScaledVector(dir, hi);
+      this.orbit.update();
     }
     this.renderer.render(this.scene, this.camera);
     const out = document.createElement('canvas');
