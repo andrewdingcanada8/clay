@@ -5,9 +5,22 @@
 // never has to cover it. Points follow the finger's motion (no jump to the
 // touch). Pinch or scroll to zoom and two fingers to pan, so the canvas can
 // cover small or large pieces.
+//
+// Modes: 'profile' (revolve: r >= 0, mirrored), 'path' and 'section' (free curves
+// on a plane, open or closed), and 'graph' (a function of the distance along a
+// path: x runs from 0 to the path's length and the end points stay at the ends).
 
 import type { ProfilePoint } from '../engine/profile';
 import { sampleCurve, smoothOf } from '../engine/profile';
+
+export interface CurveMode {
+  kind: 'profile' | 'path' | 'section' | 'graph';
+  closed?: boolean;
+  /** axis names for path and section curves, e.g. ['X', 'Z'] */
+  axes?: [string, string];
+  /** graph: the path length (cm) that x = 0..1 spans */
+  length?: number;
+}
 
 export class ProfileEditor {
   private ctx: CanvasRenderingContext2D;
@@ -16,7 +29,8 @@ export class ProfileEditor {
   private drag = -1;
   private hit = -1;
   private downAt: { x: number; y: number; moved: boolean; r: number; py: number } | null = null;
-  private view = { cx: 0, cy: 0, s: 20 };
+  /** screen = centre + world × scale; a graph scales x and y separately */
+  private view = { cx: 0, cy: 0, sx: 20, sy: 20 };
   private zoom = 1;
   private pan = { r: 0, y: 0 };
   private pointers = new Map<number, { x: number; y: number }>();
@@ -24,9 +38,15 @@ export class ProfileEditor {
   onChange: (pts: ProfilePoint[], done: boolean) => void = () => {};
   onSelect: (i: number) => void = () => {};
 
-  constructor(private canvas: HTMLCanvasElement, points: ProfilePoint[]) {
+  private mode: CurveMode;
+  /** graph x scale: stored x (0..1) times this is the shown distance in cm */
+  private gx = 1;
+
+  constructor(private canvas: HTMLCanvasElement, points: ProfilePoint[], mode: CurveMode = { kind: 'profile' }) {
     this.ctx = canvas.getContext('2d')!;
-    this.pts = points.map((p) => ({ ...p }));
+    this.mode = mode;
+    this.gx = mode.kind === 'graph' ? Math.max(1, mode.length ?? 1) : 1;
+    this.pts = points.map((p) => ({ ...p, r: p.r * this.gx }));
     canvas.addEventListener('pointerdown', (e) => this.down(e));
     canvas.addEventListener('pointermove', (e) => this.move(e));
     canvas.addEventListener('pointerup', (e) => this.up(e));
@@ -42,8 +62,11 @@ export class ProfileEditor {
   }
 
   points() {
-    return this.pts.map((p) => ({ ...p }));
+    return this.pts.map((p) => ({ ...p, r: p.r / this.gx }));
   }
+
+  private get closed() { return !!this.mode.closed && (this.mode.kind === 'path' || this.mode.kind === 'section'); }
+  private get mirrored() { return this.mode.kind === 'profile'; }
 
   /** Smoothness of the selected point: 0 sharp … 1 smooth. */
   smooth(): number {
@@ -58,8 +81,14 @@ export class ProfileEditor {
     this.emit(done);
   }
 
+  canDelete(i = this.selected) {
+    if (i < 0) return false;
+    if (this.mode.kind === 'graph') return i > 0 && i < this.pts.length - 1;
+    return this.pts.length > (this.closed ? 3 : 2);
+  }
+
   deleteSelected() {
-    if (this.selected < 0 || this.pts.length <= 2) return;
+    if (!this.canDelete()) return;
     this.pts.splice(this.selected, 1);
     this.selected = -1;
     this.onSelect(-1);
@@ -91,15 +120,22 @@ export class ProfileEditor {
   }
 
   private fitExtent() {
-    let rMax = 6, yMin = -6, yMax = 6;
+    const k = this.mode.kind;
+    let rMin = k === 'profile' ? 0 : Infinity, rMax = k === 'profile' ? 6 : -Infinity, yMin = Infinity, yMax = -Infinity;
     for (const p of this.pts) {
-      rMax = Math.max(rMax, p.r);
-      yMin = Math.min(yMin, p.y);
-      yMax = Math.max(yMax, p.y);
+      rMin = Math.min(rMin, p.r); rMax = Math.max(rMax, p.r);
+      yMin = Math.min(yMin, p.y); yMax = Math.max(yMax, p.y);
     }
-    this.extent = { rMax: rMax * 1.35 + 0.5, yMin: yMin - 1.5, yMax: yMax + 1.5 };
+    if (k === 'graph') { rMin = 0; rMax = this.gx; yMin = Math.min(yMin, -2); yMax = Math.max(yMax, 2); }
+    if (k === 'profile') {
+      yMin = Math.min(yMin, -6); yMax = Math.max(yMax, 6);
+      this.extent = { rMin: -(rMax * 1.35 + 0.5), rMax: rMax * 1.35 + 0.5, yMin: yMin - 1.5, yMax: yMax + 1.5 };
+      return;
+    }
+    const pad = 0.15 * Math.max(rMax - rMin, yMax - yMin, 2);
+    this.extent = { rMin: rMin - pad, rMax: rMax + pad, yMin: yMin - pad, yMax: yMax + pad };
   }
-  private extent = { rMax: 8, yMin: -8, yMax: 8 };
+  private extent = { rMin: -8, rMax: 8, yMin: -8, yMax: 8 };
 
   private layout() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -109,18 +145,21 @@ export class ProfileEditor {
       this.canvas.height = Math.round(h * dpr);
     }
     const e = this.extent;
-    const s = Math.min(w / (2 * e.rMax), h / (e.yMax - e.yMin)) * this.zoom;
-    const cr = this.pan.r, cy = (e.yMax + e.yMin) / 2 + this.pan.y;
-    this.view = { cx: w / 2 - cr * s, cy: h / 2 + cy * s, s };
+    const fx = w / (e.rMax - e.rMin), fy = h / (e.yMax - e.yMin);
+    // curves keep true proportions; a graph fills the canvas both ways
+    const sx = (this.mode.kind === 'graph' ? fx : Math.min(fx, fy)) * this.zoom;
+    const sy = (this.mode.kind === 'graph' ? fy : Math.min(fx, fy)) * this.zoom;
+    const cr = (e.rMax + e.rMin) / 2 + this.pan.r, cy = (e.yMax + e.yMin) / 2 + this.pan.y;
+    this.view = { cx: w / 2 - cr * sx, cy: h / 2 + cy * sy, sx, sy };
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     return { w, h };
   }
 
   private toScreen(r: number, y: number): [number, number] {
-    return [this.view.cx + r * this.view.s, this.view.cy - y * this.view.s];
+    return [this.view.cx + r * this.view.sx, this.view.cy - y * this.view.sy];
   }
   private toWorld(x: number, y: number): [number, number] {
-    return [(x - this.view.cx) / this.view.s, (this.view.cy - y) / this.view.s];
+    return [(x - this.view.cx) / this.view.sx, (this.view.cy - y) / this.view.sy];
   }
 
   private local(e: PointerEvent | WheelEvent): [number, number] {
@@ -132,7 +171,7 @@ export class ProfileEditor {
     let best = -1, bd = 28;
     this.pts.forEach((p, i) => {
       // either half of the silhouette grabs the point
-      for (const sgn of [1, -1]) {
+      for (const sgn of this.mirrored ? [1, -1] : [1]) {
         const [sx, sy] = this.toScreen(sgn * p.r, p.y);
         const d = Math.hypot(sx - x, sy - y);
         if (d < bd) { bd = d; best = i; }
@@ -167,8 +206,8 @@ export class ProfileEditor {
     if (this.pinch && this.pointers.size >= 2) {
       const [a, b] = [...this.pointers.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-      this.pan.r -= (mx - this.pinch.x) / this.view.s;
-      this.pan.y += (my - this.pinch.y) / this.view.s;
+      this.pan.r -= (mx - this.pinch.x) / this.view.sx;
+      this.pan.y += (my - this.pinch.y) / this.view.sy;
       this.zoomAt(d / Math.max(1, this.pinch.d), mx, my);
       this.pinch = { d, x: mx, y: my };
       return;
@@ -179,8 +218,8 @@ export class ProfileEditor {
       if (this.drag !== this.selected) { this.selected = this.drag; this.onSelect(this.drag); }
       // follow the finger's motion relative to where it went down
       // (on the mirrored left half, moving left grows the radius)
-      const s = this.view.s, d = this.downAt, side = d.x < this.view.cx ? -1 : 1;
-      this.pts[this.drag] = { ...this.pts[this.drag], r: snap(Math.max(0, d.r + side * (x - d.x) / s)), y: snap(d.py - (y - d.y) / s) };
+      const { sx, sy } = this.view, d = this.downAt, side = this.mirrored && d.x < this.view.cx ? -1 : 1;
+      this.pts[this.drag] = { ...this.pts[this.drag], r: this.limitR(this.drag, snap(d.r + side * (x - d.x) / sx)), y: snap(d.py - (y - d.y) / sy) };
       this.emit(false);
     }
   }
@@ -196,15 +235,37 @@ export class ProfileEditor {
       this.selected = this.hit; this.onSelect(this.selected); this.draw();
     } else {
       const [r, wy] = this.toWorld(x, y);
-      this.insert(Math.max(0, snap(r)), snap(wy));
+      this.insert(snap(r), snap(wy));
     }
     this.drag = -1;
     this.downAt = null;
   }
 
+  /** Where a point may sit horizontally: r >= 0 on a profile; on a graph the ends
+   *  stay at the ends and the rest keep their order. */
+  private limitR(i: number, r: number): number {
+    if (this.mode.kind === 'profile') return Math.max(0, r);
+    if (this.mode.kind !== 'graph') return r;
+    if (i === 0) return 0;
+    if (i === this.pts.length - 1) return this.gx;
+    const gap = this.gx * 0.002;
+    return Math.min(this.pts[i + 1].r - gap, Math.max(this.pts[i - 1].r + gap, r));
+  }
+
   private insert(r: number, y: number) {
+    if (this.mode.kind === 'graph') {
+      // graph points stay in order of distance
+      if (r <= 0 || r >= this.gx) return;
+      const at = this.pts.findIndex((p) => p.r > r);
+      this.pts.splice(at, 0, { r, y });
+      this.selected = at;
+      this.onSelect(at);
+      this.emit(true);
+      return;
+    }
+    if (this.mode.kind === 'profile') r = Math.max(0, r);
     // insert after the span whose sampled curve passes closest to the tap
-    const { xy, span } = sampleCurve(this.pts, 8);
+    const { xy, span } = sampleCurve(this.pts, 8, { closed: this.closed, clampR: this.mirrored });
     let best = 0, bd = Infinity;
     for (let i = 0; i < span.length; i++) {
       const d = Math.hypot(xy[2 * (i + 1)] - r, xy[2 * (i + 1) + 1] - y);
@@ -212,8 +273,11 @@ export class ProfileEditor {
     }
     const first = this.pts[0], last = this.pts[this.pts.length - 1];
     let at = best + 1;
-    if (Math.hypot(first.r - r, first.y - y) < bd && y < first.y) at = 0;
-    else if (Math.hypot(last.r - r, last.y - y) < bd && y > last.y) at = this.pts.length;
+    if (!this.closed) {
+      // past an end: extend the curve there
+      if (Math.hypot(first.r - r, first.y - y) < bd && (this.mirrored ? y < first.y : true)) at = 0;
+      else if (Math.hypot(last.r - r, last.y - y) < bd && (this.mirrored ? y > last.y : true)) at = this.pts.length;
+    }
     this.pts.splice(at, 0, { r, y });
     this.selected = at;
     this.onSelect(at);
@@ -240,29 +304,61 @@ export class ProfileEditor {
     ctx.fillStyle = muted;
     const [x0, y0] = this.toWorld(0, h), [x1, y1] = this.toWorld(w, 0);
     // grid step follows the zoom (lines at least 12 px apart), bolder every 10 cm
-    const step = [0.5, 1, 2, 5, 10, 20, 50, 100].find((v) => v * this.view.s >= 12) ?? 100;
-    const major = Math.max(10, step * 5);
-    for (let gx = Math.ceil(x0 / step) * step; gx <= x1; gx += step) {
+    const pick = (sc: number) => [0.5, 1, 2, 5, 10, 20, 50, 100].find((v) => v * sc >= 12) ?? 100;
+    const stepX = pick(this.view.sx), stepY = pick(this.view.sy), step = Math.max(stepX, stepY);
+    const majorX = Math.max(10, stepX * 5), majorY = Math.max(10, stepY * 5);
+    for (let gx = Math.ceil(x0 / stepX) * stepX; gx <= x1; gx += stepX) {
       const [sx] = this.toScreen(gx, 0);
       ctx.strokeStyle = line;
-      ctx.globalAlpha = gx % major === 0 ? 0.9 : 0.45;
+      ctx.globalAlpha = gx % majorX === 0 ? 0.9 : 0.45;
       ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, h); ctx.stroke();
     }
-    for (let gy = Math.ceil(y0 / step) * step; gy <= y1; gy += step) {
+    for (let gy = Math.ceil(y0 / stepY) * stepY; gy <= y1; gy += stepY) {
       const [, sy] = this.toScreen(0, gy);
-      ctx.globalAlpha = gy % major === 0 ? 0.9 : 0.45;
+      ctx.globalAlpha = gy % majorY === 0 ? 0.9 : 0.45;
       ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(w, sy); ctx.stroke();
     }
     ctx.globalAlpha = 1;
-    // axis of revolution
+    const k = this.mode.kind;
     ctx.strokeStyle = muted;
-    ctx.setLineDash([6, 5]);
-    ctx.beginPath(); ctx.moveTo(this.view.cx, 0); ctx.lineTo(this.view.cx, h); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillText('axis', this.view.cx + 4, 12);
-    ctx.fillText(`${step} cm grid`, 6, h - 6);
+    if (k === 'profile') {
+      // axis of revolution
+      ctx.setLineDash([6, 5]);
+      ctx.beginPath(); ctx.moveTo(this.view.cx, 0); ctx.lineTo(this.view.cx, h); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillText('axis', this.view.cx + 4, 12);
+    } else {
+      // the plane's axes through the origin (graph: the path's start and end)
+      const [ox, oy] = this.toScreen(0, 0);
+      ctx.beginPath(); ctx.moveTo(0, oy); ctx.lineTo(w, oy); ctx.moveTo(ox, 0); ctx.lineTo(ox, h); ctx.stroke();
+      if (k === 'graph') {
+        const [ex] = this.toScreen(this.gx, 0);
+        ctx.setLineDash([6, 5]); ctx.beginPath(); ctx.moveTo(ex, 0); ctx.lineTo(ex, h); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillText('start', ox + 4, 12);
+        ctx.fillText(`end · ${this.gx.toFixed(1)} cm along the path`, Math.min(ex + 4, w - 190), 24);
+        ctx.fillText('lift ↑', ox + 4, oy - 6);
+      } else if (this.mode.axes) {
+        ctx.fillText(`${this.mode.axes[0]} →`, w - 30, oy - 6);
+        ctx.fillText(`${this.mode.axes[1]} ↑`, ox + 4, 12);
+      }
+    }
+    ctx.fillText(stepX === stepY ? `${step} cm grid` : `grid ${stepX} cm along · ${stepY} cm lift`, 6, h - 6);
 
-    const { xy } = sampleCurve(this.pts, 16);
+    const { xy } = sampleCurve(this.pts, 16, { closed: this.closed, clampR: this.mirrored });
+    if (k !== 'profile') {
+      ctx.beginPath();
+      for (let i = 0; i < xy.length; i += 2) {
+        const [sx, sy] = this.toScreen(xy[i], xy[i + 1]);
+        if (i) ctx.lineTo(sx, sy); else ctx.moveTo(sx, sy);
+      }
+      if (this.closed) {
+        ctx.closePath();
+        ctx.fillStyle = accent; ctx.globalAlpha = k === 'section' ? 0.14 : 0.06; ctx.fill(); ctx.globalAlpha = 1;
+      }
+      ctx.strokeStyle = accent; ctx.lineWidth = 2.5; ctx.stroke();
+      this.drawPoints(css, accent);
+      return;
+    }
     const path = (mirror: number) => {
       ctx.beginPath();
       const [ax, ay] = this.toScreen(0, xy[1]);
@@ -287,7 +383,17 @@ export class ProfileEditor {
     ctx.strokeStyle = accent;
     ctx.lineWidth = 2.5;
     path(1); ctx.stroke();
+    this.drawPoints(css, accent);
+  }
+
+  private drawPoints(css: CSSStyleDeclaration, accent: string) {
+    const ctx = this.ctx;
     // control points: circles = smooth, squares = corner
+    if (this.mode.kind === 'path' && !this.closed && this.pts.length) {
+      const [sx, sy] = this.toScreen(this.pts[0].r, this.pts[0].y);
+      ctx.fillStyle = css.getPropertyValue('--muted').trim() || '#777';
+      ctx.fillText('start', sx + 10, sy + 16);
+    }
     this.pts.forEach((p, i) => {
       const [sx, sy] = this.toScreen(p.r, p.y);
       ctx.fillStyle = i === this.selected ? accent : (css.getPropertyValue('--surface').trim() || '#fff');

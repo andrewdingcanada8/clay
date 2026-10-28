@@ -18,6 +18,7 @@ import { type BuildResult, Timer } from './kernel';
 import type { Vec3 } from './math';
 import { edgeStats } from './meshCheck';
 import { type CompiledObject, compileScene, normalToWorld, revolveOutline, toWorld } from './primitives';
+import { sectionRing, sweepMesh } from './sweep';
 import { pinDepth } from './scene';
 
 let wasmPromise: Promise<ManifoldToplevel> | null = null;
@@ -182,7 +183,44 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
     };
   };
 
+  // Sweep: the section ring swept along the path; the hollow is the section offset
+  // inward, with the ends pulled in by the wall.
+  const sweepFrom = (c: CompiledObject): Built => {
+    const { path, sec } = c.sweep!;
+    const [sx, sy, sz] = c.scale;
+    const uniform = Math.abs(sx - sy) < 1e-6 && Math.abs(sx - sz) < 1e-6;
+    const k = uniform ? sx : Math.cbrt(sx * sy * sz);
+    const mat = placeMat(c, sx, sy, sz);
+    const make = (mesh: { positions: Float32Array; indices: Uint32Array }) => {
+      if (!mesh.indices.length) return null;
+      const m = new wasm.Mesh({ numProp: 3, vertProperties: mesh.positions, triVerts: mesh.indices });
+      m.merge();
+      return keep(keep(new Manifold(m)).transform(mat as never));
+    };
+    const ring = sectionRing(sec, segs);
+    const pairs: [number, number][] = [];
+    for (let i = 0; i < ring.length; i += 2) pairs.push([ring[i], ring[i + 1]]);
+    return {
+      solid: make(sweepMesh(path, ring))!,
+      approx: !uniform,
+      cavity: (delta) => {
+        const t = -delta / k; // inward, in sweep units
+        const inner = keep(keep(new CrossSection([pairs], 'Positive')).offset(-t, 'Round', 2, segs));
+        if (inner.isEmpty()) return null;
+        const polys = inner.toPolygons();
+        let big = polys[0], area = 0;
+        for (const q of polys) { const a = Math.abs(signedArea(q as [number, number][])); if (a > area) { area = a; big = q; } }
+        // an open end: the hollow runs straight out through it; otherwise it stops a wall short
+        const open = (f: string) => c.obj.holes.includes(f);
+        const out = 2 * t + 0.5;
+        return make(sweepMesh(path, (ccw(big as [number, number][]) as [number, number][]).flat(),
+          [open('start') ? 0 : t, open('end') ? 0 : t], { start: open('start') ? out : 0, end: open('end') ? out : 0 }));
+      },
+    };
+  };
+
   const build = (c: CompiledObject): Built => {
+    if (c.sweep) return sweepFrom(c);
     if (c.frustum) return frustumFrom(c, c.frustum);
     if (c.extrusion) return extrudeFrom(c, c.extrusion.poly, c.extrusion.h);
     const outline = c.obj.type === 'revolve'
@@ -246,6 +284,7 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
       if (cavity && !cavity.isEmpty()) {
         for (const c of shells) {
           for (const fid of c.obj.holes) {
+            if (c.sweep && (fid === 'start' || fid === 'end')) continue; // the sweep's hollow opens its own ends
             const face = c.faces.find((f) => f.id === fid);
             if (!face?.plane) {
               warnings.push(`${c.obj.name}: opening on curved face "${fid}" not supported by the mesh kernel`);

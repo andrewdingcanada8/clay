@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import type { CavityGrid } from '../engine/cavity';
 import type { SceneDoc } from '../engine/document';
 import { buildProfileTable, tableProfile } from '../engine/profileTable';
+import { MAX_PATH_POINTS, MAX_SECTION_POINTS } from '../engine/sweep';
 import type { CompiledObject } from '../engine/primitives';
 import { type CompiledGroup, OPENING_EPS, compileGroups } from '../engine/scene';
 
@@ -20,7 +21,9 @@ const MAX_GRIDS = 4;
 const MAX_PROFILES = 8;
 const MAX_PINS = 32;
 const ROWS = 8; // texels per object in the data texture
-const TYPE_CODE: Record<string, number> = { sphere: 0, box: 1, cylinder: 2, cone: 3, torus: 4, capsule: 5, prism: 6, revolve: 7 };
+const TYPE_CODE: Record<string, number> = { sphere: 0, box: 1, cylinder: 2, cone: 3, torus: 4, capsule: 5, prism: 6, revolve: 7, sweep: 8 };
+const MAX_SWEEPS = 6;
+const SECTION_CODE: Record<string, number> = { circle: 0, square: 1, custom: 2 };
 
 interface ProfileTex { tex: THREE.DataTexture; min: [number, number]; max: [number, number] }
 
@@ -37,6 +40,8 @@ layout(location = 0) out highp vec4 pc_fragColor;
 uniform mat4 uInvProjView;
 uniform mat4 uProjView;
 uniform sampler2D uData;
+// sweeps: per slot, rows 0..3 = path point + length, normal, binormal, section outline
+uniform highp sampler2D uSweep;
 uniform vec4 uClip;
 uniform int uClipOn;
 uniform int uFlat;
@@ -118,6 +123,61 @@ float sdFrustum(vec3 q, vec4 P) {
   return max(side, abs(q.y) - P.z);
 }
 
+vec4 sw(int slot, int r, int i) { return texelFetch(uSweep, ivec2(i, slot * 4 + r), 0); }
+// section in its own plane; P = (kind, half width, half height, -)
+float sweepSection(int slot, vec4 P, int polyN, vec2 uv) {
+  if (P.x < 0.5) return length(uv) - P.y;
+  if (P.x < 1.5) { vec2 d = abs(uv) - P.yz; return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0); }
+  float best = 1e10;
+  bool inside = false;
+  vec2 a = sw(slot, 3, polyN - 1).xy;
+  for (int k = 0; k < ${MAX_SECTION_POINTS}; k++) {
+    if (k >= polyN) break;
+    vec2 b = sw(slot, 3, k).xy;
+    vec2 e = b - a, w = uv - a;
+    vec2 d = w - e * clamp(dot(w, e) / max(dot(e, e), 1e-12), 0.0, 1.0);
+    best = min(best, dot(d, d));
+    if ((a.y > uv.y) != (b.y > uv.y) && uv.x < e.x * (uv.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+    a = b;
+  }
+  return inside ? -sqrt(best) : sqrt(best);
+}
+// (section distance, distance past the end caps, position along the path); M = (points, outline points, loop, length)
+vec3 sweepLocate(int slot, vec4 P, vec4 M, vec3 q) {
+  int n = int(M.x);
+  bool loop = M.z > 0.5;
+  float best = 1e20, bt = 0.0;
+  int bi = 0;
+  vec3 a = sw(slot, 0, 0).xyz;
+  for (int i = 0; i < ${MAX_PATH_POINTS - 1}; i++) {
+    if (i >= n - 1) break;
+    vec3 b = sw(slot, 0, i + 1).xyz;
+    vec3 e = b - a;
+    float t = dot(q - a, e) / max(dot(e, e), 1e-12);
+    float tc = clamp(t, 0.0, 1.0);
+    vec3 d = q - a - e * tc;
+    float dd = dot(d, d);
+    if (dd < best) {
+      best = dd; bi = i;
+      // only the path's ends extend past their segment (that's where the caps are)
+      bt = (!loop && ((i == 0 && t < 0.0) || (i == n - 2 && t > 1.0))) ? t : tc;
+    }
+    a = b;
+  }
+  vec4 A = sw(slot, 0, bi), B = sw(slot, 0, bi + 1);
+  float tc = clamp(bt, 0.0, 1.0);
+  vec3 w = q - mix(A.xyz, B.xyz, bt);
+  vec3 N = normalize(mix(sw(slot, 1, bi).xyz, sw(slot, 1, bi + 1).xyz, tc));
+  vec3 Bn = normalize(mix(sw(slot, 2, bi).xyz, sw(slot, 2, bi + 1).xyz, tc));
+  float along = mix(A.w, B.w, bt);
+  float cap = loop ? -1e9 : max(-along, along - M.w);
+  return vec3(sweepSection(slot, P, int(M.y), vec2(dot(w, N), dot(w, Bn))), cap, along);
+}
+float sdSweep(int slot, vec4 P, vec4 M, vec3 q) {
+  vec3 r = sweepLocate(slot, P, M, q);
+  return min(max(r.x, r.y), 0.0) + length(max(r.xy, 0.0));
+}
+
 float sdLocal(vec3 q, vec4 P, int type, int slot) {
   if (type == 0) return length(q) - P.x;
   if (type == 1) return sdBox(q, P.xyz);
@@ -130,6 +190,7 @@ float sdLocal(vec3 q, vec4 P, int type, int slot) {
 }
 float sdObj(int i, vec3 p) {
   vec4 meta = row(i, 6);
+  if (int(meta.x) == 8) return sdSweep(int(meta.y), row(i, 3), row(i, 7), toLocal(i, p)) * row(i, 4).w;
   return sdLocal(toLocal(i, p), row(i, 3), int(meta.x), int(meta.y)) * row(i, 4).w;
 }
 // lower bound from the object's bounding sphere
@@ -174,6 +235,16 @@ float holeDepth(int i, vec3 p) {
       d = min(d, -frustumSide(dot(q.xz, vec2(cos(a), sin(a))), q.y, P) * min(S.x, S.z));
     }
     return d;
+  }
+  if (type == 8) {
+    vec4 M = row(i, 7);
+    vec3 r = sweepLocate(slot, P, M, q);
+    if (!bit(mask, 0)) d = -r.x;
+    if (M.z < 0.5) {
+      if (!bit(mask, 1)) d = min(d, r.z);
+      if (!bit(mask, 2)) d = min(d, M.w - r.z);
+    }
+    return d * S.w;
   }
   return profile(slot, vec2(length(q.xz), q.y), 1) * S.w;
 }
@@ -371,6 +442,7 @@ export class SdfRenderer {
       uInvProjView: { value: new THREE.Matrix4() },
       uProjView: { value: new THREE.Matrix4() },
       uData: { value: null },
+      uSweep: { value: this.sweepTex },
       uClip: { value: new THREE.Vector4(0, 0, -1, 0) },
       uClipOn: { value: 0 },
       uFlat: { value: 0 },
@@ -475,6 +547,7 @@ export class SdfRenderer {
     });
     u.uGroupCount.value = groups.length;
     const slots = this.updateProfiles(objs, groups);
+    this.updateSweeps(objs, slots);
     this.writeData(objs, groups, slots);
     this.bounds.makeEmpty();
     for (const g of groups) {
@@ -556,6 +629,13 @@ export class SdfRenderer {
         case 'cylinder': case 'cone': case 'capsule': data[k3] = q.r!; data[k3 + 1] = q.h! / 2; break;
         case 'torus': data[k3] = q.R!; data[k3 + 1] = q.r!; break;
         case 'prism': data[k3] = Math.min(12, Math.max(3, Math.round(q.n!))); data[k3 + 1] = q.r!; data[k3 + 2] = q.h! / 2; data[k3 + 3] = q.r2 ?? q.r!; break;
+        case 'sweep': {
+          const { path, sec } = o.sweep!;
+          data[k3] = SECTION_CODE[sec.kind]; data[k3 + 1] = sec.hw; data[k3 + 2] = sec.hd;
+          const k7 = (i * ROWS + 7) * 4;
+          data[k7] = path.n; data[k7 + 1] = sec.polyN; data[k7 + 2] = path.loop ? 1 : 0; data[k7 + 3] = path.length;
+          break;
+        }
         default: break;
       }
       const k4 = (i * ROWS + 4) * 4;
@@ -580,6 +660,44 @@ export class SdfRenderer {
   }
 
   /** Revolve profiles as 2D distance tables (R: signed distance, G: depth to non-opening segments). */
+  private sweepData = new Float32Array(MAX_PATH_POINTS * MAX_SWEEPS * 4 * 4);
+  private sweepTex = (() => {
+    const t = new THREE.DataTexture(this.sweepData, MAX_PATH_POINTS, MAX_SWEEPS * 4, THREE.RGBAFormat, THREE.FloatType);
+    t.minFilter = t.magFilter = THREE.NearestFilter;
+    t.needsUpdate = true;
+    return t;
+  })();
+  private sweepKeys: string[] = [];
+
+  /** Sweep paths, frames and section outlines into the sweep texture (one slot per sweep). */
+  private updateSweeps(objs: CompiledObject[], slots: Map<CompiledObject, number>) {
+    const W = MAX_PATH_POINTS;
+    let slot = 0, changed = false;
+    for (const o of objs) {
+      if (o.obj.type !== 'sweep' || !o.sweep) continue;
+      if (slot >= MAX_SWEEPS) { slots.set(o, MAX_SWEEPS - 1); continue; }
+      slots.set(o, slot);
+      const key = JSON.stringify(o.obj.params);
+      if (this.sweepKeys[slot] !== key) {
+        this.sweepKeys[slot] = key;
+        changed = true;
+        const { path, sec } = o.sweep;
+        const put = (r: number, i: number, a: number, b: number, c: number, d: number) => {
+          const k = ((slot * 4 + r) * W + i) * 4;
+          this.sweepData[k] = a; this.sweepData[k + 1] = b; this.sweepData[k + 2] = c; this.sweepData[k + 3] = d;
+        };
+        for (let i = 0; i < path.n; i++) {
+          put(0, i, path.P[3 * i], path.P[3 * i + 1], path.P[3 * i + 2], path.s[i]);
+          put(1, i, path.N[3 * i], path.N[3 * i + 1], path.N[3 * i + 2], 0);
+          put(2, i, path.B[3 * i], path.B[3 * i + 1], path.B[3 * i + 2], 0);
+        }
+        for (let k = 0; k < sec.polyN; k++) put(3, k, sec.poly[2 * k], sec.poly[2 * k + 1], 0, 0);
+      }
+      slot++;
+    }
+    if (changed) this.sweepTex.needsUpdate = true;
+  }
+
   private updateProfiles(objs: CompiledObject[], groups: CompiledGroup[]): Map<CompiledObject, number> {
     const u = this.material.uniforms;
     const slots = new Map<CompiledObject, number>();
@@ -627,6 +745,7 @@ function holeMask(o: CompiledObject, g: CompiledGroup): number {
     case 'cylinder': names = ['side', 'top', 'bottom']; break;
     case 'cone': names = ['base', 'side']; break;
     case 'prism': names = ['top', 'bottom', ...range(Math.max(3, Math.round(o.obj.params.n!))).map((i) => `side${i}`)]; break;
+    case 'sweep': names = ['surface', 'start', 'end']; break;
     // revolves: which spans are open lives in the depth table; the mask only says
     // whether any are (the depth then carries on through the opening)
     default: return o.profile!.faces.some(h) ? 1 : 0;

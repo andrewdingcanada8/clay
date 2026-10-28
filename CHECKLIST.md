@@ -51,8 +51,8 @@ Last updated: 2026-10-27. Benchmark numbers come from `bench/REPORT.md`, which `
 | ✅ | Primitives: sphere, box, cylinder, cone, torus, capsule, n-gon prism | |
 | ✅ | Revolve: 2D spline profile, full 360° | Centripetal Catmull–Rom with sharp/smooth points; editor zooms and pans (pinch, scroll, −/Fit/+) with a grid that follows the zoom. |
 | ⬜ | Partial revolve (< 360°) | |
-| ⬜ | Sweep a section along a drawn path | Queued (3). Path drawn on a chosen plane; section drawn or preset circle/square; section size editable afterwards. |
-| ⬜ | Parametric sweep: height-over-length graph | Queued (4). Graph editor: arc length s horizontally, offset along the plane normal vertically (flat by default); e.g. a circle in XZ + rising line = spiral. |
+| ✅ | Sweep a section along a drawn path (Add → Sweep) | Path drawn on the XY, XZ or YZ plane, open or closed; section round, square or drawn, sized by width/height at any time. Rotation-minimizing frames (no twist). Both kernels; open ends can be openings. |
+| ✅ | Parametric sweep: lift graph and turns (Add → Coil) | Lift editor: distance along the path → height off the plane (flat by default, same spline tools). Closed paths go round N turns; a rising lift makes a coil. |
 | ✅ | Saves: save, new, gallery, open, rename, duplicate, delete | Stored in the artifact's database (`pieces`), browser storage as fallback; thumbnails and the view (camera, quality, section) saved with each piece. |
 | ✅ | Flag a saved piece as a problem (SDF / Mesh, note) | Claude reads flagged rows and copies them to `bench/flagged/` as bench cases `flagged-<id>`. |
 | ✅ | Parts: save a group as a reusable part (Shell tab → Save as part), add from the Add tab | Placed parts build as their own group (finished geometry); "Cut" carves the part's envelope. Uniform scale only. Unpack turns a part back into a group. Library stored with the artifact (`parts`). |

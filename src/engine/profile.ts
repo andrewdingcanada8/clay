@@ -50,27 +50,37 @@ function catmullRom(
 }
 
 /** Sample the profile curve. Returns points plus the control-span index of each segment. */
-export function sampleCurve(points: ProfilePoint[], samplesPerSpan = SAMPLES_PER_SPAN): { xy: number[]; span: number[] } {
+/**
+ * Sample the curve. Returns points plus the control-span index of each segment.
+ * `closed`: the curve wraps from the last point back to the first (the start point
+ * is not repeated at the end). `clampR`: keep r >= 0 (revolve profiles).
+ */
+export function sampleCurve(points: ProfilePoint[], samplesPerSpan = SAMPLES_PER_SPAN, opts: { closed?: boolean; clampR?: boolean } = {}): { xy: number[]; span: number[] } {
+  const closed = !!opts.closed && points.length > 2, clampR = opts.clampR ?? true;
   const xy: number[] = [];
   const span: number[] = [];
   const n = points.length;
   if (n === 0) return { xy, span };
-  xy.push(Math.max(0, points[0].r), points[0].y);
-  for (let i = 0; i < n - 1; i++) {
-    const p1 = points[i], p2 = points[i + 1];
+  const R = (r: number) => (clampR ? Math.max(0, r) : r);
+  const at = (i: number) => (closed ? points[((i % n) + n) % n] : points[i]);
+  xy.push(R(points[0].r), points[0].y);
+  const spans = closed ? n : n - 1;
+  for (let i = 0; i < spans; i++) {
+    const p1 = at(i), p2 = at(i + 1);
     // Neighbours for tangents. A sharp point (or an end) mirrors the segment so the
     // tangent there comes from this span only; partial smoothness blends the mirrored
     // phantom toward the real neighbour, turning the kink gradually into a curve.
     const m0 = { r: 2 * p1.r - p2.r, y: 2 * p1.y - p2.y }, m3 = { r: 2 * p2.r - p1.r, y: 2 * p2.y - p1.y };
     const mix = (m: ProfilePoint, q: ProfilePoint | undefined, k: number): ProfilePoint =>
       q ? { r: m.r + (q.r - m.r) * k, y: m.y + (q.y - m.y) * k } : m;
-    const p0 = mix(m0, points[i - 1], smoothOf(p1));
-    const p3 = mix(m3, points[i + 2], smoothOf(p2));
+    const p0 = mix(m0, at(i - 1), smoothOf(p1));
+    const p3 = mix(m3, at(i + 2), smoothOf(p2));
     const straight = Math.hypot(p2.r - p1.r, p2.y - p1.y) < 1e-9;
     const S = straight ? 1 : samplesPerSpan;
     for (let s = 1; s <= S; s++) {
+      if (closed && i === spans - 1 && s === S) break; // back at the start
       const [r, y] = s === S ? [p2.r, p2.y] : catmullRom(p0, p1, p2, p3, s / S);
-      xy.push(Math.max(0, r), y);
+      xy.push(R(r), y);
       span.push(i);
     }
   }

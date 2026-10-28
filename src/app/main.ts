@@ -2,7 +2,7 @@ import './styles.css';
 import * as THREE from 'three';
 import {
   type ObjectMode, type PrimitiveType, type Quality, type SceneDoc, type SceneObject,
-  TYPE_LABEL, cloneDoc, emptyDoc, makeObject, newId, normalizeDoc,
+  TYPE_LABEL, cloneDoc, defaultCoil, emptyDoc, makeObject, newId, normalizeDoc,
 } from '../engine/document';
 import type { BuildResult } from '../engine/kernel';
 import type { CavityGrid } from '../engine/cavity';
@@ -12,7 +12,9 @@ import { classifyPoint, compileScene, sdfWorld, toLocal } from '../engine/primit
 import { compileGroups } from '../engine/scene';
 import { examples } from '../examples';
 import { Builder } from './builder';
-import { ProfileEditor } from './profileEditor';
+import { type CurveMode, ProfileEditor } from './profileEditor';
+import type { ProfilePoint } from '../engine/profile';
+import { buildSweepPath } from '../engine/sweep';
 import { HAND_LENGTH_CM } from './hand';
 import { type LibraryPart, PartStore, type Piece, type PieceFlag, PieceStore, type ViewState } from './pieces';
 import { expandParts, makePartDef, partScale, placedId } from '../engine/parts';
@@ -37,6 +39,8 @@ const ICON: Record<string, string> = {
   capsule: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><rect x="10" y="3" width="12" height="26" rx="6"/></svg>',
   prism: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 7h14l4 4-4 4H9l-4-4z"/><path d="M5 11v12l4 4h14l4-4V11" opacity=".7"/></svg>',
   revolve: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4h8M13 4c-1 4 3 7 3 10s-7 4-7 9 3 5 3 5h8s3 0 3-5-7-6-7-9 4-6 3-10"/></svg>',
+  sweep: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 26c0-9 4-16 12-18"/><path d="M12 27c1-8 5-13 11-14" opacity=".6"/><ellipse cx="22" cy="10.5" rx="2.6" ry="3.6" transform="rotate(25 22 10.5)"/></svg>',
+  coil: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="16" cy="25" rx="9" ry="3"/><ellipse cx="16" cy="18" rx="9" ry="3"/><ellipse cx="16" cy="11" rx="9" ry="3"/><path d="M7 25V11M25 25V11" opacity=".35"/></svg>',
 };
 
 interface UIState {
@@ -52,6 +56,8 @@ interface UIState {
   hand: boolean;
   lockScale: boolean;
   profileEditing: string | null;
+  /** which curve of that object: a revolve's profile, or a sweep's path, section or lift */
+  curveField: CurveField;
   profilePoint: number;
   showGallery: boolean;
   galleryTab: 'mine' | 'examples';
@@ -93,7 +99,7 @@ const future: string[] = [];
 const ui: UIState = {
   tab: 'edit', sheetOpen: true, selectedId: doc.objects[0]?.id ?? null, gizmo: 'translate', holeMode: 'face', pinRadius: 0.5,
   quality: 'normal', section: { on: false, axis: 'z', t: 0.5 }, wire: false, hand: true, lockScale: false,
-  profileEditing: null, profilePoint: -1, showGallery: false, galleryTab: 'mine',
+  profileEditing: null, curveField: 'points', profilePoint: -1, showGallery: false, galleryTab: 'mine',
   menuFor: null, renameFor: null, flagFor: null, deleteFor: null, pending: null,
   partNaming: null, libMenu: null, libRename: null, libDelete: null,
 };
@@ -352,10 +358,10 @@ function objectChips() {
 }
 
 function addPanel() {
-  const types: PrimitiveType[] = ['sphere', 'box', 'cylinder', 'cone', 'torus', 'capsule', 'prism', 'revolve'];
+  const types: PrimitiveType[] = ['sphere', 'box', 'cylinder', 'cone', 'torus', 'capsule', 'prism', 'revolve', 'sweep'];
   return `<div class="section"><h3>Add a form</h3>
-    <div class="grid-add">${types.map((t) => `<button class="add-btn" data-add="${t}">${ICON[t]}${TYPE_LABEL[t]}</button>`).join('')}</div>
-    <p class="hint">New forms join the piece at the centre. Revolve opens the profile editor: draw half the silhouette and it spins 360° around the axis.</p></div>
+    <div class="grid-add">${types.map((t) => `<button class="add-btn" data-add="${t}">${ICON[t]}${TYPE_LABEL[t]}</button>`).join('')}<button class="add-btn" data-add="coil">${ICON.coil}Coil</button></div>
+    <p class="hint">New forms join the piece at the centre. Revolve opens the profile editor: draw half the silhouette and it spins 360° around the axis. Sweep opens its path: draw a line on a plane and a section travels along it. Coil is a sweep round a circle, lifted over three turns.</p></div>
     ${partsLibrary()}`;
 }
 
@@ -380,6 +386,23 @@ function partsLibrary() {
   return `<div class="section"><h3>Your parts</h3>
     ${list.length ? `<div class="pieces">${list.map(card).join('')}</div>` : '<p class="hint">No parts yet. In the Shell tab, use "Save as part" on a group to reuse it in any piece.</p>'}
     ${list.length ? '<p class="hint">Tap a part to add it. A part is finished geometry: its own hollow, openings and subtractions stay inside it.</p>' : ''}</div>`;
+}
+
+function sweepControls(o: SceneObject) {
+  const p = o.params, sec = p.section ?? 'circle';
+  const len = buildSweepPath(p).length;
+  return `
+    <div class="sub">Section</div>
+    ${seg<NonNullable<SceneObject['params']['section']>>('section', sec, [['circle', 'Round'], ['square', 'Square'], ['custom', 'Drawn']])}
+    ${slider('p.w', sec === 'circle' ? 'Diameter' : 'Width', p.w ?? 2, 0.2, 30, 0.1)}
+    ${sec !== 'circle' ? slider('p.d', 'Height', p.d ?? 2, 0.2, 30, 0.1) : ''}
+    ${sec === 'custom' ? '<div class="row"><button class="btn" data-act="edit-shape">Draw section</button></div>' : ''}
+    <div class="sub">Path</div>
+    ${seg<NonNullable<SceneObject['params']['plane']>>('plane', p.plane ?? 'xy', [['xy', 'XY · upright'], ['xz', 'XZ · flat'], ['yz', 'YZ · upright']])}
+    <label class="toggle"><input type="checkbox" id="sweep-closed" data-act="sweep-closed" ${p.closed ? 'checked' : ''}> Closed loop</label>
+    ${p.closed ? slider('p.turns', 'Turns', p.turns ?? 1, 1, 12, 1) : ''}
+    <div class="row"><button class="btn primary" data-act="edit-path">Edit path (${p.path?.length ?? 0} points)</button><button class="btn" data-act="edit-lift">Edit lift</button></div>
+    <p class="hint">${len.toFixed(1)} cm along the path. The lift raises the path off its plane as it goes; on a closed loop with several turns, a rising lift makes a coil.</p>`;
 }
 
 function partEditBody(o: SceneObject) {
@@ -470,6 +493,7 @@ function editPanel() {
     <div class="section"><h3>Shape</h3>
       ${PARAMS[o.type].map(([k, l, mn, mx, st]) => slider(`p.${k}`, l, (o.params as Record<string, number>)[k] ?? (k === 'r2' ? o.params.r! : 0), mn, mx, st)).join('')}
       ${o.type === 'revolve' ? `<button class="btn primary" data-act="edit-profile">Edit profile (${o.params.points?.length ?? 0} points)</button>` : ''}
+      ${o.type === 'sweep' ? sweepControls(o) : ''}
     </div>
     <div class="section"><h3>Transform</h3>
       ${seg<GizmoMode>('gizmo', ui.gizmo, [['translate', 'Move'], ['rotate', 'Rotate'], ['scale', 'Scale'], ['off', 'Hide']])}
@@ -563,11 +587,34 @@ function examplesPanel() {
   return `<div class="examples">${exampleList.map((e) => `<button class="example" data-example="${e.id}"><b>${escapeHtml(e.title)}</b><small>${escapeHtml(e.notes)}</small></button>`).join('')}</div>`;
 }
 
+type CurveField = 'points' | 'path' | 'shape' | 'lift';
+const PLANE_AXES: Record<string, [string, string]> = { xy: ['X', 'Y'], xz: ['X', 'Z'], yz: ['Z', 'Y'] };
+
+function curveSetup(o: SceneObject, f: CurveField): { mode: CurveMode; title: string; hint: string } {
+  const p = o.params;
+  const base = 'Tap empty space to add a point, tap a point to select it. Drag near a point to move it, or anywhere else to move the selected one. Squares are sharp corners. Pinch or scroll to zoom, two fingers to pan.';
+  if (f === 'path') {
+    const plane = p.plane ?? 'xy';
+    return { mode: { kind: 'path', closed: !!p.closed, axes: PLANE_AXES[plane] }, title: `Path of ${o.name} · ${plane.toUpperCase()} plane`,
+      hint: `${base} The section travels along this curve${p.closed ? ', round the loop' : ' from start to end'}.` };
+  }
+  if (f === 'shape') return { mode: { kind: 'section', closed: true, axes: ['width', 'height'] }, title: `Section of ${o.name}`, hint: `${base} The outline is fitted to the section's width and height.` };
+  if (f === 'lift') {
+    const flat = buildSweepPath({ ...p, lift: [{ r: 0, y: 0 }, { r: 1, y: 0 }] }).length;
+    return { mode: { kind: 'graph', length: flat }, title: `Lift of ${o.name} along its path`,
+      hint: `${base} Left to right is the distance along the path; up and down lifts the path off its plane. A straight rising line on a closed path makes a coil.` };
+  }
+  return { mode: { kind: 'profile' }, title: `Profile of ${o.name}`, hint: `${base} The curve spins a full 360° around the dashed axis.` };
+}
+
 function renderProfilePanel() {
   const o = doc.objects.find((x) => x.id === ui.profileEditing);
-  if (!o || o.type !== 'revolve') { ui.profileEditing = null; renderPanel(); return; }
+  const f = ui.curveField;
+  if (!o || (o.type !== 'revolve' && o.type !== 'sweep')) { ui.profileEditing = null; renderPanel(); return; }
+  const { mode, title, hint } = curveSetup(o, f);
+  const pts = (o.params as Record<string, ProfilePoint[] | undefined>)[f] ?? [];
   panel.innerHTML = `<div class="profile-wrap">
-    <div class="row"><h3 style="margin:0 auto 0 0;font:600 11px var(--font-body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Profile of ${escapeHtml(o.name)}</h3>
+    <div class="row"><h3 style="margin:0 auto 0 0;font:600 11px var(--font-body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">${escapeHtml(title)}</h3>
       <button class="btn" data-act="profile-zoom-out" aria-label="Zoom out">−</button>
       <button class="btn" data-act="profile-fit">Fit</button>
       <button class="btn" data-act="profile-zoom-in" aria-label="Zoom in">+</button>
@@ -576,23 +623,24 @@ function renderProfilePanel() {
     <label class="field"><span>Smoothness</span>
       <input type="range" id="profile-smooth" min="0" max="1" step="0.01" value="1" ${ui.profilePoint < 0 ? 'disabled' : ''}></label>
     <div class="row">
-      <button class="btn danger" data-act="profile-delete" ${ui.profilePoint < 0 ? 'disabled' : ''}>Delete point</button>
+      <button class="btn danger" data-act="profile-delete" disabled>Delete point</button>
     </div>
-    <p class="hint">Tap empty space to add a point, tap a point to select it. Drag near a point to move it, or anywhere else to move the selected one. Squares are sharp corners. Pinch or scroll to zoom, two fingers to pan. The curve spins a full 360° around the dashed axis.</p></div>`;
-  const ed = new ProfileEditor(document.getElementById('profile-canvas') as HTMLCanvasElement, o.params.points ?? []);
+    <p class="hint">${escapeHtml(hint)}</p></div>`;
+  const ed = new ProfileEditor(document.getElementById('profile-canvas') as HTMLCanvasElement, pts, mode);
   profileEditor = ed;
   const smooth = document.getElementById('profile-smooth') as HTMLInputElement;
-  ed.onChange = (pts, done) => {
+  const set = (params: SceneObject['params'], v: ProfilePoint[]) => ({ ...params, [f]: v });
+  ed.onChange = (v, done) => {
     // While dragging only the wireframe ghost follows; the shape rebuilds on release.
-    if (!done) { view.setGhost({ ...o, params: { ...o.params, points: pts } }, 'off'); return; }
-    update((d) => { d.objects.find((x) => x.id === o.id)!.params.points = pts; });
+    if (!done) { view.setGhost({ ...o, params: set(o.params, v) }, 'off'); return; }
+    update((d) => { const t = d.objects.find((x) => x.id === o.id)!; t.params = set(t.params, v); });
     view.setGhost(selected(), 'off');
   };
   ed.onSelect = (i) => {
     ui.profilePoint = i;
     smooth.disabled = i < 0;
     smooth.value = String(ed.smooth());
-    panel.querySelectorAll<HTMLButtonElement>('[data-act="profile-delete"]').forEach((b) => { b.disabled = i < 0; });
+    panel.querySelectorAll<HTMLButtonElement>('[data-act="profile-delete"]').forEach((b) => { b.disabled = !ed.canDelete(i); });
   };
   smooth.addEventListener('input', () => ed.setSmooth(Number(smooth.value), false));
   smooth.addEventListener('change', () => ed.setSmooth(Number(smooth.value), true));
@@ -627,7 +675,7 @@ function setNum(key: string, v: number, interactive: boolean) {
   if (!o) return;
   if (key.startsWith('p.')) {
     const k = key.slice(2);
-    return update((d) => { (d.objects.find((x) => x.id === o.id)!.params as Record<string, number>)[k] = k === 'n' ? Math.round(v) : v; }, interactive);
+    return update((d) => { (d.objects.find((x) => x.id === o.id)!.params as Record<string, number>)[k] = k === 'n' || k === 'turns' ? Math.round(v) : v; }, interactive);
   }
   if (key === 'tf.uscale') {
     return update((d) => { const s = Math.max(0.05, v); d.objects.find((x) => x.id === o.id)!.transform.scale = [s, s, s]; }, interactive);
@@ -674,6 +722,19 @@ panel.addEventListener('change', (e) => {
   }
   const act = el.dataset.act;
   if (act === 'shell-toggle') update((d) => { d.shell.enabled = el.checked; });
+  if (act === 'sweep-closed') {
+    update((d) => {
+      const p = d.objects.find((x) => x.id === ui.selectedId)!.params;
+      p.closed = el.checked;
+      // a loop needs at least three points
+      if (p.closed && (p.path?.length ?? 0) < 3 && p.path?.length === 2) {
+        const [a, b] = p.path;
+        const mx = (a.r + b.r) / 2, my = (a.y + b.y) / 2, dx = b.r - a.r, dy = b.y - a.y;
+        p.path.splice(1, 0, { r: mx - dy / 2, y: my + dx / 2 });
+      }
+    });
+    renderPanel();
+  }
   if (act === 'section-toggle') { ui.section.on = el.checked; view.setSection(el.checked, ui.section.axis, ui.section.t); renderPanel(); }
   if (act === 'hand-toggle') { ui.hand = el.checked; view.setHandVisible(el.checked); renderStatus(); }
   if (act === 'wire-toggle') { ui.wire = el.checked; if (lastResult) view.setResult(lastResult, ui.wire); }
@@ -688,7 +749,7 @@ panel.addEventListener('click', (e) => {
   const btn = (e.target as HTMLElement).closest('button') as HTMLButtonElement | null;
   if (!btn) return;
   const d = btn.dataset;
-  if (d.add) return addObject(d.add as PrimitiveType);
+  if (d.add) return d.add === 'coil' ? addObject('sweep', { params: defaultCoil(), name: 'Coil' }) : addObject(d.add as PrimitiveType);
   if (d.select) return selectObject(d.select);
   if (d.addPart) { ui.libMenu = null; return addPart(d.addPart); }
   if (d.namePart) { ui.partNaming = d.namePart; renderPanel(); (document.getElementById('part-name') as HTMLInputElement | null)?.select(); return; }
@@ -756,7 +817,9 @@ panel.addEventListener('click', (e) => {
       selectObject(doc.objects[0]?.id ?? null);
       break;
     }
-    case 'edit-profile': ui.profileEditing = ui.selectedId; ui.profilePoint = -1; view.setGhost(selected(), 'off'); renderPanel(); break;
+    case 'edit-profile': case 'edit-path': case 'edit-shape': case 'edit-lift':
+      ui.curveField = ({ 'edit-profile': 'points', 'edit-path': 'path', 'edit-shape': 'shape', 'edit-lift': 'lift' } as Record<string, CurveField>)[d.act!];
+      ui.profileEditing = ui.selectedId; ui.profilePoint = -1; view.setGhost(selected(), 'off'); renderPanel(); break;
     case 'profile-done': ui.profileEditing = null; refreshGhost(); renderPanel(); break;
     case 'profile-delete': profileEditor?.deleteSelected(); break;
     case 'profile-zoom-in': profileEditor?.zoomBy(1.4); break;
@@ -790,6 +853,8 @@ function onSeg(name: string, value: string) {
     case 'kernel': update((d) => { d.kernel = value as SceneDoc['kernel']; }); break;
     case 'meshMethod': update((d) => { d.meshMethod = value as SceneDoc['meshMethod']; }); break;
     case 'quality': ui.quality = value as Quality; sync(false); break;
+    case 'section': update((d) => { d.objects.find((x) => x.id === ui.selectedId)!.params.section = value as 'circle' | 'square' | 'custom'; }); break;
+    case 'plane': update((d) => { d.objects.find((x) => x.id === ui.selectedId)!.params.plane = value as 'xy' | 'xz' | 'yz'; }); break;
     case 'galleryTab': ui.galleryTab = value as 'mine' | 'examples'; closeCards(); break;
     case 'axis': ui.section.axis = value as 'x' | 'y' | 'z'; view.setSection(true, ui.section.axis, ui.section.t); break;
   }
@@ -805,16 +870,17 @@ function toggleHole(oid: string, fid: string) {
   renderPanel();
 }
 
-function addObject(type: PrimitiveType) {
-  const o = makeObject(type, { groupId: selected()?.groupId ?? doc.groups[0].id });
-  const n = doc.objects.filter((x) => x.type === type).length;
-  if (n) o.name = `${TYPE_LABEL[type]} ${n + 1}`;
+function addObject(type: PrimitiveType, extra: Partial<SceneObject> = {}) {
+  const o = makeObject(type, { groupId: selected()?.groupId ?? doc.groups[0].id, ...extra });
+  const n = doc.objects.filter((x) => x.type === type && (x.name.startsWith(o.name))).length;
+  if (n) o.name = `${o.name} ${n + 1}`;
   update((d) => { d.objects.push(o); });
   ui.selectedId = o.id;
   ui.tab = 'edit';
-  if (type === 'revolve') { ui.profileEditing = o.id; ui.profilePoint = -1; }
+  if (type === 'revolve') { ui.profileEditing = o.id; ui.curveField = 'points'; ui.profilePoint = -1; }
+  if (type === 'sweep' && !extra.params) { ui.profileEditing = o.id; ui.curveField = 'path'; ui.profilePoint = -1; }
   refreshGhost();
-  if (type === 'revolve') view.setGhost(o, 'off');
+  if (type === 'revolve' || ui.profileEditing === o.id) view.setGhost(o, 'off');
   renderPanel();
 }
 

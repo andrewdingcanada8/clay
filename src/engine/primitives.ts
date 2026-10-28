@@ -5,6 +5,7 @@ import type { PrimitiveType, SceneObject } from './document';
 import { type AABB, type Vec3, clamp, emptyAABB, eulerXYZ, growAABB, mulMat3TVec, mulMat3Vec, polygonSDF } from './math';
 import { type SampledProfile, sampleProfile } from './profile';
 import type { ProfileTable } from './profileTable';
+import { type SweepPath, type SweepSection, buildSweepPath, buildSweepSection, sweepLocate, sweepSDF } from './sweep';
 
 export interface FaceInfo {
   id: string;
@@ -31,6 +32,8 @@ export interface CompiledObject {
   extrusion?: { poly: Float64Array; h: number };
   /** Prism: regular n-gon frustum (bottom/top circumradius). */
   frustum?: { n: number; r1: number; r2: number; h: number };
+  /** Sweep: the path with its frames, and the section. */
+  sweep?: { path: SweepPath; sec: SweepSection };
   /** Cached revolve depth tables, by opening faces (see scene.holeDepth). */
   depthTables?: Map<string, ProfileTable>;
   /** Cached bounding sphere (see scene.boundSphere). */
@@ -167,6 +170,7 @@ export function compileObject(obj: SceneObject): CompiledObject {
   let profile: SampledProfile | undefined;
   let extrusion: CompiledObject['extrusion'];
   let frustum: CompiledObject['frustum'];
+  let sweep: CompiledObject['sweep'];
 
   switch (obj.type) {
     case 'sphere': {
@@ -297,12 +301,34 @@ export function compileObject(obj: SceneObject): CompiledObject {
       growAABB(lb, -prof.rMax, prof.yMin, -prof.rMax); growAABB(lb, prof.rMax, prof.yMax, prof.rMax);
       break;
     }
+    case 'sweep': {
+      const path = buildSweepPath(p), sec = buildSweepSection(p);
+      sweep = { path, sec };
+      sdfLocal = (x, y, z) => sweepSDF(path, sec, x, y, z);
+      faceAtLocal = (x, y, z) => {
+        const { d2, cap, along } = sweepLocate(path, sec, x, y, z);
+        if (path.loop || cap < d2 - 1e-9) return 'surface';
+        return along < path.length / 2 ? 'start' : 'end';
+      };
+      faces = [{ id: 'surface', label: 'Surface' }];
+      if (!path.loop) {
+        const n = path.n - 1;
+        faces.push(
+          { id: 'start', label: 'Start end', plane: { n: [-path.T[0], -path.T[1], -path.T[2]], p: [path.P[0], path.P[1], path.P[2]] } },
+          { id: 'end', label: 'Finish end', plane: { n: [path.T[3 * n], path.T[3 * n + 1], path.T[3 * n + 2]], p: [path.P[3 * n], path.P[3 * n + 1], path.P[3 * n + 2]] } },
+        );
+      }
+      const r = Math.hypot(sec.hw, sec.hd);
+      for (let i = 0; i < path.n; i++) { growAABB(lb, path.P[3 * i] - r, path.P[3 * i + 1] - r, path.P[3 * i + 2] - r); growAABB(lb, path.P[3 * i] + r, path.P[3 * i + 1] + r, path.P[3 * i + 2] + r); }
+      break;
+    }
+    case 'part': throw new Error('placed parts are expanded before compiling');
   }
 
   const c: CompiledObject = {
     obj, rot, pos: [...t.position] as Vec3, scale, minScale: Math.min(scale[0], scale[1], scale[2]),
     sdfLocal: sdfLocal!, faceAtLocal: faceAtLocal!, faces: faces!, localBounds: lb, worldBounds: emptyAABB(),
-    profile, extrusion, frustum,
+    profile, extrusion, frustum, sweep,
   };
   const w: Vec3 = [0, 0, 0];
   for (let i = 0; i < 8; i++) {

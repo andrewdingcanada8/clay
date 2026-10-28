@@ -10,6 +10,7 @@ import type { BuildResult } from '../engine/kernel';
 import { DEG } from '../engine/math';
 import { revolveOutline } from '../engine/primitives';
 import { sampleCurve } from '../engine/profile';
+import { buildSweepPath, buildSweepSection, sectionRing, sweepMesh } from '../engine/sweep';
 import type { CavityGrid } from '../engine/cavity';
 import type { SceneDoc } from '../engine/document';
 import { cavityDepth } from '../engine/cavity';
@@ -393,6 +394,14 @@ export function ghostGeometry(o: SceneObject, parts: PartDef[] = []): THREE.Buff
     case 'torus': {
       const g = new THREE.TorusGeometry(p.R, p.r, 16, 48);
       g.rotateX(Math.PI / 2);
+      return g;
+    }
+    case 'sweep': {
+      const path = buildSweepPath(p), sec = buildSweepSection(p);
+      const m = sweepMesh(path, sectionRing(sec, 24));
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
+      g.setIndex(new THREE.BufferAttribute(m.indices, 1));
       return g;
     }
     case 'revolve': {

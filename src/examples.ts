@@ -2,7 +2,7 @@
 // Units are centimetres. `probes` are points inside the hollow used by the
 // benchmark's interior 360° camera.
 
-import { type ObjectMode, type PrimitiveType, type SceneDoc, type SceneObject, emptyDoc, makeObject, scaleDoc } from './engine/document';
+import { type ObjectMode, type PrimitiveType, type SceneDoc, type SceneObject, circlePath, defaultCoil, defaultSweep, emptyDoc, makeObject, scaleDoc } from './engine/document';
 import type { Vec3 } from './engine/math';
 import type { ProfilePoint } from './engine/profile';
 
@@ -327,6 +327,32 @@ export function examples(): Example[] {
     probes: [[0, 0, 0]],
   });
 
+  // Sweeps
+  {
+    const handle = { ...defaultSweep(), plane: 'xy' as const, path: [{ r: 0, y: 2.6, corner: true }, { r: 1.8, y: 2.2 }, { r: 2.4, y: 0.3 }, { r: 1.6, y: -1.6 }, { r: 0, y: -2.2, corner: true }], section: 'circle' as const, w: 0.9, d: 0.9 };
+    list.push({
+      id: 'sweep-mug', title: 'Mug with a swept handle', notes: 'Revolved mug; the handle is a Solid sweep drawn upright on the XY plane.',
+      doc: doc([
+        obj('revolve', { points: cup }, { holes: ['top'], name: 'Mug' }),
+        obj('sweep', handle, { pos: [3.1, 0.6, 0], mode: 'solid', name: 'Handle' }),
+      ], 0.3),
+      probes: [[0, -2, 0]],
+    });
+  }
+  list.push({
+    id: 'coil', title: 'Hollow coil', notes: 'A circle drawn on the ground, lifted over four turns: a coiled tube, hollowed, open at both ends.',
+    doc: doc([obj('sweep', { ...defaultCoil(), path: circlePath(3), turns: 4, lift: [{ r: 0, y: -3, corner: true }, { r: 1, y: 3, corner: true }], w: 1.4, d: 1.4 }, { holes: ['start', 'end'], name: 'Coil' })], 0.25),
+    probes: [],
+  });
+  list.push({
+    id: 'sweep-frame', title: 'Square ring, drawn section', notes: 'A closed rounded-square path on the ground with a square section, next to the same path with a drawn tear-drop section.',
+    doc: doc([
+      obj('sweep', { ...defaultSweep(), plane: 'xz', closed: true, path: [{ r: 3, y: 3, smooth: 0.3 }, { r: -3, y: 3, smooth: 0.3 }, { r: -3, y: -3, smooth: 0.3 }, { r: 3, y: -3, smooth: 0.3 }], section: 'square', w: 1.2, d: 1.6 }, { name: 'Square ring', pos: [-4, 0, 0] }),
+      obj('sweep', { ...defaultSweep(), plane: 'xz', closed: true, path: [{ r: 2.5, y: 2.5, smooth: 0.3 }, { r: -2.5, y: 2.5, smooth: 0.3 }, { r: -2.5, y: -2.5, smooth: 0.3 }, { r: 2.5, y: -2.5, smooth: 0.3 }], section: 'custom', w: 1.4, d: 1.8, shape: [{ r: 0, y: 1, corner: true }, { r: 0.8, y: -0.3 }, { r: 0, y: -1 }, { r: -0.8, y: -0.3 }] }, { name: 'Tear-drop ring', pos: [4.5, 0, 0] }),
+    ], 0.25),
+    probes: [],
+  });
+
   // Scenes are authored small, then scaled to hand size (a vase ~19 cm across).
   // Walls are set per scene in real clay terms; the thin cases stay extreme.
   for (const e of list) {
@@ -346,5 +372,5 @@ const WALLS: Record<string, number> = {
   'cup-stick': 0.6, 'vase-sticks': 0.6, 'vase-solid-sticks': 0.6, torus: 0.6, lattice: 0.5,
   'vase-thin': 0.2, 'chain-thin': 0.2, transformed: 0.7, 'rotated-box': 0.7, tower: 0.6,
   'thick-wall': 2.5, 'cut-sphere': 0.7, 'mug-stick': 0.6, 'mug-thin': 0.08, 'two-groups': 0.6, 'big-pins': 0.6, frustums: 0.6,
-  'sdf-narrow-join': 0.8, 'sdf-pebble': 0.8, 'sdf-blend': 0.6, teapot: 1.0,
+  'sdf-narrow-join': 0.8, 'sdf-pebble': 0.8, 'sdf-blend': 0.6, teapot: 1.0, 'sweep-mug': 0.6, coil: 0.5, 'sweep-frame': 0.5,
 };

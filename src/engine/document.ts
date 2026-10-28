@@ -161,12 +161,17 @@ export function defaultSweep(): PrimitiveParams {
   };
 }
 
+/** A circle drawn with eight points (a spline through them is very nearly round). */
+export function circlePath(r: number, n = 8): ProfilePoint[] {
+  return Array.from({ length: n }, (_, i) => ({ r: +(r * Math.cos((2 * Math.PI * i) / n)).toFixed(3), y: +(r * Math.sin((2 * Math.PI * i) / n)).toFixed(3) }));
+}
+
 /** A coil: a circle drawn on the ground, lifted steadily over three turns. */
 export function defaultCoil(): PrimitiveParams {
   return {
     ...defaultSweep(),
     plane: 'xz',
-    path: [{ r: 7, y: 0 }, { r: 0, y: 7 }, { r: -7, y: 0 }, { r: 0, y: -7 }],
+    path: circlePath(7),
     closed: true,
     turns: 3,
     lift: [{ r: 0, y: -7, corner: true }, { r: 1, y: 7, corner: true }],

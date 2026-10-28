@@ -20,6 +20,7 @@
 import type { SceneDoc } from './document';
 import { type AABB, type Vec3, emptyAABB, growAABB } from './math';
 import { buildProfileTable, tableDepth, tableProfile } from './profileTable';
+import { sweepLocate } from './sweep';
 import { type CompiledObject, compileObject, normalToWorld, prismFrustum, sdfWorld, toLocal, toWorld } from './primitives';
 
 export interface CompiledPin {
@@ -173,6 +174,17 @@ function openDepth(c: CompiledObject, holes: Set<string>, x: number, y: number, 
       if (!isHole('bottom')) d = Math.min(d, (hh + ly) * sy);
       for (let i = 0; i < n; i++) if (!isHole(`side${i}`)) d = Math.min(d, fr.sideDepth(i, lx, ly, lz) * sxz);
       return d;
+    }
+    case 'sweep': {
+      // depth below the section surface and the end caps that aren't open
+      const { path, sec } = c.sweep!;
+      const q = sweepLocate(path, sec, lx, ly, lz);
+      let d = isHole('surface') ? Infinity : -q.d2;
+      if (!path.loop) {
+        if (!isHole('start')) d = Math.min(d, q.along);
+        if (!isHole('end')) d = Math.min(d, path.length - q.along);
+      }
+      return d * c.minScale;
     }
     default: {
       // revolve family: depth below the allowed profile segments, from the same
