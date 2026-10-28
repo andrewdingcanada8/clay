@@ -1,7 +1,7 @@
 // Groups and the shared scene field.
 //
 // For each group g:
-//   Sub_g = min(subtract SDFs)                          carved before hollowing
+//   Sub_g = min(subtract and cutout SDFs)
 //   F_g   = max(min(shell SDFs), -Sub_g)                the shell shape (a smooth min
 //                                                        with radius k when the group
 //                                                        blends)
@@ -13,9 +13,10 @@
 // and the scene is S = min over groups. Groups never cut each other.
 //
 // D is the depth below the shell shape's surface, ignoring faces marked as openings.
-// The cut surface of a subtract object is part of that surface (so it gets a wall)
-// unless the object is an open cut. Inside F, depth below it is exactly
-// min(depth below the shell union, distance into each closed cut).
+// The cut surface of a subtract object is part of that surface (so it gets a wall);
+// a cutout's isn't (it acts as an opening, so it cuts through the finished wall).
+// Inside F, depth below it is exactly min(depth below the shell union, distance
+// into each subtract object).
 // The analytic per-object depth A (deepest depth inside any single shell object) is
 // exact except near joins, blends and openings shared between objects; there a
 // precomputed grid (cavity.ts) gives D. hybridDepth uses A wherever the grid agrees
@@ -213,7 +214,7 @@ function openDepth(c: CompiledObject, holes: Set<string>, x: number, y: number, 
 export function approxDepth(g: CompiledGroup, x: number, y: number, z: number): number {
   let d = -Infinity;
   for (const o of g.shells) d = Math.max(d, holeDepth(o, g.holes, x, y, z));
-  for (const o of g.subs) if (!o.obj.openCut) d = Math.min(d, sdfWorld(o, x, y, z));
+  for (const o of g.subs) if (o.obj.mode === 'subtract') d = Math.min(d, sdfWorld(o, x, y, z));
   return d;
 }
 
@@ -251,7 +252,7 @@ export function baseDepth(g: CompiledGroup, x: number, y: number, z: number, cla
   // inside a blend the blended field itself is the better depth estimate (as the shader)
   if (g.k > 0) d = -smin(-d, fs, k);
   // a closed cut's surface bounds the depth too
-  for (const o of g.subs) if (!o.obj.openCut) d = Math.min(d, sdfWorld(o, x, y, z));
+  for (const o of g.subs) if (o.obj.mode === 'subtract') d = Math.min(d, sdfWorld(o, x, y, z));
   return Math.max(-clampV, Math.min(clampV, d));
 }
 

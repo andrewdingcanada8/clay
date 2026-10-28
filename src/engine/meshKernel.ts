@@ -13,7 +13,7 @@
 
 import Module from 'manifold-3d';
 import type { CrossSection, Manifold, ManifoldToplevel } from 'manifold-3d';
-import type { Quality, SceneDoc } from './document';
+import { type Quality, type SceneDoc, isCut } from './document';
 import { type BuildResult, Timer } from './kernel';
 import type { Vec3 } from './math';
 import { edgeStats } from './meshCheck';
@@ -264,7 +264,7 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
     const members = objs.filter((c) => c.obj.groupId === g.id);
     const shells = members.filter((c) => c.obj.mode === 'shell');
     const solids = members.filter((c) => c.obj.mode === 'solid');
-    const subs = members.filter((c) => c.obj.mode === 'subtract');
+    const subs = members.filter((c) => isCut(c.obj.mode));
     const t = Math.max(0.01, g.thickness);
     if ((g.blend ?? 0) > 0) warnings.push(`${g.name}: smooth blend needs the SDF kernel; shown as a sharp union`);
     const shellU = union(shells.map((c) => built.get(c.obj.id)!.solid));
@@ -273,10 +273,10 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
     const cuts: (Manifold | null)[] = subs.map((c) => built.get(c.obj.id)!.solid);
     const hollow = shell && !!shellU;
     if (hollow && shellU) {
-      // Cuts are carved before hollowing: a closed cut keeps a wall of thickness t
-      // around it, so the cavity stays that far from it.
+      // Subtract objects are carved before hollowing: they keep a wall of thickness t
+      // around them, so the cavity stays that far away. Cutouts cut through it all.
       const ball = keep(Manifold.sphere(t, Math.max(12, Math.round(segs / 3))));
-      const closed = union(subs.filter((c) => !c.obj.openCut).map((c) => built.get(c.obj.id)!.solid));
+      const closed = union(subs.filter((c) => c.obj.mode === 'subtract').map((c) => built.get(c.obj.id)!.solid));
       let cavity: Manifold | null;
       if (doc.meshMethod === 'minkowski') {
         cavity = keep((closed ? keep(shellU.subtract(closed)) : shellU).minkowskiDifference(ball));

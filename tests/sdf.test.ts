@@ -61,20 +61,20 @@ describe('cuts are carved before hollowing', () => {
     const sphere = makeObject('sphere', { params: { r: 3 }, mode: 'shell' });
     const box = makeObject('box', { params: { x: 4, y: 8, z: 8 }, mode: 'subtract' });
     box.transform.position = [3, 0, 0];
-    if (openCut) box.openCut = true;
+    if (openCut) box.mode = 'cutout';
     const d = { ...emptyDoc(), objects: [sphere, box] };
     d.groups = d.groups.map((g) => ({ ...g, thickness: 0.4 }));
     const [g] = compileGroups(d);
     return (x: number, y: number, z: number) => evalScene([g], approxDepth, x, y, z);
   };
-  it('a closed cut gets a wall', () => {
+  it('a subtract cut gets a wall', () => {
     const S = make(false);
     expect(S(0.8, 0, 0)).toBeLessThan(0);   // inside the wall along the cut plane
     expect(S(0.4, 0, 0)).toBeGreaterThan(0); // the cavity starts 0.4 in
     expect(S(1.2, 0, 0)).toBeGreaterThan(0); // the cut itself is empty
     expect(S(-2.8, 0, 0)).toBeLessThan(0);   // the far wall is unchanged
   });
-  it('an open cut passes through the wall', () => {
+  it('a cutout passes through the wall', () => {
     const S = make(true);
     expect(S(0.8, 0, 0)).toBeGreaterThan(0);
     expect(S(0.4, 0, 0)).toBeGreaterThan(0);

@@ -6,7 +6,7 @@ import {
 } from '../engine/document';
 import type { BuildResult } from '../engine/kernel';
 import type { CavityGrid } from '../engine/cavity';
-import { DEFAULT_WALL, type Group } from '../engine/document';
+import { DEFAULT_WALL, type Group, isCut } from '../engine/document';
 import type { Vec3 } from '../engine/math';
 import { classifyPoint, compileScene, sdfWorld, toLocal } from '../engine/primitives';
 import { compileGroups } from '../engine/scene';
@@ -206,7 +206,7 @@ function cavityKey(r: SceneDoc, gi: number): string {
   const g = r.groups[gi];
   // the cavity follows the shell objects and the cuts carved before hollowing
   const shells = r.objects.filter((o) => o.groupId === g.id && o.mode !== 'solid' && !o.hidden);
-  return JSON.stringify([ui.quality, g.blend ?? 0, shells.map((o) => [o.type, o.mode, o.params, o.transform, o.holes, !!o.openCut])]);
+  return JSON.stringify([ui.quality, g.blend ?? 0, shells.map((o) => [o.type, o.mode, o.params, o.transform, o.holes])]);
 }
 
 function currentGrids(r: SceneDoc): (CavityGrid | null)[] {
@@ -417,9 +417,9 @@ function partEditBody(o: SceneObject) {
   const def = (doc.parts ?? []).find((d) => d.id === o.params.part);
   return `
     <div class="section"><h3>Part · ${escapeHtml(def?.name ?? 'missing')}</h3>
-      ${seg<ObjectMode>('mode', o.mode === 'subtract' ? 'subtract' : 'solid', [['solid', 'Finished'], ['subtract', 'Cut']])}
-      <p class="hint">${o.mode === 'subtract' ? 'Its outer shape is carved from the group it sits in.' : 'Placed as finished geometry: its own hollow and subtractions stay inside it, and nothing else cuts it.'}</p>
-      ${doc.groups.length > 1 && o.mode === 'subtract' ? `<div class="row">${doc.groups.map((g) => `<button class="face-chip" data-move-group="${g.id}" aria-pressed="${g.id === o.groupId}">${escapeHtml(g.name)}</button>`).join('')}</div>` : ''}
+      ${seg<ObjectMode>('mode', isCut(o.mode) ? o.mode : 'solid', [['solid', 'Finished'], ['subtract', 'Subtract'], ['cutout', 'Cutout']])}
+      <p class="hint">${o.mode === 'subtract' ? 'Its outer shape is carved from the group it sits in before hollowing, so the cut gets a wall.' : o.mode === 'cutout' ? 'Its outer shape is cut out of the finished group, walls and all.' : 'Placed as finished geometry: its own hollow and subtractions stay inside it, and nothing else cuts it.'}</p>
+      ${doc.groups.length > 1 && isCut(o.mode) ? `<div class="row">${doc.groups.map((g) => `<button class="face-chip" data-move-group="${g.id}" aria-pressed="${g.id === o.groupId}">${escapeHtml(g.name)}</button>`).join('')}</div>` : ''}
       <div class="row"><button class="btn" data-act="unpack-part">Unpack into a group</button></div>
       <p class="hint">Unpacking turns it back into editable objects in a new group of this piece.</p>
     </div>
@@ -493,9 +493,8 @@ function editPanel() {
     if (o.type === 'part') body = partEditBody(o);
     else body = `
     <div class="section"><h3>${TYPE_LABEL[o.type]} · role in its group</h3>
-      ${seg<ObjectMode>('mode', o.mode, [['shell', 'Shell'], ['solid', 'Solid'], ['subtract', 'Subtract']])}
-      <p class="hint">${o.mode === 'shell' ? 'Forms the hollow body. The cavity grows inward from the outside of all Shell objects in the group.' : o.mode === 'solid' ? 'Never hollowed itself, but cut where the group\'s cavity passes through it.' : o.openCut ? 'Carved out of its group straight through the wall: the cut opens into the hollow.' : 'Carved out of the group\'s shape before it is hollowed, so the cut surface gets a wall like any other.'}</p>
-      ${o.mode === 'subtract' ? `<label class="toggle"><input type="checkbox" data-act="open-cut" ${o.openCut ? 'checked' : ''}> Open cut (passes through the wall)</label>` : ''}
+      ${seg<ObjectMode>('mode', o.mode, [['shell', 'Shell'], ['solid', 'Solid'], ['subtract', 'Subtract'], ['cutout', 'Cutout']])}
+      <p class="hint">${o.mode === 'shell' ? 'Forms the hollow body. The cavity grows inward from the outside of all Shell objects in the group.' : o.mode === 'solid' ? 'Never hollowed itself, but cut where the group\'s cavity passes through it.' : o.mode === 'subtract' ? 'Carved out of the group\'s shape before it is hollowed, so the cut surface gets a wall like any other.' : 'Cut out of the finished group at the very end, walls and all: it opens into the hollow.'}</p>
       ${doc.groups.length > 1 ? `<div class="row">${doc.groups.map((g) => `<button class="face-chip" data-move-group="${g.id}" aria-pressed="${g.id === o.groupId}">${escapeHtml(g.name)}</button>`).join('')}</div>` : ''}
     </div>
     <div class="section"><h3>Shape</h3>
@@ -525,7 +524,7 @@ function shellPanel() {
         ${doc.groups.length > 1 ? `<button class="btn danger" data-del-group="${g.id}" aria-label="Delete group">Delete</button>` : ''}</div>
       ${slider(`wall.${i}`, 'Wall cm', g.thickness, 0.05, 4, 0.01)}
       ${slider(`blend.${i}`, 'Blend cm', g.blend ?? 0, 0, 10, 0.1)}
-      <p class="hint">${count('shell')} shell · ${count('solid')} solid · ${count('subtract')} subtract</p>
+      <p class="hint">${count('shell')} shell · ${count('solid')} solid · ${count('subtract')} subtract · ${count('cutout')} cutout</p>
       ${ui.partNaming === g.id
         ? `<div class="piece-form"><label class="field-col"><span>Part name</span><input id="part-name" value="${escapeHtml(g.name)}" maxlength="80"></label>
            <div class="row"><button class="btn primary" data-save-part="${g.id}">Save part</button><button class="btn" data-part-cancel="1">Cancel</button></div></div>`
@@ -736,7 +735,6 @@ panel.addEventListener('change', (e) => {
   }
   const act = el.dataset.act;
   if (act === 'shell-toggle') update((d) => { d.shell.enabled = el.checked; });
-  if (act === 'open-cut') { update((d) => { d.objects.find((x) => x.id === ui.selectedId)!.openCut = el.checked || undefined; }); renderPanel(); }
   if (act === 'sweep-closed') {
     update((d) => {
       const p = d.objects.find((x) => x.id === ui.selectedId)!.params;
@@ -966,7 +964,7 @@ view.onTap = (hit) => {
   }
   const objs = compileScene(expandParts(doc).objects);
   const p = hit.point;
-  const c = classifyPoint(objs, p.x, p.y, p.z, ['shell', 'solid', 'subtract']);
+  const c = classifyPoint(objs, p.x, p.y, p.z, ['shell', 'solid', 'subtract', 'cutout']);
   if (!c) return;
   const oid = placedId(c.obj.obj.id);
   if (oid !== c.obj.obj.id && ui.tab === 'holes') { toast('A part is finished geometry: its openings are set inside the part'); return; }

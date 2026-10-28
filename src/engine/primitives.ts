@@ -362,7 +362,7 @@ export function compileScene(objects: SceneObject[]): CompiledObject[] {
 
 /** Which object/face of a scene a world-space surface point belongs to (nearest |sdf|). */
 export function classifyPoint(
-  objs: CompiledObject[], x: number, y: number, z: number, modes: SceneObject['mode'][] = ['shell', 'solid', 'subtract'],
+  objs: CompiledObject[], x: number, y: number, z: number, modes: SceneObject['mode'][] = ['shell', 'solid', 'subtract', 'cutout'],
 ): { obj: CompiledObject; face: string; dist: number } | null {
   let best: CompiledObject | null = null;
   let bd = Infinity;

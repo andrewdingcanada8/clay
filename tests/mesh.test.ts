@@ -31,12 +31,12 @@ describe('mesh kernel openings', () => {
 });
 
 describe('mesh kernel cuts', () => {
-  it('a closed cut keeps a wall; an open one opens the hollow', async () => {
+  it('subtract keeps a wall; a cutout opens the hollow', async () => {
     for (const openCut of [false, true]) {
       const sphere = makeObject('sphere', { params: { r: 3 }, mode: 'shell' });
       const box = makeObject('box', { params: { x: 4, y: 8, z: 8 }, mode: 'subtract' });
       box.transform.position = [3, 0, 0];
-      if (openCut) box.openCut = true;
+      if (openCut) box.mode = 'cutout';
       const d = { ...emptyDoc(), objects: [sphere, box], kernel: 'mesh' as const };
       d.groups = d.groups.map((g) => ({ ...g, thickness: 0.4 }));
       const r = await buildMeshKernel(d, 'normal');

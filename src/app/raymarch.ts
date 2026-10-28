@@ -10,7 +10,7 @@
 
 import * as THREE from 'three';
 import type { CavityGrid } from '../engine/cavity';
-import type { SceneDoc } from '../engine/document';
+import { type SceneDoc, isCut } from '../engine/document';
 import { buildProfileTable, tableProfile } from '../engine/profileTable';
 import { MAX_PATH_POINTS, MAX_SECTION_POINTS } from '../engine/sweep';
 import type { CompiledObject } from '../engine/primitives';
@@ -849,7 +849,7 @@ export class SdfRenderer {
 
 /** Bit mask of a primitive's faces that are openings (layout matches holeDepth in the shader). */
 function holeMask(o: CompiledObject, g: CompiledGroup): number {
-  if (o.obj.mode === 'subtract') return o.obj.openCut ? 1 : 0; // an open cut gets no wall
+  if (isCut(o.obj.mode)) return o.obj.mode === 'cutout' ? 1 : 0; // a cutout gets no wall
   const h = (f: string) => g.holes.has(`${o.obj.id}|${f}`);
   let names: string[] = [];
   switch (o.obj.type) {

@@ -15,11 +15,10 @@ export interface Example {
 }
 
 function obj(type: PrimitiveType, params: SceneObject['params'], o: {
-  pos?: Vec3; rot?: Vec3; scale?: Vec3; mode?: ObjectMode; holes?: string[]; name?: string; id?: string; group?: string; openCut?: boolean;
+  pos?: Vec3; rot?: Vec3; scale?: Vec3; mode?: ObjectMode; holes?: string[]; name?: string; id?: string; group?: string;
 } = {}): SceneObject {
   const so = makeObject(type, { params, mode: o.mode ?? 'shell', holes: o.holes ?? [] });
   if (o.group) so.groupId = o.group;
-  if (o.openCut) so.openCut = true;
   so.transform = { position: o.pos ?? [0, 0, 0], rotation: o.rot ?? [0, 0, 0], scale: o.scale ?? [1, 1, 1] };
   if (o.name) so.name = o.name;
   so.id = o.id ?? so.id;
@@ -316,12 +315,12 @@ export function examples(): Example[] {
   }
 
   list.push({
-    id: 'teapot', title: 'Large teapot, cut lid opening', notes: 'A ~60 cm teapot with an almost flat top, a round Subtract opening (an open cut), a Shell spout and a Solid handle. The rim of the opening must stay round.',
+    id: 'teapot', title: 'Large teapot, cut lid opening', notes: 'A ~60 cm teapot with an almost flat top, a round Cutout lid opening, a Shell spout and a Solid handle. The rim of the opening must stay round.',
     doc: doc([
       obj('revolve', { points: [
         { r: 6, y: -8, corner: true }, { r: 11, y: -4 }, { r: 12, y: 1 }, { r: 9.5, y: 6 }, { r: 0.01, y: 7.8, corner: true },
       ] }, { name: 'Body' }),
-      obj('cylinder', { r: 4.2, h: 4 }, { pos: [0, 8, 0], mode: 'subtract', openCut: true, name: 'Lid opening' }),
+      obj('cylinder', { r: 4.2, h: 4 }, { pos: [0, 8, 0], mode: 'cutout', name: 'Lid opening' }),
       obj('capsule', { r: 1.6, h: 8 }, { pos: [-12, 5, 0], rot: [0, 0, 45], holes: [], name: 'Spout' }),
       obj('torus', { R: 4, r: 0.9 }, { pos: [12, 1.5, 0], rot: [90, 0, 0], mode: 'solid', name: 'Handle' }),
     ], 0.4),

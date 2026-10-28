@@ -450,7 +450,7 @@ export class Viewport {
     this.ghost.clear();
     if (!obj) { this.invalidate(); return; }
     const geo = ghostGeometry(obj, this.partDefs);
-    const color = obj.mode === 'subtract' ? 0xd04040 : obj.mode === 'solid' ? 0x3a7bd5 : 0xff8a1f;
+    const color = obj.mode === 'subtract' ? 0xd04040 : obj.mode === 'cutout' ? 0x9b3fb5 : obj.mode === 'solid' ? 0x3a7bd5 : 0xff8a1f;
     const fill = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.12, depthWrite: false }));
     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 }));
     fill.renderOrder = edges.renderOrder = 2;

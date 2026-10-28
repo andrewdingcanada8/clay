@@ -100,7 +100,7 @@ export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid 
     let best = 0, bd = Infinity;
     g.shells.forEach((o, i) => { const d = Math.abs(sdfWorld(o, x, y, z)); if (d < bd) { bd = d; best = i; } });
     g.subs.forEach((o, i) => { const d = Math.abs(sdfWorld(o, x, y, z)); if (d < bd) { bd = d; best = g.shells.length + i; } });
-    if (best >= g.shells.length) { if (g.subs[best - g.shells.length].obj.openCut) return; }
+    if (best >= g.shells.length) { if (g.subs[best - g.shells.length].obj.mode === 'cutout') return; }
     else if (g.holes.size && isOpening(g.shells[best], x, y, z, n)) return;
     const s = sx.length;
     sObj.push(best);

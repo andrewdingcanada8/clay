@@ -7,7 +7,7 @@
 // Parts scale uniformly: a non-uniform scale of a rotated object is a shear, which
 // an object transform can't hold.
 
-import { type PartDef, type SceneDoc, type SceneObject, type Transform, cloneDoc, newId } from './document';
+import { type PartDef, type SceneDoc, type SceneObject, type Transform, cloneDoc, isCut, newId } from './document';
 import { DEG, type Vec3, eulerXYZ, mulMat3Vec } from './math';
 
 /** Separates a placed part's id from its inner object ids in expanded ids. */
@@ -71,12 +71,12 @@ export function expandParts(doc: SceneDoc): SceneDoc {
     if (o.type !== 'part') { out.objects.push(o); return; }
     const def = defs.get(o.params.part ?? '');
     if (!def || o.hidden || depth > 4) return;
-    if (o.mode === 'subtract') {
+    if (isCut(o.mode)) {
       // carve the part's outer envelope from the group it was placed in
       for (const inner of def.objects) {
-        if (inner.mode === 'subtract' || inner.type === 'part' || inner.hidden) continue;
+        if (isCut(inner.mode) || inner.type === 'part' || inner.hidden) continue;
         const c: SceneObject = JSON.parse(JSON.stringify(inner));
-        out.objects.push({ ...c, id: `${o.id}${PART_SEP}${inner.id}`, mode: 'subtract', groupId: o.groupId, holes: [], transform: composeTransform(o.transform, inner.transform) });
+        out.objects.push({ ...c, id: `${o.id}${PART_SEP}${inner.id}`, mode: o.mode, groupId: o.groupId, holes: [], transform: composeTransform(o.transform, inner.transform) });
       }
       return;
     }

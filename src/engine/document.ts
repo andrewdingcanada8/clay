@@ -14,7 +14,10 @@ export type PrimitiveType = 'sphere' | 'box' | 'cylinder' | 'cone' | 'torus' | '
  *  solid    — never hollowed itself, but still cut by its group's cavity.
  *  subtract — joins the cavity: carved out of its group (no wall around it).
  */
-export type ObjectMode = 'shell' | 'solid' | 'subtract';
+/** subtract: carved from the shell shape before hollowing (the cut gets a wall);
+ *  cutout: carved from the finished piece, walls and all (opens into the hollow). */
+export type ObjectMode = 'shell' | 'solid' | 'subtract' | 'cutout';
+export const isCut = (m: ObjectMode) => m === 'subtract' || m === 'cutout';
 
 export interface Group {
   id: string;
@@ -70,8 +73,6 @@ export interface SceneObject {
   groupId: string;
   /** Face ids of this object that become openings when shelled. */
   holes: string[];
-  /** Subtract objects: the cut opens into the hollow (no wall forms on it). */
-  openCut?: boolean;
   hidden?: boolean;
 }
 
@@ -255,7 +256,7 @@ export function normalizeDoc(d: Partial<SceneDoc> & { shell?: { enabled?: boolea
   const legacyWall = d.shell?.thickness;
   const groups = d.groups?.length ? d.groups : [{ ...base.groups[0], thickness: legacyWall ?? DEFAULT_WALL }];
   const groupIds = new Set(groups.map((g) => g.id));
-  const modeMap: Record<string, ObjectMode> = { join: 'shell', cut: 'subtract', solid: 'solid', shell: 'shell', subtract: 'subtract' };
+  const modeMap: Record<string, ObjectMode> = { join: 'shell', cut: 'subtract', solid: 'solid', shell: 'shell', subtract: 'subtract', cutout: 'cutout' };
   return {
     ...base,
     ...d,
@@ -265,7 +266,8 @@ export function normalizeDoc(d: Partial<SceneDoc> & { shell?: { enabled?: boolea
     objects: (d.objects ?? []).map((o) => ({
       ...makeObject(o.type),
       ...o,
-      mode: modeMap[o.mode as string] ?? 'shell',
+      // (an 'open cut' subtract was briefly a flag; it is the cutout role)
+      mode: (o as { openCut?: boolean }).openCut ? 'cutout' : modeMap[o.mode as string] ?? 'shell',
       groupId: o.groupId && groupIds.has(o.groupId) ? o.groupId : groups[0].id,
       holes: o.holes ?? [],
     })),
