@@ -21,6 +21,9 @@ import { SdfRenderer } from './raymarch';
 
 export type GizmoMode = 'translate' | 'rotate' | 'scale' | 'off';
 
+/** SDF resolution while the view moves, as fractions of the settled one (starts at 0.5). */
+const MOVING_LEVELS = [0.35, 0.5, 0.7, 1];
+
 export class Viewport {
   renderer: THREE.WebGLRenderer;
   scene = new THREE.Scene();
@@ -47,12 +50,16 @@ export class Viewport {
   private mode: 'sdf' | 'mesh' = 'sdf';
   private basePixelRatio = Math.min(window.devicePixelRatio, 2);
   private settleTimer = 0;
-  /** SDF: resolution while the view moves, as a fraction of the settled one. Adapts
-   *  to the frame rate (see adaptMoving); the settled frame is always full resolution. */
-  private movingScale = 0.5;
+  /** SDF: resolution while the view moves, as a fraction of the settled one: one of
+   *  MOVING_LEVELS, adapted to the frame rate (see adaptMoving). The settled frame is
+   *  always full resolution. */
+  private movingLevel = 1;
   private moving = false;
   private frameTimes: number[] = [];
-  private lastAdapt = 0;
+  /** this drag: already stepped down once / every frame so far came at full rate */
+  private dragStepped = false;
+  private dragSmooth = true;
+  private dragFrames = 0;
 
   constructor(private host: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
@@ -114,27 +121,32 @@ export class Viewport {
     requestAnimationFrame(loop);
   }
 
-  /** While moving, keep frames between ~18 and ~30 ms by scaling the resolution
-   *  (from 0.3 to 1 of the settled one), judged on the interval between frames. */
+  /**
+   * While moving, judged on the interval between frames: frames slower than ~28 ms
+   * over a dozen frames step the resolution down one level (at most once per drag).
+   * Faster can't be told apart from a frame rate capped by the screen, so a level is
+   * only won back at the start of the next drag, after a whole drag ran at full rate.
+   * Changing the size mid-drag redraws at once (see resize), so it never flashes.
+   */
   private adaptMoving(now: number) {
     const f = this.frameTimes;
     f.push(now);
-    if (f.length > 9) f.shift();
-    if (f.length < 9 || now - this.lastAdapt < 400) return;
-    const dt = (f[8] - f[0]) / 8;
-    let k = this.movingScale;
-    if (dt > 30) k = Math.max(0.3, k * Math.sqrt(24 / dt));
-    else if (dt < 18) k = Math.min(1, k * 1.15);
-    if (Math.abs(k - this.movingScale) < 0.02) return;
-    this.movingScale = k;
-    this.lastAdapt = now;
-    f.length = 0;
-    this.renderer.setPixelRatio(this.movingRatio());
-    this.resize();
+    if (f.length > 13) f.shift();
+    if (f.length < 13) return;
+    const dt = (f[12] - f[0]) / 12;
+    this.dragFrames++;
+    if (dt > 20) this.dragSmooth = false;
+    if (dt > 28 && !this.dragStepped && this.movingLevel > 0) {
+      this.dragStepped = true;
+      this.movingLevel--;
+      f.length = 0;
+      this.renderer.setPixelRatio(this.movingRatio());
+      this.resize();
+    }
   }
 
   private movingRatio() {
-    return Math.max(0.35, this.basePixelRatio * this.movingScale);
+    return Math.max(0.35, this.basePixelRatio * MOVING_LEVELS[this.movingLevel]);
   }
 
   invalidate() {
@@ -272,6 +284,13 @@ export class Viewport {
       this.renderer.setPixelRatio(ratio);
       this.resize();
     };
+    if (on && !this.moving) {
+      // a whole smooth drag before this one: try a level finer
+      if (this.dragSmooth && !this.dragStepped && this.dragFrames > 30 && this.movingLevel < MOVING_LEVELS.length - 1) this.movingLevel++;
+      this.dragStepped = false;
+      this.dragSmooth = true;
+      this.dragFrames = 0;
+    }
     this.moving = on;
     this.frameTimes.length = 0;
     if (on && this.mode === 'sdf') apply(this.movingRatio());
@@ -337,6 +356,8 @@ export class Viewport {
     this.renderer.setSize(w, h);
     this.camera.aspect = w / Math.max(1, h);
     this.camera.updateProjectionMatrix();
+    // resizing clears the canvas: draw again now, or a blank frame shows
+    this.renderer.render(this.scene, this.camera);
     this.invalidate();
   }
 
