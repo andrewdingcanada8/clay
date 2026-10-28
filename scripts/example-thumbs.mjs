@@ -11,8 +11,8 @@ mkdirSync(outDir, { recursive: true });
 
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
-await page.goto(url);
-await page.waitForFunction(() => window.__clay, null, { timeout: 60000 });
+await page.goto(url, { waitUntil: 'commit', timeout: 120000 });
+await page.waitForFunction(() => window.__clay, null, { timeout: 300000 });
 const ids = process.argv.slice(2).length ? process.argv.slice(2)
   : await page.evaluate(async () => (await import('/src/examples.ts')).examples().map((e) => e.id));
 for (const id of ids) {
