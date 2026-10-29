@@ -11,6 +11,7 @@
 // Openings: for each hole face (planar faces only), the cavity next to that face is
 // extruded straight out through the face (hull of a thin slab), then subtracted.
 
+import type { SampledProfile } from './profile';
 import Module from 'manifold-3d';
 import type { CrossSection, Manifold, ManifoldToplevel } from 'manifold-3d';
 import { type Quality, type SceneDoc, isCut } from './document';
@@ -89,10 +90,35 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
   };
   const toY = (m: Manifold) => keep(m.rotate([-90, 0, 0])); // Z-up (Manifold) -> Y-up
 
-  interface Built { solid: Manifold; cavity: (delta: number) => Manifold | null; approx: boolean }
+  interface Built {
+    solid: Manifold;
+    cavity: (delta: number) => Manifold | null;
+    approx: boolean;
+    /** The hollow with the given flat faces open, as the SDF kernel defines it: a
+     *  wall of t under every other face, and the hollow running on `ext` past the
+     *  open ones (so a rim keeps its full wall where a gently sloping surface meets
+     *  the opening, and openings sharing an edge leave no ridge between them). */
+    opened?: (t: number, open: Set<string>, ext: number) => Manifold | null;
+  }
+
+  // Convex objects with flat faces (boxes, prisms): every face plane, closed ones
+  // moved in by t and open ones out by ext, intersected (in world space).
+  const openedByPlanes = (c: CompiledObject) => (t: number, open: Set<string>, ext: number) => {
+    const b = c.worldBounds, m = ext + 1;
+    let box = keep(keep(Manifold.cube([b.max[0] - b.min[0] + 2 * m, b.max[1] - b.min[1] + 2 * m, b.max[2] - b.min[2] + 2 * m])).translate([b.min[0] - m, b.min[1] - m, b.min[2] - m]));
+    for (const f of c.faces) {
+      if (!f.plane) continue;
+      const n = normalToWorld(c, ...f.plane.n);
+      const p: Vec3 = [0, 0, 0];
+      toWorld(c, f.plane.p[0], f.plane.p[1], f.plane.p[2], p);
+      const off = n[0] * p[0] + n[1] * p[1] + n[2] * p[2] + (open.has(f.id) ? ext : -t);
+      box = keep(box.trimByPlane([-n[0], -n[1], -n[2]], -off));
+    }
+    return box.isEmpty() ? null : box;
+  };
 
   // Revolve family: (r,y) outline, mirrored across the axis for offsetting.
-  const revolveFrom = (c: CompiledObject, outline: number[]): Built => {
+  const revolveFrom = (c: CompiledObject, outline: number[], prof?: SampledProfile): Built => {
     const [sx, sy, sz] = c.scale;
     const uniformXZ = Math.abs(sx - sz) < 1e-6;
     const kr = uniformXZ ? sx : 1, ky = uniformXZ ? sy : 1;
@@ -111,10 +137,33 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
       return keep(m.transform(mat as never));
     };
     const scaleT = uniformXZ ? 1 : 1 / Math.sqrt(sx * sz);
+    // openings (flat caps): each open segment of the profile pushed out by ext along
+    // its normal, then the whole offset in by t, so the hollow runs out through it
+    const opened = prof && (prof.n === outline.length / 2) ? (t: number, open: Set<string>, ext: number) => {
+      const q: [number, number][] = [];
+      for (let i = 0; i < prof.n; i++) q.push([Math.max(0, prof.pts[2 * i]) * kr, prof.pts[2 * i + 1] * ky]);
+      let area = 0;
+      for (let i = 0; i < q.length; i++) { const a = q[i], b = q[(i + 1) % q.length]; area += a[0] * b[1] - b[0] * a[1]; }
+      const sgn = area > 0 ? 1 : -1; // outward normal of a counter-clockwise loop is (dy, -dx)
+      const out: [number, number][] = [];
+      for (let i = 0; i < q.length; i++) {
+        const a = q[i], b = q[(i + 1) % q.length];
+        out.push(a);
+        if (open.has(prof.segFace[i])) {
+          const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1;
+          const nx = (sgn * dy) / l, ny = (-sgn * dx) / l;
+          out.push([Math.max(0, a[0] + nx * ext), a[1] + ny * ext], [Math.max(0, b[0] + nx * ext), b[1] + ny * ext]);
+        }
+      }
+      const h2 = keep(new CrossSection([ccw(out)], 'Positive'));
+      const f2 = keep(h2.add(keep(h2.mirror([1, 0]))));
+      return make(rightHalf(keep(f2.offset(-t * scaleT, 'Round', 2, segs))));
+    } : undefined;
     return {
       solid: make(rightHalf(full))!,
       cavity: (delta) => make(rightHalf(keep(full.offset(delta * scaleT, 'Round', 2, segs)))),
       approx: !uniformXZ,
+      opened,
     };
   };
 
@@ -264,13 +313,12 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
 
   const build = (c: CompiledObject): Built => {
     if (c.sweep) return sweepFrom(c);
-    if (c.frustum) return frustumFrom(c, c.frustum);
-    if (c.extrusion) return extrudeFrom(c, c.extrusion.poly, c.extrusion.h);
-    // revolves and rounded cylinders and cones: the (rounded) profile itself
-    const outline = c.obj.type === 'revolve' || c.round > 0
-      ? Array.from(c.profile!.pts)
-      : revolveOutline(c.obj.type, c.obj.params, segs)!;
-    return revolveFrom(c, outline);
+    if (c.frustum) return { ...frustumFrom(c, c.frustum), opened: openedByPlanes(c) };
+    if (c.extrusion) return { ...extrudeFrom(c, c.extrusion.poly, c.extrusion.h), opened: openedByPlanes(c) };
+    // revolves, cylinders and cones: their (rounded) profile; spheres, tori and
+    // capsules: a fine outline
+    const outline = c.profile ? Array.from(c.profile.pts) : revolveOutline(c.obj.type, c.obj.params, segs)!;
+    return revolveFrom(c, outline, c.profile);
   };
 
   const built = new Map<string, Built>();
@@ -312,6 +360,9 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
     const material = union([shellU, ...solids.map((c) => built.get(c.obj.id)!.solid)]);
     if (!material) continue;
     const cuts: (Manifold | null)[] = subs.map((c) => built.get(c.obj.id)!.solid);
+    // objects whose openings are all flat faces, on a shape that can open them exactly
+    const exactOpenings = (c: CompiledObject) => c.obj.holes.length > 0 && !c.sweep && !!built.get(c.obj.id)!.opened
+      && c.obj.holes.every((f) => !!c.faces.find((x) => x.id === f)?.plane);
     const hollow = shell && !!shellU;
     if (hollow && shellU) {
       // Subtract objects are carved before hollowing: they keep a wall of thickness t
@@ -322,13 +373,15 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
       if (doc.meshMethod === 'minkowski') {
         cavity = keep((closed ? keep(shellU.subtract(closed)) : shellU).minkowskiDifference(ball));
       } else {
-        cavity = union(shells.map((c) => built.get(c.obj.id)!.cavity(-t)));
+        // each form's hollow; with flat openings, opened exactly (see Built.opened)
+        cavity = union(shells.map((c) => (exactOpenings(c) ? built.get(c.obj.id)!.opened!(t, new Set(c.obj.holes), t + 0.2) : built.get(c.obj.id)!.cavity(-t))));
       }
       const cavCuts: (Manifold | null)[] = [];
       for (const c of shells) if (built.get(c.obj.id)!.approx) warnings.push(`${c.obj.name}: X/Z scale differs, wall thickness approximate`);
       // Openings: extrude the cavity next to each hole face straight out through it.
       if (cavity && !cavity.isEmpty()) {
         for (const c of shells) {
+          if (doc.meshMethod !== 'minkowski' && exactOpenings(c)) continue; // opened exactly above
           // world normals of this object's flat openings
           const openN: Vec3[] = [];
           for (const fid of c.obj.holes) {

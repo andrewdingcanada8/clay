@@ -40,19 +40,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 42,
-   "vertices": 23,
+   "triangles": 28,
+   "vertices": 16,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 13.2,
-    "primitives": 4.9,
-    "groups": 8.9,
-    "finish": 0.3,
+    "wasm": 24,
+    "primitives": 4.8,
+    "groups": 6.1,
+    "finish": 0.5,
     "extract": 0.9
    },
-   "totalMs": 28.2
+   "totalMs": 36.4
   },
   "whiteFrac": [
    [
@@ -116,19 +116,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 18434,
-   "vertices": 9219,
+   "triangles": 18414,
+   "vertices": 9209,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 7.9,
-    "primitives": 16.3,
-    "groups": 53.9,
-    "finish": 20.1,
-    "extract": 3.1
+    "wasm": 13.3,
+    "primitives": 12.4,
+    "groups": 38.2,
+    "finish": 21.6,
+    "extract": 4.8
    },
-   "totalMs": 105.2
+   "totalMs": 93.2
   },
   "whiteFrac": [
    [
@@ -214,13 +214,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 8.3,
-    "primitives": 218.3,
-    "groups": 1916.6,
-    "finish": 1302.2,
-    "extract": 124.5
+    "wasm": 5.8,
+    "primitives": 199.8,
+    "groups": 3365.2,
+    "finish": 1498.5,
+    "extract": 139.7
    },
-   "totalMs": 4046.3
+   "totalMs": 5683.8
   },
   "whiteFrac": [
    [
@@ -300,19 +300,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 21612,
-   "vertices": 10808,
+   "triangles": 21600,
+   "vertices": 10802,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 19.9,
-    "primitives": 7,
-    "groups": 42.1,
-    "finish": 28,
-    "extract": 2.1
+    "wasm": 5.7,
+    "primitives": 7.3,
+    "groups": 12,
+    "finish": 28.6,
+    "extract": 1.8
    },
-   "totalMs": 102.4
+   "totalMs": 58.5
   },
   "whiteFrac": [
    [
@@ -326,7 +326,7 @@
    [
     0,
     0,
-    0.17328402366863904,
+    0.18035502958579883,
     0,
     0,
     0
@@ -376,28 +376,28 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 11088,
-   "vertices": 5546,
+   "triangles": 11664,
+   "vertices": 5834,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 13.1,
-    "primitives": 4.6,
-    "groups": 22.2,
-    "finish": 14.9,
-    "extract": 1.2
+    "wasm": 14.8,
+    "primitives": 5.6,
+    "groups": 7.6,
+    "finish": 20.7,
+    "extract": 1.9
    },
-   "totalMs": 58.2
+   "totalMs": 54
   },
   "whiteFrac": [
    [
-    0.18097633136094674,
-    0.18097633136094674,
+    0.186198224852071,
+    0.186198224852071,
     1,
     0,
-    0.18097633136094674,
-    0.18097633136094674
+    0.186198224852071,
+    0.186198224852071
    ]
   ],
   "width": 1560,
@@ -444,19 +444,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 1972,
-   "vertices": 976,
+   "triangles": 1576,
+   "vertices": 778,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 12.1,
+    "wasm": 11.7,
     "primitives": 0.7,
-    "groups": 6.5,
-    "finish": 11.5,
-    "extract": 0.5
+    "groups": 1.7,
+    "finish": 10.2,
+    "extract": 0.4
    },
-   "totalMs": 31.9
+   "totalMs": 25
   },
   "whiteFrac": [
    [
@@ -512,25 +512,25 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 12636,
-   "vertices": 6320,
+   "triangles": 12716,
+   "vertices": 6360,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 13.1,
-    "primitives": 4.9,
-    "groups": 33.5,
-    "finish": 15.7,
+    "wasm": 13.3,
+    "primitives": 4.5,
+    "groups": 18.1,
+    "finish": 15.1,
     "extract": 1.3
    },
-   "totalMs": 71.9
+   "totalMs": 54.6
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.2188165680473373,
+    0.22130177514792898,
     0,
     0,
     0
@@ -580,19 +580,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 25290,
-   "vertices": 12647,
+   "triangles": 25278,
+   "vertices": 12641,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 13.6,
-    "primitives": 15.5,
-    "groups": 306,
-    "finish": 49.6,
-    "extract": 3.8
+    "wasm": 14.8,
+    "primitives": 7.3,
+    "groups": 245.7,
+    "finish": 45.1,
+    "extract": 2.3
    },
-   "totalMs": 393
+   "totalMs": 319.3
   },
   "whiteFrac": [
    [
@@ -648,19 +648,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 22932,
-   "vertices": 11468,
+   "triangles": 22920,
+   "vertices": 11462,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 7.8,
-    "primitives": 14.5,
-    "groups": 66.4,
-    "finish": 53.6,
-    "extract": 3.3
+    "wasm": 19.3,
+    "primitives": 7.6,
+    "groups": 11.5,
+    "finish": 77.6,
+    "extract": 1.8
    },
-   "totalMs": 149.6
+   "totalMs": 121.6
   },
   "whiteFrac": [
    [
@@ -722,13 +722,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 12.3,
-    "primitives": 16.1,
-    "groups": 20.7,
-    "finish": 61.6,
+    "wasm": 16,
+    "primitives": 18.2,
+    "groups": 19.3,
+    "finish": 74.5,
     "extract": 3.2
    },
-   "totalMs": 120.1
+   "totalMs": 136.9
   },
   "whiteFrac": [
    [
@@ -784,19 +784,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 376,
-   "vertices": 198,
+   "triangles": 364,
+   "vertices": 192,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 8.6,
-    "primitives": 5.9,
-    "groups": 17.9,
-    "finish": 1.1,
-    "extract": 0.8
+    "wasm": 21.1,
+    "primitives": 1,
+    "groups": 5.6,
+    "finish": 0.5,
+    "extract": 0.3
    },
-   "totalMs": 34.5
+   "totalMs": 28.6
   },
   "whiteFrac": [
    [
@@ -862,19 +862,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 22064,
-   "vertices": 11034,
+   "triangles": 21888,
+   "vertices": 10946,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 7.6,
-    "primitives": 14.5,
-    "groups": 66.9,
-    "finish": 50.5,
-    "extract": 3.2
+    "wasm": 13.5,
+    "primitives": 6.8,
+    "groups": 11.3,
+    "finish": 45.8,
+    "extract": 2.6
    },
-   "totalMs": 148.2
+   "totalMs": 105.2
   },
   "whiteFrac": [
    [
@@ -954,13 +954,13 @@
     "Sphere 1: opening on curved face \"surface\" not supported by the mesh kernel"
    ],
    "timings": {
-    "wasm": 8.1,
-    "primitives": 99.9,
-    "groups": 551.6,
-    "finish": 258.7,
-    "extract": 16.8
+    "wasm": 7.3,
+    "primitives": 105.9,
+    "groups": 896,
+    "finish": 286,
+    "extract": 59.7
    },
-   "totalMs": 1043
+   "totalMs": 1478.3
   },
   "whiteFrac": [
    [
@@ -1032,21 +1032,21 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 14782,
-   "vertices": 7393,
+   "triangles": 14750,
+   "vertices": 7377,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [
     "Sphere: X/Z scale differs, wall thickness approximate"
    ],
    "timings": {
-    "wasm": 22.1,
-    "primitives": 15.9,
-    "groups": 65.2,
-    "finish": 23.9,
-    "extract": 2.5
+    "wasm": 16.5,
+    "primitives": 7.5,
+    "groups": 35,
+    "finish": 21.3,
+    "extract": 1.3
    },
-   "totalMs": 132.3
+   "totalMs": 84
   },
   "whiteFrac": [
    [
@@ -1110,19 +1110,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 40,
-   "vertices": 22,
+   "triangles": 28,
+   "vertices": 16,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 14.5,
-    "primitives": 0.5,
-    "groups": 1.5,
-    "finish": 0.2,
+    "wasm": 12.8,
+    "primitives": 0.4,
+    "groups": 1.4,
+    "finish": 0.1,
     "extract": 0.2
    },
-   "totalMs": 16.9
+   "totalMs": 14.9
   },
   "whiteFrac": [
    [
@@ -1186,19 +1186,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 408,
-   "vertices": 210,
+   "triangles": 378,
+   "vertices": 195,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 12.8,
-    "primitives": 1.1,
-    "groups": 3.9,
-    "finish": 4.5,
-    "extract": 0.3
+    "wasm": 12.7,
+    "primitives": 1.6,
+    "groups": 2.8,
+    "finish": 4.2,
+    "extract": 0.2
    },
-   "totalMs": 22.7
+   "totalMs": 21.7
   },
   "whiteFrac": [
    [
@@ -1262,19 +1262,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 24198,
-   "vertices": 12103,
+   "triangles": 24186,
+   "vertices": 12097,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 7.8,
-    "primitives": 24.8,
-    "groups": 69.8,
-    "finish": 20.7,
-    "extract": 3
+    "wasm": 15.5,
+    "primitives": 18.8,
+    "groups": 50.6,
+    "finish": 25.2,
+    "extract": 2.1
    },
-   "totalMs": 131.4
+   "totalMs": 116.1
   },
   "whiteFrac": [
    [
@@ -1330,19 +1330,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 16936,
-   "vertices": 8470,
+   "triangles": 16590,
+   "vertices": 8297,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 21.2,
-    "primitives": 16.7,
-    "groups": 78.5,
-    "finish": 31.9,
-    "extract": 2.7
+    "wasm": 11.7,
+    "primitives": 7.7,
+    "groups": 38.5,
+    "finish": 28.3,
+    "extract": 1.5
    },
-   "totalMs": 153.9
+   "totalMs": 90.3
   },
   "whiteFrac": [
    [
@@ -1398,25 +1398,25 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 27088,
-   "vertices": 13546,
+   "triangles": 26902,
+   "vertices": 13453,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 12.7,
-    "primitives": 20,
-    "groups": 51.5,
-    "finish": 50.3,
-    "extract": 2.2
+    "wasm": 15.4,
+    "primitives": 24.4,
+    "groups": 38.6,
+    "finish": 54.5,
+    "extract": 2.4
    },
-   "totalMs": 140.9
+   "totalMs": 139.8
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.1733284023668639,
+    0.1734319526627219,
     0,
     0,
     0
@@ -1469,25 +1469,25 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 27122,
-   "vertices": 13563,
+   "triangles": 26890,
+   "vertices": 13447,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 14,
-    "primitives": 30.2,
-    "groups": 72.5,
-    "finish": 67.6,
-    "extract": 3.6
+    "wasm": 13.8,
+    "primitives": 24.8,
+    "groups": 32.9,
+    "finish": 103.6,
+    "extract": 22.7
    },
-   "totalMs": 192.8
+   "totalMs": 202.1
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.19551775147928993,
+    0.1957396449704142,
     0,
     0,
     0
@@ -1537,25 +1537,25 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 21032,
-   "vertices": 10518,
+   "triangles": 21024,
+   "vertices": 10514,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 14.3,
-    "primitives": 20.9,
-    "groups": 24.3,
-    "finish": 30.2,
-    "extract": 19.6
+    "wasm": 5.7,
+    "primitives": 18.1,
+    "groups": 7.2,
+    "finish": 28.1,
+    "extract": 18
    },
-   "totalMs": 112.5
+   "totalMs": 80.2
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.32957100591715977,
+    0.3329289940828402,
     0,
     0,
     0
@@ -1605,28 +1605,28 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 76,
-   "vertices": 42,
+   "triangles": 68,
+   "vertices": 38,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 14.8,
-    "primitives": 1.4,
-    "groups": 1.9,
-    "finish": 0.3,
-    "extract": 0.2
+    "wasm": 11.5,
+    "primitives": 0.6,
+    "groups": 1.8,
+    "finish": 0.2,
+    "extract": 0.3
    },
-   "totalMs": 18.7
+   "totalMs": 14.4
   },
   "whiteFrac": [
    [
-    0.0016715976331360947,
-    0.0016715976331360947,
+    0.00008875739644970414,
+    0.00008875739644970414,
     0,
-    0.5845562130177515,
-    0.0016715976331360947,
-    0.0016715976331360947
+    0.5190532544378699,
+    0.00008875739644970414,
+    0.00008875739644970414
    ]
   ],
   "width": 1560,
@@ -1848,25 +1848,25 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 22590,
-   "vertices": 11295,
+   "triangles": 22670,
+   "vertices": 11335,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 14.5,
-    "primitives": 40.6,
-    "groups": 41.6,
-    "finish": 41.9,
-    "extract": 3
+    "wasm": 17.3,
+    "primitives": 26.4,
+    "groups": 5.7,
+    "finish": 36,
+    "extract": 1.9
    },
-   "totalMs": 145.5
+   "totalMs": 91
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.25662721893491125,
+    0.25988165680473374,
     0,
     0,
     0
@@ -1913,13 +1913,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 7,
-    "primitives": 73.1,
-    "groups": 53.6,
-    "finish": 116.7,
-    "extract": 7.1
+    "wasm": 13,
+    "primitives": 55.7,
+    "groups": 49.1,
+    "finish": 97.2,
+    "extract": 5.4
    },
-   "totalMs": 268.2
+   "totalMs": 230.5
   },
   "whiteFrac": [],
   "width": 1560,
@@ -1963,13 +1963,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 9.9,
-    "primitives": 110.8,
-    "groups": 274.8,
-    "finish": 244,
-    "extract": 8.8
+    "wasm": 15.4,
+    "primitives": 83.8,
+    "groups": 372.8,
+    "finish": 314.1,
+    "extract": 15.5
    },
-   "totalMs": 657.2
+   "totalMs": 827.8
   },
   "whiteFrac": [],
   "width": 1560,
@@ -1987,13 +1987,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 7.4,
-    "primitives": 39.1,
-    "groups": 65.1,
-    "finish": 83.6,
-    "extract": 4.5
+    "wasm": 5.8,
+    "primitives": 26.5,
+    "groups": 43.6,
+    "finish": 76.9,
+    "extract": 3
    },
-   "totalMs": 205.3
+   "totalMs": 160.8
   },
   "whiteFrac": [
    [
@@ -2014,19 +2014,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 1392,
-   "vertices": 694,
+   "triangles": 976,
+   "vertices": 486,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 14.1,
-    "primitives": 0.8,
-    "groups": 7.5,
-    "finish": 6.4,
-    "extract": 0.4
+    "wasm": 17.5,
+    "primitives": 0.6,
+    "groups": 1.3,
+    "finish": 5,
+    "extract": 0.3
    },
-   "totalMs": 29.6
+   "totalMs": 24.9
   },
   "whiteFrac": [
    [
@@ -2053,13 +2053,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 8,
-    "primitives": 23.7,
-    "groups": 70.3,
-    "finish": 62.5,
-    "extract": 5
+    "wasm": 13.3,
+    "primitives": 14.3,
+    "groups": 45.8,
+    "finish": 57.7,
+    "extract": 3.1
    },
-   "totalMs": 175.9
+   "totalMs": 139.8
   },
   "whiteFrac": [
    [
@@ -2088,13 +2088,13 @@
     "Pebble: X/Z scale differs, wall thickness approximate"
    ],
    "timings": {
-    "wasm": 20.3,
-    "primitives": 15.7,
-    "groups": 14.2,
-    "finish": 34.5,
-    "extract": 2.9
+    "wasm": 13.5,
+    "primitives": 7.8,
+    "groups": 9.1,
+    "finish": 22.4,
+    "extract": 1.8
    },
-   "totalMs": 91.5
+   "totalMs": 57.8
   },
   "whiteFrac": [
    [
@@ -2115,21 +2115,21 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 52490,
-   "vertices": 26247,
+   "triangles": 52042,
+   "vertices": 26023,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [
     "Group 1: smooth blend needs the SDF kernel; shown as a sharp union"
    ],
    "timings": {
-    "wasm": 13.8,
-    "primitives": 30.1,
-    "groups": 207.1,
-    "finish": 57.4,
-    "extract": 4.2
+    "wasm": 12.3,
+    "primitives": 28.9,
+    "groups": 166.3,
+    "finish": 55.5,
+    "extract": 4.4
    },
-   "totalMs": 320.6
+   "totalMs": 275.2
   },
   "whiteFrac": [
    [
@@ -2182,13 +2182,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 8.5,
-    "primitives": 64.6,
-    "groups": 135.4,
-    "finish": 29.8,
-    "extract": 3.8
+    "wasm": 5.6,
+    "primitives": 39,
+    "groups": 121.1,
+    "finish": 28.1,
+    "extract": 2.6
    },
-   "totalMs": 246.1
+   "totalMs": 200.5
   },
   "whiteFrac": [],
   "width": 1560,
@@ -2226,19 +2226,19 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 32094,
-   "vertices": 16053,
+   "triangles": 32526,
+   "vertices": 16269,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 20.1,
-    "primitives": 77.2,
-    "groups": 110.5,
-    "finish": 53.1,
-    "extract": 4.4
+    "wasm": 13.4,
+    "primitives": 52.3,
+    "groups": 72.4,
+    "finish": 51.6,
+    "extract": 2.9
    },
-   "totalMs": 269.9
+   "totalMs": 197.3
   },
   "whiteFrac": [],
   "width": 1560,
@@ -2285,27 +2285,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "mesh/offset",
-   "triangles": 36266,
-   "vertices": 18135,
+   "triangles": 40248,
+   "vertices": 20126,
    "boundaryEdges": 0,
    "nonManifoldEdges": 0,
    "warnings": [
     "Group 1: rounded cut rims need the SDF kernel; shown sharp"
    ],
    "timings": {
-    "wasm": 7.6,
-    "primitives": 48.4,
-    "groups": 93.7,
-    "finish": 95.6,
-    "extract": 8.8
+    "wasm": 19.8,
+    "primitives": 28,
+    "groups": 44.2,
+    "finish": 98.7,
+    "extract": 3.4
    },
-   "totalMs": 259.3
+   "totalMs": 199.6
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.328594674556213,
+    0.26680473372781066,
     0,
     0,
     0
@@ -2335,6 +2335,32 @@
     "faces": 27
    },
    "totalMs": 9405.3
+  },
+  "whiteFrac": [],
+  "width": 1560,
+  "height": 780
+ },
+ "flagged-pmvthxhy99j3f9|mesh": {
+  "id": "flagged-pmvthxhy99j3f9",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 43596,
+   "vertices": 21796,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [
+    "Group 1: smooth blend needs the SDF kernel; shown as a sharp union"
+   ],
+   "timings": {
+    "wasm": 5.4,
+    "primitives": 23.1,
+    "groups": 43,
+    "finish": 76.2,
+    "extract": 3.7
+   },
+   "totalMs": 157.2
   },
   "whiteFrac": [],
   "width": 1560,

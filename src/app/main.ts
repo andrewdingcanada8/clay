@@ -1327,6 +1327,7 @@ sync(false);
   get doc() { return doc; },
   /** for scripts/example-thumbs.mjs */
   loadExample,
+  openDoc: (d: SceneDoc, v: ViewState | null = null) => loadDoc(normalizeDoc(d), { id: null, name: 'test' }, v),
   exampleIds: () => exampleList.map((e) => e.id),
   setKernel: (k: SceneDoc['kernel']) => { if (doc.kernel !== k) update((d) => { d.kernel = k; }); },
   busy: () => busy || !!document.querySelector('.chip.busy'),
