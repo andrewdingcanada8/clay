@@ -41,6 +41,8 @@ export interface CompiledGroup {
   t: number;
   /** Smooth-union radius (0 = sharp min). */
   k: number;
+  /** Edge rounding: the rims of its cuts are a smooth max of this radius. */
+  round: number;
   /** Shelling applies (global switch on and the group has shell objects). */
   hollow: boolean;
   shells: CompiledObject[];
@@ -57,7 +59,7 @@ export function compileGroups(doc: SceneDoc): CompiledGroup[] {
   const objs = doc.objects.filter((o) => !o.hidden && o.type !== 'part').map(compileObject);
   const byId = new Map(objs.map((o) => [o.obj.id, o]));
   const groups: CompiledGroup[] = doc.groups.map((g, index) => ({
-    index, id: g.id, name: g.name, t: Math.max(0.01, g.thickness), k: Math.max(0, g.blend ?? 0), hollow: false,
+    index, id: g.id, name: g.name, t: Math.max(0.01, g.thickness), k: Math.max(0, g.blend ?? 0), round: Math.max(0, g.round ?? 0), hollow: false,
     shells: [], solids: [], subs: [], pins: [], holes: new Set(), bounds: emptyAABB(), shellBounds: emptyAABB(),
   }));
   const gById = new Map(groups.map((g) => [g.id, g]));
@@ -132,11 +134,16 @@ export function shellSDF(g: CompiledGroup, x: number, y: number, z: number): num
   return f;
 }
 
+/** Smooth max (the rim of a cut rounded by k); k = 0 is the plain max. */
+export function smax(a: number, b: number, k: number): number {
+  return -smin(-a, -b, k);
+}
+
 /** The shell shape: the shell union with the subtract objects carved out. */
 export function shapeSDF(g: CompiledGroup, x: number, y: number, z: number): number {
-  let f = shellSDF(g, x, y, z);
-  for (const o of g.subs) f = Math.max(f, -sdfWorld(o, x, y, z));
-  return f;
+  let sub = Infinity;
+  for (const o of g.subs) sub = Math.min(sub, sdfWorld(o, x, y, z));
+  return smax(shellSDF(g, x, y, z), -sub, g.round);
 }
 
 const tmp: Vec3 = [0, 0, 0];
@@ -196,10 +203,10 @@ function openDepth(c: CompiledObject, holes: Set<string>, x: number, y: number, 
     default: {
       // revolve family: depth below the allowed profile segments, from the same
       // table the shader samples
-      const key = c.profile!.faces.filter(isHole).join(',');
+      const key = c.profile!.faces.filter(isHole).join(',') + `|${c.round}`;
       const tables = c.depthTables ??= new Map();
       let t = tables.get(key);
-      if (!t) { t = buildProfileTable(tableProfile(c.obj.type, p.points, c.profile!), isHole); tables.set(key, t); }
+      if (!t) { t = buildProfileTable(tableProfile(c.obj.type, p.points, c.profile!, c.round), isHole); tables.set(key, t); }
       return tableDepth(t, Math.hypot(lx, lz), ly) * c.minScale;
     }
   }
@@ -276,7 +283,7 @@ export function evalScene(groups: CompiledGroup[], depth: DepthFn, x: number, y:
     for (const o of g.solids) fo = smin(fo, sdfWorld(o, x, y, z), g.k);
     for (const o of g.subs) sub = Math.min(sub, sdfWorld(o, x, y, z));
     const U = smin(fs, fo, g.k);
-    const G = Math.max(U, -sub), F = Math.max(fs, -sub);
+    const G = smax(U, -sub, g.round), F = smax(fs, -sub, g.round);
     let cut = Infinity, kind: typeof last.kind = 'material';
     if (g.hollow && F < OPENING_EPS) {
       const c = Math.max(F - OPENING_EPS, g.t - depth(g, x, y, z));

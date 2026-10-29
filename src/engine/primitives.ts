@@ -3,7 +3,7 @@
 
 import type { PrimitiveType, SceneObject } from './document';
 import { type AABB, type Vec3, clamp, emptyAABB, eulerXYZ, growAABB, mulMat3TVec, mulMat3Vec, polygonSDF } from './math';
-import { type SampledProfile, sampleProfile } from './profile';
+import { type SampledProfile, roundProfile, sampleProfile } from './profile';
 import type { ProfileTable } from './profileTable';
 import { type SweepPath, type SweepSection, type SweepStyle, buildSweepPath, buildSweepSection, sectionRadius, sweepEval, sweepStyle } from './sweep';
 
@@ -36,6 +36,8 @@ export interface CompiledObject {
   sweep?: { path: SweepPath; sec: SweepSection; style: SweepStyle };
   /** Cached revolve depth tables, by opening faces (see scene.holeDepth). */
   depthTables?: Map<string, ProfileTable>;
+  /** Edge rounding actually applied (cm, object units; 0 = sharp). */
+  round: number;
   /** Cached bounding sphere (see scene.boundSphere). */
   bsphere?: [number, number, number, number];
 }
@@ -129,9 +131,32 @@ export function prismFrustum(n: number, r1: number, r2: number, h: number) {
     const b = (((a % (2 * an)) + 2 * an) % (2 * an)) - an;
     return planeAt(Math.hypot(x, z) * Math.cos(b), y);
   };
+  const cosT = h / L;
   return {
     sideDist,
     sdf: (x: number, y: number, z: number) => Math.max(sideDist(x, y, z), y - hh, -y - hh),
+    /**
+     * With every edge rounded (radius rr): in each horizontal slice the exact
+     * distance to the n-gon shrunk by rr (its apothem at that height, less rr
+     * across the slope), tilted back by the slope, combined with the caps pulled in
+     * by rr like a capped extrusion, less rr. Exact for an upright prism; close for
+     * a tapered one. (The shader's sdFrustumRound is the same.)
+     */
+    roundedSdf: (x: number, y: number, z: number, rr: number) => {
+      // the shrunk side reaches the axis at yTop (a pointed top)
+      const a1 = ap1 - rr / cosT, a2 = ap2 - rr / cosT;
+      const yAx = a1 > a2 ? -hh + (a1 / (a1 - a2)) * h : hh;
+      const y0 = -hh + rr, y1 = Math.min(hh - rr, yAx);
+      const yc = Math.max(y0, Math.min(y1, y));
+      const ap = Math.max(0, a1 + ((a2 - a1) * (yc + hh)) / h);
+      const a = Math.atan2(z, x), b = (((a % (2 * an)) + 2 * an) % (2 * an)) - an, rho = Math.hypot(x, z);
+      const ex = rho * Math.cos(b) - ap, he = ap * Math.tan(an), py = Math.abs(rho * Math.sin(b));
+      const ey = py - Math.min(py, he);
+      const side = Math.sign(ex) * Math.hypot(ex, ey) * cosT;
+      const cap = Math.max(y0 - y, y - y1);
+      const ox = Math.max(side, 0), oy = Math.max(cap, 0);
+      return Math.min(Math.max(side, cap), 0) + Math.hypot(ox, oy) - rr;
+    },
     sideIndex: (x: number, z: number) => {
       const a = Math.atan2(z, x);
       return ((Math.round(a / (2 * an) - 0.5 + 1) % n) + n) % n;
@@ -171,6 +196,7 @@ export function compileObject(obj: SceneObject): CompiledObject {
   let extrusion: CompiledObject['extrusion'];
   let frustum: CompiledObject['frustum'];
   let sweep: CompiledObject['sweep'];
+  let round = 0;
 
   switch (obj.type) {
     case 'sphere': {
@@ -183,9 +209,11 @@ export function compileObject(obj: SceneObject): CompiledObject {
     }
     case 'box': {
       const hx = p.x! / 2, hy = p.y! / 2, hz = p.z! / 2;
+      // rounded: the box shrunk by rr, grown back by rr (exact)
+      const rr = round = Math.min(p.round ?? 0, 0.95 * Math.min(hx, hy, hz));
       sdfLocal = (x, y, z) => {
-        const qx = Math.abs(x) - hx, qy = Math.abs(y) - hy, qz = Math.abs(z) - hz;
-        return Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0);
+        const qx = Math.abs(x) - hx + rr, qy = Math.abs(y) - hy + rr, qz = Math.abs(z) - hz + rr;
+        return Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - rr;
       };
       faceAtLocal = (x, y, z) => {
         // Face whose plane is nearest, measured in world units so stretched boxes behave.
@@ -210,7 +238,8 @@ export function compileObject(obj: SceneObject): CompiledObject {
     }
     case 'cylinder': {
       const r = p.r!, hh = p.h! / 2;
-      sdfLocal = (x, y, z) => extrudeSDF(Math.hypot(x, z) - r, y, hh);
+      const rr = round = Math.min(p.round ?? 0, 0.95 * Math.min(r, hh));
+      sdfLocal = (x, y, z) => extrudeSDF(Math.hypot(x, z) - r + rr, y, hh - rr) - rr;
       faceAtLocal = (x, y, z) => {
         const side = Math.abs(r - Math.hypot(x, z)) * Math.min(scale[0], scale[2]);
         const top = Math.abs(hh - y) * scale[1], bot = Math.abs(hh + y) * scale[1];
@@ -222,20 +251,21 @@ export function compileObject(obj: SceneObject): CompiledObject {
         { id: 'bottom', label: 'Bottom', plane: { n: [0, -1, 0], p: [0, -hh, 0] } },
         { id: 'side', label: 'Side' },
       ];
-      profile = sampleRevolve(revolveOutline('cylinder', p, 1)!, ['bottom', 'side', 'top']);
+      profile = roundProfile(sampleRevolve(revolveOutline('cylinder', p, 1)!, ['bottom', 'side', 'top']), rr);
       growAABB(lb, -r, -hh, -r); growAABB(lb, r, hh, r);
       break;
     }
     case 'cone': {
       const r = p.r!, h = p.h!, hh = h / 2;
-      const outline = new Float64Array([0, -hh, r, -hh, 0, hh]);
-      sdfLocal = (x, y, z) => polygonSDF(outline, 3, Math.hypot(x, z), y, 2).d;
-      faceAtLocal = (x, y, z) => (polygonSDF(outline, 3, Math.hypot(x, z), y, 2).seg === 0 ? 'base' : 'side');
+      const rr = round = Math.min(p.round ?? 0, 0.45 * Math.min(r, h));
+      profile = roundProfile(sampleRevolve([0, -hh, r, -hh, 0, hh], ['base', 'side']), rr);
+      const prof = profile;
+      sdfLocal = (x, y, z) => polygonSDF(prof.pts, prof.n, Math.hypot(x, z), y, prof.axisSeg).d;
+      faceAtLocal = (x, y, z) => (prof.segFace[polygonSDF(prof.pts, prof.n, Math.hypot(x, z), y, prof.axisSeg).seg] === 'base' ? 'base' : 'side');
       faces = [
         { id: 'base', label: 'Base', plane: { n: [0, -1, 0], p: [0, -hh, 0] } },
         { id: 'side', label: 'Side' },
       ];
-      profile = sampleRevolve([0, -hh, r, -hh, 0, hh], ['base', 'side']);
       growAABB(lb, -r, -hh, -r); growAABB(lb, r, hh, r);
       break;
     }
@@ -261,7 +291,8 @@ export function compileObject(obj: SceneObject): CompiledObject {
       // (exact inside and on the surface; a lower bound outside near edges).
       const n = Math.max(3, Math.round(p.n!)), r = p.r!, r2 = p.r2 ?? p.r!, hh = p.h! / 2;
       const fr = prismFrustum(n, r, r2, p.h!);
-      sdfLocal = (x, y, z) => fr.sdf(x, y, z);
+      const rr = round = Math.min(p.round ?? 0, 0.45 * Math.min(p.h!, Math.max(r, r2) * Math.cos(Math.PI / n)));
+      sdfLocal = rr > 0 ? (x, y, z) => fr.roundedSdf(x, y, z, rr) : (x, y, z) => fr.sdf(x, y, z);
       faceAtLocal = (x, y, z) => {
         const sxz = Math.min(scale[0], scale[2]);
         const side = Math.abs(fr.sideDist(x, y, z)) * sxz;
@@ -283,7 +314,8 @@ export function compileObject(obj: SceneObject): CompiledObject {
       break;
     }
     case 'revolve': {
-      const prof = sampleProfile(p.points ?? []);
+      const rr = round = Math.max(0, p.round ?? 0);
+      const prof = roundProfile(sampleProfile(p.points ?? []), rr);
       profile = prof;
       const pts = prof.pts, n = prof.n, skip = prof.axisSeg;
       sdfLocal = (x, y, z) => polygonSDF(pts, n, Math.hypot(x, z), y, skip).d;
@@ -325,7 +357,7 @@ export function compileObject(obj: SceneObject): CompiledObject {
   const c: CompiledObject = {
     obj, rot, pos: [...t.position] as Vec3, scale, minScale: Math.min(scale[0], scale[1], scale[2]),
     sdfLocal: sdfLocal!, faceAtLocal: faceAtLocal!, faces: faces!, localBounds: lb, worldBounds: emptyAABB(),
-    profile, extrusion, frustum, sweep,
+    profile, extrusion, frustum, sweep, round,
   };
   const w: Vec3 = [0, 0, 0];
   for (let i = 0; i < 8; i++) {

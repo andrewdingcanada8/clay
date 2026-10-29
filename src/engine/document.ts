@@ -25,6 +25,8 @@ export interface Group {
   thickness: number;
   /** Smooth-union radius (cm) between the group's shell and solid objects; 0 = sharp. SDF only. */
   blend?: number;
+  /** Rounds every edge of the group's objects (cm), and the rims of its cuts (SDF). */
+  round?: number;
 }
 
 export interface Transform {
@@ -60,6 +62,9 @@ export interface PrimitiveParams {
   d?: number;
   /** Custom section outline (closed); fitted to w × d. */
   shape?: ProfilePoint[];
+  /** Rounds the object's edges and corners (cm; boxes, cylinders, cones, prisms,
+   *  revolves, sweep sections). The group's rounding applies too (the larger wins). */
+  round?: number;
   /** Sweeps: how sharp corners turn and open ends finish (see sweep.SweepStyle). */
   join?: 'round' | 'miter';
   cap?: 'flat' | 'round' | 'square';
@@ -75,7 +80,20 @@ export interface SceneObject {
   groupId: string;
   /** Face ids of this object that become openings when shelled. */
   holes: string[];
+  /** Copies made when the scene is built: mirrored across a plane, or repeated round
+   *  an axis, through the reference object's centre (none: the world origin) along
+   *  its local axis. Copies follow every edit of the original. */
+  sym?: Symmetry;
   hidden?: boolean;
+}
+
+export interface Symmetry {
+  kind: 'mirror' | 'radial';
+  /** reference object id (its centre and axes); null = the world origin and axes */
+  ref: string | null;
+  axis: 'x' | 'y' | 'z';
+  /** radial: copies in all, the original included */
+  count: number;
 }
 
 export interface PinHole {
@@ -199,7 +217,7 @@ export function defaultVaseProfile(): ProfilePoint[] {
 export function scaleDoc(d: SceneDoc, k: number): SceneDoc {
   for (const o of d.objects) {
     const p = o.params as Record<string, unknown>;
-    for (const key of ['r', 'r2', 'x', 'y', 'z', 'h', 'R', 'w', 'd']) if (typeof p[key] === 'number') p[key] = (p[key] as number) * k;
+    for (const key of ['r', 'r2', 'x', 'y', 'z', 'h', 'R', 'w', 'd', 'round']) if (typeof p[key] === 'number') p[key] = (p[key] as number) * k;
     if (o.params.points) o.params.points = o.params.points.map((q) => ({ ...q, r: q.r * k, y: q.y * k }));
     if (o.params.path) o.params.path = o.params.path.map((q) => ({ ...q, r: q.r * k, y: q.y * k }));
     if (o.params.lift) o.params.lift = o.params.lift.map((q) => ({ ...q, y: q.y * k }));
@@ -210,6 +228,7 @@ export function scaleDoc(d: SceneDoc, k: number): SceneDoc {
     pin.radius *= k;
   }
   for (const g of d.groups) if (g.blend) g.blend *= k;
+  for (const g of d.groups) if (g.round) g.round *= k;
   return d;
 }
 

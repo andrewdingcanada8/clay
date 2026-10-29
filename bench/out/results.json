@@ -2243,5 +2243,75 @@
   "whiteFrac": [],
   "width": 1560,
   "height": 780
+ },
+ "round-mirror|sdf": {
+  "id": "round-mirror",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 220392,
+   "vertices": 110188,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 10,
+   "cellSize": 0.15,
+   "activeCells": 1088512,
+   "warnings": [],
+   "timings": {
+    "cavity": 0.7,
+    "activate": 329.1,
+    "sample": 2754.5,
+    "vertices": 5875.7,
+    "faces": 46.8
+   },
+   "totalMs": 9156.8
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.3061686390532544,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
+ },
+ "round-mirror|mesh": {
+  "id": "round-mirror",
+  "kernel": "mesh",
+  "quality": "normal",
+  "stats": {
+   "kernel": "mesh/offset",
+   "triangles": 36266,
+   "vertices": 18135,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "warnings": [
+    "Group 1: rounded cut rims need the SDF kernel; shown sharp"
+   ],
+   "timings": {
+    "wasm": 20.2,
+    "primitives": 50.7,
+    "groups": 91.3,
+    "finish": 92.8,
+    "extract": 4.7
+   },
+   "totalMs": 265.6
+  },
+  "whiteFrac": [
+   [
+    0,
+    0,
+    0.328594674556213,
+    0,
+    0,
+    0
+   ]
+  ],
+  "width": 1560,
+  "height": 1040
  }
 }

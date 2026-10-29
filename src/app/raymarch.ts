@@ -68,6 +68,7 @@ uniform vec4 uGroupC[${MAX_GROUPS}];
 uniform vec4 uGroupE[${MAX_GROUPS}];
 uniform float uT[${MAX_GROUPS}];
 uniform float uK[${MAX_GROUPS}];
+uniform float uRound[${MAX_GROUPS}]; // rounds the rims of the group's cuts
 uniform int uHollow[${MAX_GROUPS}];
 uniform int uUseGrid[${MAX_GRIDS}];
 uniform float uCavH[${MAX_GRIDS}];
@@ -240,14 +241,29 @@ vec2 sdSweep(int slot, vec4 P, vec4 M, vec3 q, int holeMask) {
   return best;
 }
 
-float sdLocal(vec3 q, vec4 P, int type, int slot) {
+// a regular n-gon frustum with every edge rounded by rr (primitives.prismFrustum.roundedSdf)
+float sdFrustumRound(vec3 q, vec4 P, float rr) {
+  float an = 3.14159265 / P.x, hh = P.z, h = 2.0 * hh;
+  float ap1 = P.y * cos(an), ap2 = P.w * cos(an), cosT = h / length(vec2(h, ap1 - ap2));
+  float a1 = ap1 - rr / cosT, a2 = ap2 - rr / cosT;
+  float yAx = a1 > a2 ? -hh + a1 / (a1 - a2) * h : hh;
+  float y0 = -hh + rr, y1 = min(hh - rr, yAx);
+  float ap = max(0.0, a1 + (a2 - a1) * (clamp(q.y, y0, y1) + hh) / h);
+  float b = mod(atan(q.z, q.x), 2.0 * an) - an, rho = length(q.xz);
+  float ex = rho * cos(b) - ap, py = abs(rho * sin(b));
+  float side = sign(ex) * length(vec2(ex, py - min(py, ap * tan(an)))) * cosT;
+  float cap = max(y0 - q.y, q.y - y1);
+  return min(max(side, cap), 0.0) + length(max(vec2(side, cap), 0.0)) - rr;
+}
+// rr: edge rounding (prisms; boxes carry theirs in P.w)
+float sdLocal(vec3 q, vec4 P, int type, int slot, float rr) {
   if (type == 0) return length(q) - P.x;
-  if (type == 1) return sdBox(q, P.xyz);
+  if (type == 1) return sdBox(q, P.xyz - P.w) - P.w;
   if (type == 2) return extrude(length(q.xz) - P.x, q.y, P.y);
   if (type == 3) return sdCone2(vec2(length(q.xz), q.y), P.x, P.y);
   if (type == 4) return length(vec2(length(q.xz) - P.x, q.y)) - P.y;
   if (type == 5) return length(vec3(q.x, q.y - clamp(q.y, -P.y, P.y), q.z)) - P.x;
-  if (type == 6) return sdFrustum(q, P);
+  if (type == 6) return rr > 0.0 ? sdFrustumRound(q, P, rr) : sdFrustum(q, P);
   return profile(slot, vec2(length(q.xz), q.y), 0);
 }
 int gObjN = 0, gMapN = 0; // evaluation counters for the cost view (uFlat == 2)
@@ -259,7 +275,7 @@ float sdObj(int i, vec3 p) {
   gObjN++;
   vec4 meta = row(i, 6);
   if (int(meta.x) == 8) return gSw[int(meta.y)].x;
-  return sdLocal(toLocal(i, p), row(i, 3), int(meta.x), int(meta.y)) * row(i, 4).w;
+  return sdLocal(toLocal(i, p), row(i, 3), int(meta.x), int(meta.y), row(i, 7).x) * row(i, 4).w;
 }
 // lower bound from the object's bounding sphere
 float bound(int i, vec3 p) { vec4 b = row(i, 5); return length(p - b.xyz) - b.w; }
@@ -289,7 +305,7 @@ uvec4 rayMask(vec3 ro, vec3 rd, float ta, float tb, float reach, out vec2 span) 
     vec4 meta = row(i, 6), S = row(i, 4);
     int g = int(meta.w);
     float cavH = g < ${MAX_GRIDS} ? uCavH[min(g, ${MAX_GRIDS - 1})] : 0.0;
-    float grow = reach + uK[g] + 3.0 * cavH + 0.05;
+    float grow = reach + uK[g] + uRound[g] + 3.0 * cavH + 0.05;
     if (int(meta.z) != 0) grow += 2.0 * row(i, 5).w; // depth carries on through openings
     if (i >= uGroupRange[g].z) grow += 2.0 * uT[g];  // a cut's wall lies up to t inside the shape
     vec3 o = toLocal(i, ro), d = toLocal(i, ro + rd) - o;
@@ -307,7 +323,7 @@ float holeDepth(int i, vec3 p) {
   vec4 P = row(i, 3), S = row(i, 4), meta = row(i, 6);
   int type = int(meta.x), slot = int(meta.y), mask = int(meta.z);
   float d = 1e5;
-  if (type == 0 || type == 4 || type == 5) return bit(mask, 0) ? 1e5 : -sdLocal(q, P, type, slot) * S.w;
+  if (type == 0 || type == 4 || type == 5) return bit(mask, 0) ? 1e5 : -sdLocal(q, P, type, slot, 0.0) * S.w;
   if (type == 1) {
     if (!bit(mask, 0)) d = min(d, (P.x - q.x) * S.x);
     if (!bit(mask, 1)) d = min(d, (P.x + q.x) * S.x);
@@ -485,8 +501,9 @@ float map(vec3 p) {
       sub = min(sub, d);
       if (!open) D = min(D, d);
     }
-    G = max(G, -sub);
-    float F = max(fs, -sub);
+    // (a smooth max: the cut's rim rounded by the group's rounding, as scene.evalScene)
+    G = -smin(-G, sub, uRound[g]);
+    float F = -smin(-fs, sub, uRound[g]);
     if (deep && F < ${OPENING_EPS.toFixed(3)}) {
       if (useGrid) D = gridDepth(g, p, uT[g], D);
       cav = max(F - ${OPENING_EPS.toFixed(3)}, uT[g] - D);
@@ -638,6 +655,7 @@ export class SdfRenderer {
       uGroupE: { value: range(MAX_GROUPS).map(() => new THREE.Vector4()) },
       uT: { value: range(MAX_GROUPS).map(() => 0.5) },
       uK: { value: range(MAX_GROUPS).map(() => 0) },
+      uRound: { value: range(MAX_GROUPS).map(() => 0) },
       uHollow: { value: range(MAX_GROUPS).map(() => 0) },
       uUseGrid: { value: range(MAX_GRIDS).map(() => 0) },
       uCavH: { value: range(MAX_GRIDS).map(() => 0) },
@@ -696,7 +714,9 @@ export class SdfRenderer {
     if (plane) u.uClip.value.set(plane.normal.x, plane.normal.y, plane.normal.z, plane.constant);
   }
 
-  setDoc(doc: SceneDoc) {
+  /** `interactive`: while dragging, a profile whose table isn't built yet keeps its
+   *  slot's previous table (a moment's stale preview); it is built on release. */
+  setDoc(doc: SceneDoc, interactive = false) {
     const groups = compileGroups(doc).slice(0, MAX_GROUPS);
     this.groups = groups;
     const u = this.material.uniforms;
@@ -726,11 +746,12 @@ export class SdfRenderer {
       (u.uGroupE.value as THREE.Vector4[])[k].set((gb.max[0] - gb.min[0]) / 2 + 0.05, (gb.max[1] - gb.min[1]) / 2 + 0.05, (gb.max[2] - gb.min[2]) / 2 + 0.05, 0);
       (u.uT.value as number[])[k] = g.t;
       (u.uK.value as number[])[k] = g.k;
+      (u.uRound.value as number[])[k] = g.round;
       (u.uHollow.value as number[])[k] = g.hollow ? 1 : 0;
     });
     u.uGroupCount.value = groups.length;
     u.uObjCount.value = objs.length;
-    const slots = this.updateProfiles(objs, groups);
+    const slots = this.updateProfiles(objs, groups, interactive);
     this.updateSweeps(objs, slots);
     // sweeps are evaluated once per map() call (see sweepAll)
     const sweepObjs = u.uSweepObj.value as number[];
@@ -817,10 +838,10 @@ export class SdfRenderer {
       const k3 = (i * ROWS + 3) * 4;
       switch (o.obj.type) {
         case 'sphere': data[k3] = q.r!; break;
-        case 'box': data[k3] = q.x! / 2; data[k3 + 1] = q.y! / 2; data[k3 + 2] = q.z! / 2; break;
+        case 'box': data[k3] = q.x! / 2; data[k3 + 1] = q.y! / 2; data[k3 + 2] = q.z! / 2; data[k3 + 3] = o.round; break;
         case 'cylinder': case 'cone': case 'capsule': data[k3] = q.r!; data[k3 + 1] = q.h! / 2; break;
         case 'torus': data[k3] = q.R!; data[k3 + 1] = q.r!; break;
-        case 'prism': data[k3] = Math.min(12, Math.max(3, Math.round(q.n!))); data[k3 + 1] = q.r!; data[k3 + 2] = q.h! / 2; data[k3 + 3] = q.r2 ?? q.r!; break;
+        case 'prism': data[k3] = Math.min(12, Math.max(3, Math.round(q.n!))); data[k3 + 1] = q.r!; data[k3 + 2] = q.h! / 2; data[k3 + 3] = q.r2 ?? q.r!; data[(i * ROWS + 7) * 4] = o.round; break;
         case 'sweep': {
           const { path, sec } = o.sweep!;
           data[k3] = SECTION_CODE[sec.kind]; data[k3 + 1] = sec.hw; data[k3 + 2] = sec.hd;
@@ -839,7 +860,7 @@ export class SdfRenderer {
       data[k5 + 3] = Math.hypot(b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]) / 2 + 0.01;
       const g = groups.find((x) => x.shells.includes(o) || x.solids.includes(o) || x.subs.includes(o))!;
       const k6 = (i * ROWS + 6) * 4;
-      data[k6] = TYPE_CODE[o.obj.type];
+      data[k6] = usesTable(o) ? TYPE_CODE.revolve : TYPE_CODE[o.obj.type];
       data[k6 + 1] = slots.get(o) ?? 0;
       data[k6 + 2] = holeMask(o, g);
       data[k6 + 3] = groups.indexOf(g);
@@ -902,20 +923,27 @@ export class SdfRenderer {
     if (changed) this.sweepTex.needsUpdate = true;
   }
 
-  private updateProfiles(objs: CompiledObject[], groups: CompiledGroup[]): Map<CompiledObject, number> {
+  private slotKeys: string[] = [];
+  private updateProfiles(objs: CompiledObject[], groups: CompiledGroup[], interactive = false): Map<CompiledObject, number> {
     const u = this.material.uniforms;
     const slots = new Map<CompiledObject, number>();
     const keep = new Set<string>();
     let slot = 0;
     for (const o of objs) {
-      if (o.obj.type !== 'revolve' || slot >= MAX_PROFILES) continue;
+      if (!usesTable(o) || slot >= MAX_PROFILES) continue;
       const g = groups.find((x) => x.shells.includes(o) || x.solids.includes(o) || x.subs.includes(o))!;
       const isHole = (f: string) => g.holes.has(`${o.obj.id}|${f}`);
-      const key = JSON.stringify([o.obj.params.points, o.profile!.faces.filter(isHole)]);
-      keep.add(key);
+      const key = JSON.stringify([o.obj.type, o.obj.type === 'revolve' ? o.obj.params.points : Array.from(o.profile!.pts), o.round, o.profile!.faces.filter(isHole)]);
       let pt = this.profiles.get(key);
+      if (!pt && interactive && this.slotKeys[slot] && this.profiles.has(this.slotKeys[slot])) {
+        keep.add(this.slotKeys[slot]);
+        slots.set(o, slot++);
+        continue;
+      }
+      keep.add(key);
+      this.slotKeys[slot] = key;
       if (!pt) {
-        const t = buildProfileTable(tableProfile('revolve', o.obj.params.points, o.profile!), isHole);
+        const t = buildProfileTable(tableProfile(o.obj.type, o.obj.params.points, o.profile!, o.round), isHole);
         const data = new Uint16Array(t.W * t.H * 2);
         for (let q = 0; q < t.W * t.H; q++) {
           data[2 * q] = THREE.DataUtils.toHalfFloat(t.sd[q]);
@@ -939,10 +967,16 @@ export class SdfRenderer {
   }
 }
 
+/** Drawn from a 2D profile table (shader type 7): revolves, and rounded cylinders and cones. */
+function usesTable(o: CompiledObject): boolean {
+  return o.obj.type === 'revolve' || ((o.obj.type === 'cylinder' || o.obj.type === 'cone') && o.round > 0);
+}
+
 /** Bit mask of a primitive's faces that are openings (layout matches holeDepth in the shader). */
 function holeMask(o: CompiledObject, g: CompiledGroup): number {
   if (isCut(o.obj.mode)) return o.obj.mode === 'cutout' ? 1 : 0; // a cutout gets no wall
   const h = (f: string) => g.holes.has(`${o.obj.id}|${f}`);
+  if (usesTable(o)) return o.profile!.faces.some(h) ? 1 : 0;
   let names: string[] = [];
   switch (o.obj.type) {
     case 'sphere': case 'torus': case 'capsule': names = ['surface']; break;

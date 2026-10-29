@@ -305,8 +305,9 @@ export class Viewport {
   }
 
   /** SDF kernel: show the document directly (no build needed for the outer form). */
-  setSdfDoc(doc: SceneDoc) {
-    this.sdf.setDoc(doc);
+  /** `interactive`: mid-drag, slow profile tables wait for release (see SdfRenderer.setDoc). */
+  setSdfDoc(doc: SceneDoc, interactive = false) {
+    this.sdf.setDoc(doc, interactive);
     this.sdf.mesh.visible = this.mode === 'sdf' && !this.sdf.bounds.isEmpty();
     if (this.mode === 'sdf') this.placeGround();
     this.invalidate();

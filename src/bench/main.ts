@@ -13,7 +13,7 @@ import type { Vec3 } from '../engine/math';
 import { SdfRenderer } from '../app/raymarch';
 import type { BuildResult } from '../engine/kernel';
 import { flaggedCases } from './flagged';
-import { expandParts } from '../engine/parts';
+import { expandDoc } from '../engine/symmetry';
 
 const params = new URLSearchParams(location.search);
 const caseId = params.get('case') ?? 'open-box';
@@ -32,7 +32,7 @@ async function main() {
   if (!ex) throw new Error(`unknown case ${caseId}`);
   const doc = { ...ex.doc, kernel, meshMethod: kernelParam === 'mesh-mk' ? 'minkowski' as const : 'offset' as const };
   // placed parts build as their own groups, as in the app
-  Object.assign(doc, expandParts(doc));
+  Object.assign(doc, expandDoc(doc));
   // overrides for reproducing app states: ?wall=cm&blend=cm&nogrid=1
   if (params.get('wall')) doc.groups = doc.groups.map((g) => ({ ...g, thickness: Number(params.get('wall')) }));
   if (params.get('blend')) doc.groups = doc.groups.map((g) => ({ ...g, blend: Number(params.get('blend')) }));

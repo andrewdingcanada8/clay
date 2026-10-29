@@ -130,12 +130,22 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
       const m = toY(keep(keep(sec.extrude(height)).translate([0, 0, -height / 2])));
       return keep(m.transform(placeMat(c) as never));
     };
-    return {
-      solid: make(cs, H)!,
-      cavity: (delta) => make(keep(cs.offset(delta, delta < 0 ? 'Miter' : 'Round', 4, segs)), H + 2 * delta),
-      approx: false,
-    };
+    const sharp = (delta: number) => make(keep(cs.offset(delta, delta < 0 ? 'Miter' : 'Round', 4, segs)), H + 2 * delta);
+    // rounded edges: the box shrunk by r, grown back by a ball (its hollow: by a
+    // ball of r - t, or just shrunk by t once the wall is thicker than r)
+    const r = c.round * c.minScale;
+    if (r > 0) {
+      const core = sharp(-r);
+      return {
+        solid: core ? rounded(core, r)! : make(cs, H)!,
+        cavity: (delta) => (core && r + delta > 0.01 ? rounded(core, r + delta) : sharp(delta)),
+        approx: false,
+      };
+    }
+    return { solid: make(cs, H)!, cavity: sharp, approx: false };
   };
+  // a convex solid grown by a ball of radius r (rounded edges and corners)
+  const rounded = (m: Manifold, r: number) => keep(m.minkowskiSum(keep(Manifold.sphere(r, Math.max(12, Math.round(segs / 2))))));
 
   // Prism: regular n-gon frustum. Its inward offset is again a frustum (each plane
   // moved in by t), computed exactly in world units.
@@ -161,11 +171,7 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
       return keep(m.transform(mat as never));
     };
     const R1 = f.r1 * k, R2 = f.r2 * k, H = f.h * sy;
-    const solid = make(R1, R2, -H / 2, H / 2)!;
-    return {
-      solid,
-      approx: !uniformXZ,
-      cavity: (delta) => {
+    const inward = (delta: number) => {
         const t = -delta; // inward offset
         const A1 = R1 * cosA, A2 = R2 * cosA, L = Math.hypot(H, A1 - A2);
         const u = (y: number) => A1 + ((A2 - A1) * (y + H / 2)) / H - (t * L) / H;
@@ -179,7 +185,14 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
           if (ab < 0) { yb = y0; ab = 0; } else { yt = y0; at = 0; }
         }
         return make(ab / cosA, at / cosA, yb, yt);
-      },
+    };
+    // rounded edges: shrunk by r, grown back by a ball (as the box)
+    const r = c.round * Math.min(k, sy);
+    const core = r > 0 ? inward(-r) : null;
+    return {
+      solid: core ? rounded(core, r) : make(R1, R2, -H / 2, H / 2)!,
+      approx: !uniformXZ,
+      cavity: (delta) => (core && r + delta > 0.01 ? rounded(core, r + delta) : inward(delta)),
     };
   };
 
@@ -253,7 +266,8 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
     if (c.sweep) return sweepFrom(c);
     if (c.frustum) return frustumFrom(c, c.frustum);
     if (c.extrusion) return extrudeFrom(c, c.extrusion.poly, c.extrusion.h);
-    const outline = c.obj.type === 'revolve'
+    // revolves and rounded cylinders and cones: the (rounded) profile itself
+    const outline = c.obj.type === 'revolve' || c.round > 0
       ? Array.from(c.profile!.pts)
       : revolveOutline(c.obj.type, c.obj.params, segs)!;
     return revolveFrom(c, outline);
@@ -293,6 +307,7 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
     const subs = members.filter((c) => isCut(c.obj.mode));
     const t = Math.max(0.01, g.thickness);
     if ((g.blend ?? 0) > 0) warnings.push(`${g.name}: smooth blend needs the SDF kernel; shown as a sharp union`);
+    if ((g.round ?? 0) > 0 && subs.length) warnings.push(`${g.name}: rounded cut rims need the SDF kernel; shown sharp`);
     const shellU = union(shells.map((c) => built.get(c.obj.id)!.solid));
     const material = union([shellU, ...solids.map((c) => built.get(c.obj.id)!.solid)]);
     if (!material) continue;

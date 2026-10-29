@@ -365,6 +365,22 @@ export function examples(): Example[] {
       probes: [],
     });
   }
+  {
+    // rounding and symmetry: a footed body, a lug mirrored across it, knobs repeated round it
+    const body = obj('revolve', { points: [
+      { r: 2.6, y: -3, corner: true }, { r: 2.6, y: -2.4, corner: true }, { r: 2.2, y: -2.2, corner: true }, { r: 3.2, y: 0 }, { r: 2.4, y: 2.6 }, { r: 2.4, y: 3.2, corner: true },
+    ] }, { holes: ['top'], name: 'Body', id: 'rm-body' });
+    const lug = obj('box', { x: 1.6, y: 1.4, z: 1.2 }, { pos: [3.4, 0.6, 0], mode: 'solid', name: 'Lug' });
+    lug.sym = { kind: 'mirror', ref: 'rm-body', axis: 'x', count: 2 };
+    const knob = obj('cylinder', { r: 0.45, h: 0.9 }, { pos: [0, 2.2, 2.75], rot: [90, 0, 0], mode: 'solid', name: 'Knob' });
+    knob.sym = { kind: 'radial', ref: 'rm-body', axis: 'y', count: 6 };
+    const d = doc([body, lug, knob, obj('box', { x: 2, y: 1.2, z: 2 }, { pos: [0, 3.2, 2.6], mode: 'subtract', name: 'Spout notch' })], 0.3);
+    d.groups[0].round = 0.25;
+    list.push({
+      id: 'round-mirror', title: 'Rounded, mirrored, repeated', notes: 'Group rounding 0.25 cm on every edge and the notch rim; the lug is mirrored across the body, the knob repeated six times round its axis.',
+      doc: d, probes: [[0, 0, 0]],
+    });
+  }
 
   // Scenes are authored small, then scaled to hand size (a vase ~19 cm across).
   // Walls are set per scene in real clay terms; the thin cases stay extreme.
@@ -385,5 +401,5 @@ const WALLS: Record<string, number> = {
   'cup-stick': 0.6, 'vase-sticks': 0.6, 'vase-solid-sticks': 0.6, torus: 0.6, lattice: 0.5,
   'vase-thin': 0.2, 'chain-thin': 0.2, transformed: 0.7, 'rotated-box': 0.7, tower: 0.6,
   'thick-wall': 2.5, 'cut-sphere': 0.7, 'mug-stick': 0.6, 'mug-thin': 0.08, 'two-groups': 0.6, 'big-pins': 0.6, frustums: 0.6,
-  'sdf-narrow-join': 0.8, 'sdf-pebble': 0.8, 'sdf-blend': 0.6, teapot: 1.0, 'sweep-mug': 0.6, coil: 0.5, 'sweep-frame': 0.5, 'sweep-corners': 0.5,
+  'sdf-narrow-join': 0.8, 'sdf-pebble': 0.8, 'sdf-blend': 0.6, teapot: 1.0, 'sweep-mug': 0.6, coil: 0.5, 'sweep-frame': 0.5, 'sweep-corners': 0.5, 'round-mirror': 0.5,
 };

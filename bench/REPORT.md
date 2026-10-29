@@ -68,3 +68,5 @@ Quality: normal. Images: `bench/out/<case>-<kernel>.png`.
 | sweep-corners | mesh | 279 | 24680 | 0 | 0 | 0.0 |  |
 | flagged-pmvrzc7lj484po | sdf | 5626 | 151020 | 0 | 4 | 0.0 |  |
 | flagged-pmvrzc7lj484po | mesh | 275 | 32094 | 0 | 0 | 0.0 |  |
+| round-mirror | sdf | 9157 | 220392 | 0 | 10 | 30.6 |  |
+| round-mirror | mesh | 266 | 36266 | 0 | 0 | 32.9 | Group 1: rounded cut rims need the SDF kernel; shown sharp |

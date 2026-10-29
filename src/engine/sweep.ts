@@ -7,7 +7,7 @@
 
 import type { PrimitiveParams } from './document';
 import { polygonSDF } from './math';
-import { type ProfilePoint, sampleCurve } from './profile';
+import { type ProfilePoint, filletPolygon, sampleCurve } from './profile';
 
 export const SWEEP_SAMPLES = 20; // path samples per drawn span
 export const MAX_PATH_POINTS = 256;
@@ -134,10 +134,16 @@ export function buildSweepPath(p: PrimitiveParams): SweepPath {
 }
 
 export function buildSweepSection(p: PrimitiveParams): SweepSection {
-  const kind = p.section ?? 'circle';
+  let kind = p.section ?? 'circle';
   const hw = Math.max(0.01, (p.w ?? 2) / 2), hd = Math.max(0.01, (kind === 'circle' ? p.w ?? 2 : p.d ?? p.w ?? 2) / 2);
   let poly = new Float64Array(0);
-  if (kind === 'custom') {
+  // rounded edges: a square section becomes a rounded rectangle, a drawn one has
+  // its corners filleted (a circle is round already)
+  const rr = Math.min(p.round ?? 0, 0.95 * Math.min(hw, hd));
+  if (kind === 'square' && rr > 0) {
+    kind = 'custom';
+    poly = Float64Array.from(filletPolygon([-hw, -hd, hw, -hd, hw, hd, -hw, hd], rr));
+  } else if (kind === 'custom') {
     const { xy } = sampleCurve(p.shape ?? [], 12, { closed: true, clampR: false });
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     for (let i = 0; i < xy.length; i += 2) { x0 = Math.min(x0, xy[i]); x1 = Math.max(x1, xy[i]); y0 = Math.min(y0, xy[i + 1]); y1 = Math.max(y1, xy[i + 1]); }
@@ -148,6 +154,12 @@ export function buildSweepSection(p: PrimitiveParams): SweepSection {
       const i = Math.floor(k * step);
       poly[2 * k] = ((xy[2 * i] - (x0 + x1) / 2) / ((x1 - x0) || 1)) * 2 * hw;
       poly[2 * k + 1] = ((xy[2 * i + 1] - (y0 + y1) / 2) / ((y1 - y0) || 1)) * 2 * hd;
+    }
+    if (rr > 0) {
+      const f = filletPolygon(Array.from(poly), rr);
+      const m2 = Math.min(MAX_SECTION_POINTS, f.length / 2), st = f.length / 2 / m2;
+      poly = new Float64Array(2 * m2);
+      for (let k = 0; k < m2; k++) { const i = Math.floor(k * st); poly[2 * k] = f[2 * i]; poly[2 * k + 1] = f[2 * i + 1]; }
     }
   }
   return { kind, hw, hd, poly, polyN: poly.length / 2 };

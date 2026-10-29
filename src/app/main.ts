@@ -18,6 +18,7 @@ import { buildSweepPath } from '../engine/sweep';
 import { HAND_LENGTH_CM } from './hand';
 import { type LibraryPart, PartStore, type Piece, type PieceFlag, PieceStore, type ViewState } from './pieces';
 import { expandParts, makePartDef, partScale, placedId } from '../engine/parts';
+import { expandDoc } from '../engine/symmetry';
 import { type GizmoMode, Viewport } from './viewport';
 
 type Tab = 'add' | 'edit' | 'shell' | 'holes' | 'view';
@@ -217,13 +218,13 @@ function currentGrids(r: SceneDoc): (CavityGrid | null)[] {
 }
 
 function applyGrids() {
-  if (doc.kernel === 'sdf') view.setSdfGrids(currentGrids(expandParts(doc)));
+  if (doc.kernel === 'sdf') view.setSdfGrids(currentGrids(expandDoc(doc)));
 }
 
 /** Bring the display in line with the document. While a drag is in progress
  *  (interactive) only cheap display updates run; worker builds wait for release. */
 function sync(interactive: boolean) {
-  const r = expandParts(doc);
+  const r = expandDoc(doc);
   view.partDefs = doc.parts ?? [];
   if (doc.kernel === 'mesh') {
     view.setMode('mesh');
@@ -232,7 +233,7 @@ function sync(interactive: boolean) {
   }
   // SDF: the GPU draws the document straight away; only stale cavity grids rebuild.
   view.setMode('sdf');
-  view.setSdfDoc(r);
+  view.setSdfDoc(r, interactive);
   const grids = currentGrids(r);
   view.setSdfGrids(grids);
   const missing: number[] = [];
@@ -284,7 +285,7 @@ function renderStatus() {
   const s = doc.kernel === 'mesh' ? lastResult?.stats : undefined;
   if (doc.kernel === 'sdf') {
     const hollow = doc.groups.some((g) => doc.shell.enabled && doc.objects.some((o) => o.groupId === g.id && o.mode === 'shell'));
-    const exact = currentGrids(expandParts(doc)).some(Boolean) || !hollow;
+    const exact = currentGrids(expandDoc(doc)).some(Boolean) || !hollow;
     chips.push(`<span class="chip ${busy ? 'busy' : 'ok'}">SDF · live${hollow ? (exact && !busy ? ' · exact walls' : ' · refining walls') : ''}</span>`);
   } else {
     const kernelName = doc.meshMethod === 'minkowski' ? 'Mesh · Minkowski' : 'Mesh';
@@ -417,6 +418,23 @@ function sweepControls(o: SceneObject) {
     <p class="hint">${len.toFixed(1)} cm along the path. The lift raises the path off its plane as it goes; on a closed loop with several turns, a rising lift makes a coil.</p>`;
 }
 
+/** Objects with edges to round (spheres, tori and capsules are round already). */
+const ROUNDABLE = new Set<SceneObject['type']>(['box', 'cylinder', 'cone', 'prism', 'revolve', 'sweep']);
+
+function symmetrySection(o: SceneObject) {
+  const sym = o.sym;
+  const others = doc.objects.filter((x) => x.id !== o.id);
+  return `<div class="section"><h3>Mirror &amp; repeat</h3>
+    ${seg<'off' | 'mirror' | 'radial'>('symkind', sym?.kind ?? 'off', [['off', 'Off'], ['mirror', 'Mirror'], ['radial', 'Radial']])}
+    ${sym ? `<div class="sub">About</div>
+    <div class="row"><button class="face-chip" data-sym-ref="" aria-pressed="${!sym.ref}">World origin</button>${others.map((x) => `<button class="face-chip" data-sym-ref="${x.id}" aria-pressed="${sym.ref === x.id}">${escapeHtml(x.name)}</button>`).join('')}</div>
+    <div class="sub">${sym.kind === 'mirror' ? 'Across the plane square to its axis' : 'Round its axis'}</div>
+    ${seg<'x' | 'y' | 'z'>('symaxis', sym.axis, [['x', 'X'], ['y', 'Y'], ['z', 'Z']])}
+    ${sym.kind === 'radial' ? slider('sym.count', 'Copies in all', sym.count, 2, 24, 1) : ''}
+    <p class="hint">${sym.kind === 'mirror' ? 'A mirror image across the plane through the centre of the object chosen above, square to its axis.' : 'Copies spaced evenly round the axis through the centre of the object chosen above (a revolve\'s own axis is Y).'} The copies follow every change to this object.</p>` : '<p class="hint">Mirror this object across a plane, or repeat it round an axis, through another object (say the vase it sits on) or the world origin.</p>'}
+  </div>`;
+}
+
 function partEditBody(o: SceneObject) {
   const t = o.transform;
   const def = (doc.parts ?? []).find((d) => d.id === o.params.part);
@@ -428,6 +446,7 @@ function partEditBody(o: SceneObject) {
       <div class="row"><button class="btn" data-act="unpack-part">Unpack into a group</button></div>
       <p class="hint">Unpacking turns it back into editable objects in a new group of this piece.</p>
     </div>
+    ${symmetrySection(o)}
     <div class="section"><h3>Transform</h3>
       ${seg<GizmoMode>('gizmo', ui.gizmo, [['translate', 'Move'], ['rotate', 'Rotate'], ['scale', 'Scale'], ['off', 'Hide']])}
       ${xyz('position', 'Position', t.position, 0.1)}
@@ -441,7 +460,7 @@ function partEditBody(o: SceneObject) {
 async function savePart(groupId: string) {
   const name = ((document.getElementById('part-name') as HTMLInputElement | null)?.value.trim()) || 'Part';
   ui.partNaming = null;
-  const r = expandParts(doc);
+  const r = expandDoc(doc);
   const g = compileGroups(r).find((x) => x.id === groupId);
   if (!g) { toast('This group has nothing to save yet'); renderPanel(); return; }
   const def = makePartDef(doc, groupId, name, g.bounds);
@@ -506,7 +525,10 @@ function editPanel() {
       ${PARAMS[o.type].map(([k, l, mn, mx, st]) => slider(`p.${k}`, l, (o.params as Record<string, number>)[k] ?? (k === 'r2' ? o.params.r! : 0), mn, mx, st)).join('')}
       ${o.type === 'revolve' ? `<button class="btn primary" data-act="edit-profile">Edit profile (${o.params.points?.length ?? 0} points)</button>` : ''}
       ${o.type === 'sweep' ? sweepControls(o) : ''}
+      ${ROUNDABLE.has(o.type) ? `${slider('p.round', 'Round edges cm', o.params.round ?? 0, 0, 5, 0.05)}
+      <p class="hint">Rounds every edge and corner of this object${(doc.groups.find((g) => g.id === o.groupId)?.round ?? 0) > 0 ? ' (its group rounds them too; the larger wins)' : ''}. The group's Round edges does every object at once and the rims of its cuts; Blend fillets where objects meet.</p>` : ''}
     </div>
+    ${symmetrySection(o)}
     <div class="section"><h3>Transform</h3>
       ${seg<GizmoMode>('gizmo', ui.gizmo, [['translate', 'Move'], ['rotate', 'Rotate'], ['scale', 'Scale'], ['off', 'Hide']])}
       ${xyz('position', 'Position', t.position, 0.1)}
@@ -529,6 +551,7 @@ function shellPanel() {
         ${doc.groups.length > 1 ? `<button class="btn danger" data-del-group="${g.id}" aria-label="Delete group">Delete</button>` : ''}</div>
       ${slider(`wall.${i}`, 'Wall cm', g.thickness, 0.05, 4, 0.01)}
       ${slider(`blend.${i}`, 'Blend cm', g.blend ?? 0, 0, 10, 0.1)}
+      ${slider(`ground.${i}`, 'Round edges cm', g.round ?? 0, 0, 5, 0.05)}
       <p class="hint">${count('shell')} shell · ${count('solid')} solid · ${count('subtract')} subtract · ${count('cutout')} cutout</p>
       ${ui.partNaming === g.id
         ? `<div class="piece-form"><label class="field-col"><span>Part name</span><input id="part-name" value="${escapeHtml(g.name)}" maxlength="80"></label>
@@ -581,7 +604,7 @@ function viewPanel() {
     </div>
     ${doc.kernel === 'sdf' ? `<div class="section"><h3>Rendering</h3><div class="stats">${escapeHtml([
       'Raymarched on the GPU: no triangles.',
-      ...((r) => currentGrids(r).map((c, i) => c ? `${r.groups[i].name}: cavity grid ${c.dims.join('×')}, ${c.h.toFixed(2)} cm texels` : ''))(expandParts(doc)),
+      ...((r) => currentGrids(r).map((c, i) => c ? `${r.groups[i].name}: cavity grid ${c.dims.join('×')}, ${c.h.toFixed(2)} cm texels` : ''))(expandDoc(doc)),
       cavityMs ? `last cavity build ${fmtMs(cavityMs)}` : '',
     ].filter(Boolean).join('\n'))}</div></div>` : `<div class="section"><h3>Last build</h3><div class="stats">${s ? escapeHtml([
       `kernel     ${s.kernel}`,
@@ -686,6 +709,13 @@ function setNum(key: string, v: number, interactive: boolean) {
   if (key.startsWith('blend.')) {
     const gi = Number(key.slice(6));
     return update((d) => { d.groups[gi].blend = Math.max(0, v); }, interactive);
+  }
+  if (key.startsWith('ground.')) {
+    const gi = Number(key.slice(7));
+    return update((d) => { d.groups[gi].round = Math.max(0, v); }, interactive);
+  }
+  if (key === 'sym.count') {
+    return update((d) => { const o = d.objects.find((x) => x.id === ui.selectedId); if (o?.sym) o.sym.count = Math.round(v); }, interactive);
   }
   if (key === 'pin') { ui.pinRadius = Math.max(0.02, v); return; }
   if (key === 'section') { ui.section.t = v; view.setSection(true, ui.section.axis, v); return; }
@@ -796,6 +826,11 @@ panel.addEventListener('click', (e) => {
     const [oid, fid] = d.unhole.split('|');
     return toggleHole(oid, fid);
   }
+  if (d.symRef !== undefined) {
+    update((doc2) => { const o = doc2.objects.find((x) => x.id === ui.selectedId); if (o?.sym) o.sym.ref = d.symRef || null; });
+    renderPanel();
+    return;
+  }
   if (d.moveGroup) {
     update((doc2) => { doc2.objects.find((x) => x.id === ui.selectedId)!.groupId = d.moveGroup!; });
     renderPanel();
@@ -868,6 +903,14 @@ function onSeg(name: string, value: string) {
   switch (name) {
     case 'mode': update((d) => { d.objects.find((x) => x.id === ui.selectedId)!.mode = value as ObjectMode; }); refreshGhost(); break;
     case 'gizmo': ui.gizmo = value as GizmoMode; refreshGhost(); break;
+    case 'symkind': update((d) => {
+      const o = d.objects.find((x) => x.id === ui.selectedId)!;
+      if (value === 'off') { delete o.sym; return; }
+      // about the first revolve (a vase's axis), else the world origin
+      const ref = o.sym?.ref ?? d.objects.find((x) => x.id !== o.id && x.type === 'revolve')?.id ?? null;
+      o.sym = { kind: value as 'mirror' | 'radial', ref, axis: o.sym?.axis ?? (value === 'radial' ? 'y' : 'x'), count: value === 'radial' ? Math.max(o.sym?.count ?? 0, 4) : 2 };
+    }); break;
+    case 'symaxis': update((d) => { const o = d.objects.find((x) => x.id === ui.selectedId)!; if (o.sym) o.sym.axis = value as 'x' | 'y' | 'z'; }); break;
     case 'holeMode': ui.holeMode = value as 'face' | 'pin'; break;
     case 'kernel': update((d) => { d.kernel = value as SceneDoc['kernel']; }); break;
     case 'meshMethod': update((d) => { d.meshMethod = value as SceneDoc['meshMethod']; }); break;
@@ -969,7 +1012,7 @@ view.onTap = (hit) => {
     if (ui.tab === 'edit' && !ui.profileEditing) selectObject(null);
     return;
   }
-  const objs = compileScene(expandParts(doc).objects);
+  const objs = compileScene(expandDoc(doc).objects);
   const p = hit.point;
   const c = classifyPoint(objs, p.x, p.y, p.z, ['shell', 'solid', 'subtract', 'cutout']);
   if (!c) return;
