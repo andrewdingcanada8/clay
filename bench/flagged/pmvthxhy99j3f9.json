@@ -1,0 +1,207 @@
+{
+ "createdAt": 1793275498017,
+ "doc": {
+  "groups": [
+   {
+    "blend": 1.5,
+    "id": "g1",
+    "name": "Group 1",
+    "thickness": 0.6
+   }
+  ],
+  "kernel": "sdf",
+  "meshMethod": "offset",
+  "objects": [
+   {
+    "groupId": "g1",
+    "holes": [
+     "top"
+    ],
+    "id": "omvthi5qn4x56k",
+    "mode": "shell",
+    "name": "Revolve",
+    "params": {
+     "points": [
+      {
+       "corner": true,
+       "r": 7.3,
+       "y": -12.1
+      },
+      {
+       "r": 12.2,
+       "y": -9.1
+      },
+      {
+       "r": 14.15,
+       "y": -4.5
+      },
+      {
+       "r": 13.3,
+       "y": 0.3
+      },
+      {
+       "r": 10.35,
+       "y": 3
+      },
+      {
+       "corner": true,
+       "r": 7.05,
+       "y": 4.05
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "type": "revolve"
+   },
+   {
+    "groupId": "g1",
+    "holes": [
+     "top"
+    ],
+    "id": "omvthkfyn624zy",
+    "mode": "shell",
+    "name": "Revolve 2",
+    "params": {
+     "points": [
+      {
+       "corner": true,
+       "r": 8.4,
+       "y": -17.35
+      },
+      {
+       "r": 4.8,
+       "y": -3.3
+      },
+      {
+       "r": 4.05,
+       "y": 1.4
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      2.547,
+      -16.217
+     ],
+     "rotation": [
+      -43,
+      0,
+      0
+     ],
+     "scale": [
+      0.48,
+      0.48,
+      0.48
+     ]
+    },
+    "type": "revolve"
+   },
+   {
+    "groupId": "g1",
+    "holes": [],
+    "id": "omvthsomg7b1g5",
+    "mode": "solid",
+    "name": "Torus",
+    "params": {
+     "R": 7,
+     "r": 0.8
+    },
+    "transform": {
+     "position": [
+      0,
+      -1.736,
+      15.581
+     ],
+     "rotation": [
+      0,
+      0,
+      90
+     ],
+     "scale": [
+      1,
+      2.27,
+      1
+     ]
+    },
+    "type": "torus"
+   }
+  ],
+  "pins": [],
+  "sdfExactDistance": true,
+  "shell": {
+   "enabled": true
+  },
+  "version": 2
+ },
+ "flag": {
+  "at": 1793275648116,
+  "kernels": [
+   "sdf"
+  ],
+  "note": "For some reason, the hole in the top of the teapot expands when we drill a hole in the spout. Not sure why those two are related at all. Also for some reason it changes in and out relating to blend, and relating to rendering (when I switch sdf granularity it temporarily is narrow opening, then becomes wide again)",
+  "view": {
+   "camera": {
+    "pos": [
+     -32.2925997399273,
+     45.82295777077378,
+     -67.7464750186675
+    ],
+    "target": [
+     -0.20648058419055534,
+     2.8414114829620774,
+     0.8194891746891444
+    ]
+   },
+   "kernel": "sdf",
+   "meshMethod": "offset",
+   "quality": "fine",
+   "section": {
+    "axis": "z",
+    "on": false,
+    "t": 0.5
+   }
+  }
+ },
+ "name": "Piece 5",
+ "updatedAt": 1793275498017,
+ "view": {
+  "camera": {
+   "pos": [
+    -32.28854711729595,
+    45.820820932917414,
+    -67.7497107610737
+   ],
+   "target": [
+    -0.20648058419055534,
+    2.8414114829620774,
+    0.8194891746891444
+   ]
+  },
+  "kernel": "sdf",
+  "meshMethod": "offset",
+  "quality": "fine",
+  "section": {
+   "axis": "z",
+   "on": false,
+   "t": 0.5
+  }
+ },
+ "id": "pmvthxhy99j3f9"
+}

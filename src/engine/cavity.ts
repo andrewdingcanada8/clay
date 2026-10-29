@@ -114,7 +114,7 @@ export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid 
   // blend the surface is the objects' own, and the nearest face decides. A blend
   // shifts the surface off the objects and rounds their edges, so the nearest face
   // is ambiguous at a rim; there a point also belongs to an open planar face when it
-  // faces the same way and lies near that face's plane.
+  // faces the same way, lies near that face's plane, and is over the face.
   const slack = h + g.k / 4;
   const isOpening = (o: CompiledObject, x: number, y: number, z: number, n: number[]) => {
     const id = o.obj.id;
@@ -127,7 +127,11 @@ export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid 
       const wp: [number, number, number] = [0, 0, 0];
       toWorld(o, f.plane.p[0], f.plane.p[1], f.plane.p[2], wp);
       const off = (x - wp[0]) * wn[0] + (y - wp[1]) * wn[1] + (z - wp[2]) * wn[2];
-      if (n[0] * wn[0] + n[1] * wn[1] + n[2] * wn[2] > 0.7 && Math.abs(off) < slack) return true;
+      // ...and, slid onto the face's plane, lands on the face itself: a gently
+      // sloping surface next to an opening (a pot's shoulder below its open top)
+      // faces the same way and lies near the plane too, but beyond the face
+      if (n[0] * wn[0] + n[1] * wn[1] + n[2] * wn[2] > 0.7 && Math.abs(off) < slack
+        && faceAtWorld(o, x - wn[0] * off, y - wn[1] * off, z - wn[2] * off) === f.id) return true;
     }
     return false;
   };

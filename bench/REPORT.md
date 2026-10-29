@@ -54,7 +54,7 @@ Quality: normal. Images: `bench/out/<case>-<kernel>.png`.
 | sdf-narrow-join | mesh | 176 | 39960 | 0 | 0 | 1.9 |  |
 | sdf-pebble | sdf | 623 | 150660 | 0 | 0 | 0.0 |  |
 | sdf-pebble | mesh | 92 | 20448 | 0 | 0 | 0.0 | Pebble: X/Z scale differs, wall thickness approximate |
-| sdf-blend | sdf | 2978 | 158708 | 0 | 4 | 1.8 |  |
+| sdf-blend | sdf | 2939 | 158708 | 0 | 4 | 1.8 |  |
 | sdf-blend | mesh | 321 | 52490 | 0 | 0 | 1.6 | Group 1: smooth blend needs the SDF kernel; shown as a sharp union |
 | teapot | sdf | 5809 | 345160 | 0 | 18 | 25.7 |  |
 | teapot | mesh | 205 | 36750 | 0 | 0 | 25.6 |  |
@@ -70,3 +70,4 @@ Quality: normal. Images: `bench/out/<case>-<kernel>.png`.
 | flagged-pmvrzc7lj484po | mesh | 270 | 32094 | 0 | 0 | 0.0 |  |
 | round-mirror | sdf | 9233 | 220392 | 0 | 10 | 30.6 |  |
 | round-mirror | mesh | 259 | 36266 | 0 | 0 | 32.9 | Group 1: rounded cut rims need the SDF kernel; shown sharp |
+| flagged-pmvthxhy99j3f9 | sdf | 9405 | 200720 | 0 | 0 | 0.0 |  |

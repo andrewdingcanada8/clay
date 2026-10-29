@@ -1751,13 +1751,13 @@
    "activeCells": 673792,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 12.5,
-    "sample": 732.8,
-    "vertices": 2173.7,
-    "faces": 23.2
+    "cavity": 0.1,
+    "activate": 15,
+    "sample": 728.7,
+    "vertices": 2143.3,
+    "faces": 20.5
    },
-   "totalMs": 2977.9
+   "totalMs": 2938.8
   },
   "whiteFrac": [
    [
@@ -2313,5 +2313,31 @@
   ],
   "width": 1560,
   "height": 1040
+ },
+ "flagged-pmvthxhy99j3f9|sdf": {
+  "id": "flagged-pmvthxhy99j3f9",
+  "kernel": "sdf",
+  "quality": "normal",
+  "stats": {
+   "kernel": "sdf",
+   "triangles": 200720,
+   "vertices": 100358,
+   "boundaryEdges": 0,
+   "nonManifoldEdges": 0,
+   "cellSize": 0.24,
+   "activeCells": 1024000,
+   "warnings": [],
+   "timings": {
+    "cavity": 0.3,
+    "activate": 497.4,
+    "sample": 2622.8,
+    "vertices": 6201.1,
+    "faces": 27
+   },
+   "totalMs": 9405.3
+  },
+  "whiteFrac": [],
+  "width": 1560,
+  "height": 780
  }
 }
