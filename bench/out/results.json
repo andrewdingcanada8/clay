@@ -13,13 +13,13 @@
    "activeCells": 2006016,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 20.6,
-    "sample": 1184.4,
-    "vertices": 2786.3,
-    "faces": 52
+    "cavity": 0,
+    "activate": 22.3,
+    "sample": 1161.2,
+    "vertices": 2567.7,
+    "faces": 44
    },
-   "totalMs": 4161.8
+   "totalMs": 3912.5
   },
   "whiteFrac": [
    [
@@ -46,13 +46,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 22.8,
-    "primitives": 4.4,
-    "groups": 8.2,
-    "finish": 0.2,
-    "extract": 0.7
+    "wasm": 13.2,
+    "primitives": 4.9,
+    "groups": 8.9,
+    "finish": 0.3,
+    "extract": 0.9
    },
-   "totalMs": 36.4
+   "totalMs": 28.2
   },
   "whiteFrac": [
    [
@@ -82,12 +82,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0,
-    "activate": 13.4,
-    "sample": 595.3,
-    "vertices": 2076.1,
-    "faces": 25
+    "activate": 9.1,
+    "sample": 585.9,
+    "vertices": 1966.9,
+    "faces": 25.6
    },
-   "totalMs": 2765.6
+   "totalMs": 2647.1
   },
   "whiteFrac": [
    [
@@ -122,13 +122,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 7.4,
-    "primitives": 17.4,
-    "groups": 60,
-    "finish": 20.2,
+    "wasm": 7.9,
+    "primitives": 16.3,
+    "groups": 53.9,
+    "finish": 20.1,
     "extract": 3.1
    },
-   "totalMs": 112
+   "totalMs": 105.2
   },
   "whiteFrac": [
    [
@@ -166,12 +166,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.2,
-    "activate": 12.5,
-    "sample": 1127.5,
-    "vertices": 5637.5,
-    "faces": 24.2
+    "activate": 12.9,
+    "sample": 1021,
+    "vertices": 5255.7,
+    "faces": 20.7
    },
-   "totalMs": 6838.5
+   "totalMs": 6353.3
   },
   "whiteFrac": [
    [
@@ -214,13 +214,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 6.7,
-    "primitives": 214.8,
-    "groups": 1335.6,
-    "finish": 830,
-    "extract": 35.9
+    "wasm": 8.3,
+    "primitives": 218.3,
+    "groups": 1916.6,
+    "finish": 1302.2,
+    "extract": 124.5
    },
-   "totalMs": 2671.2
+   "totalMs": 4046.3
   },
   "whiteFrac": [
    [
@@ -266,12 +266,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 393,
-    "sample": 1340.9,
-    "vertices": 3747,
-    "faces": 25.2
+    "activate": 465.6,
+    "sample": 1383.4,
+    "vertices": 3765.4,
+    "faces": 54.1
    },
-   "totalMs": 5548.9
+   "totalMs": 5786.3
   },
   "whiteFrac": [
    [
@@ -306,13 +306,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 19.1,
-    "primitives": 7.1,
-    "groups": 40.2,
-    "finish": 27.4,
-    "extract": 1.9
+    "wasm": 19.9,
+    "primitives": 7,
+    "groups": 42.1,
+    "finish": 28,
+    "extract": 2.1
    },
-   "totalMs": 98.8
+   "totalMs": 102.4
   },
   "whiteFrac": [
    [
@@ -350,12 +350,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 241.5,
-    "sample": 1126.3,
-    "vertices": 2223.6,
-    "faces": 30
+    "activate": 248.3,
+    "sample": 1132.2,
+    "vertices": 2261.9,
+    "faces": 22.9
    },
-   "totalMs": 3654.2
+   "totalMs": 3696.2
   },
   "whiteFrac": [
    [
@@ -382,13 +382,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 12.8,
+    "wasm": 13.1,
     "primitives": 4.6,
-    "groups": 23.8,
-    "finish": 14.8,
-    "extract": 1.1
+    "groups": 22.2,
+    "finish": 14.9,
+    "extract": 1.2
    },
-   "totalMs": 59.3
+   "totalMs": 58.2
   },
   "whiteFrac": [
    [
@@ -418,12 +418,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 20.9,
-    "sample": 878,
-    "vertices": 2310.2,
-    "faces": 35
+    "activate": 20.6,
+    "sample": 937.2,
+    "vertices": 2506.2,
+    "faces": 38.2
    },
-   "totalMs": 3318.6
+   "totalMs": 3591.5
   },
   "whiteFrac": [
    [
@@ -450,13 +450,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 7.1,
-    "primitives": 4,
-    "groups": 18.5,
-    "finish": 19.6,
-    "extract": 0.9
+    "wasm": 12.1,
+    "primitives": 0.7,
+    "groups": 6.5,
+    "finish": 11.5,
+    "extract": 0.5
    },
-   "totalMs": 50.6
+   "totalMs": 31.9
   },
   "whiteFrac": [
    [
@@ -485,13 +485,13 @@
    "activeCells": 930304,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 229.9,
-    "sample": 1282.3,
-    "vertices": 2927.8,
-    "faces": 22.9
+    "cavity": 0,
+    "activate": 250.8,
+    "sample": 1319.7,
+    "vertices": 2830.4,
+    "faces": 24
    },
-   "totalMs": 4502
+   "totalMs": 4463.7
   },
   "whiteFrac": [
    [
@@ -518,13 +518,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 17.7,
-    "primitives": 10.2,
-    "groups": 56.6,
-    "finish": 17.6,
-    "extract": 1.8
+    "wasm": 13.1,
+    "primitives": 4.9,
+    "groups": 33.5,
+    "finish": 15.7,
+    "extract": 1.3
    },
-   "totalMs": 106.4
+   "totalMs": 71.9
   },
   "whiteFrac": [
    [
@@ -553,13 +553,13 @@
    "activeCells": 683520,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 397,
-    "sample": 1199,
-    "vertices": 5359.6,
-    "faces": 24
+    "cavity": 0.2,
+    "activate": 374,
+    "sample": 1223.4,
+    "vertices": 5270.2,
+    "faces": 25.7
    },
-   "totalMs": 7029
+   "totalMs": 6956.2
   },
   "whiteFrac": [
    [
@@ -586,13 +586,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 6.6,
-    "primitives": 14.6,
-    "groups": 299,
-    "finish": 47.9,
-    "extract": 3.4
+    "wasm": 13.6,
+    "primitives": 15.5,
+    "groups": 306,
+    "finish": 49.6,
+    "extract": 3.8
    },
-   "totalMs": 376.5
+   "totalMs": 393
   },
   "whiteFrac": [
    [
@@ -622,12 +622,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 414.8,
-    "sample": 1451.8,
-    "vertices": 3922.1,
-    "faces": 25.6
+    "activate": 420,
+    "sample": 1496.2,
+    "vertices": 3884.3,
+    "faces": 25.7
    },
-   "totalMs": 5864.6
+   "totalMs": 5885.3
   },
   "whiteFrac": [
    [
@@ -654,13 +654,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 17.9,
-    "primitives": 14.8,
-    "groups": 64.1,
-    "finish": 52.9,
-    "extract": 3.2
+    "wasm": 7.8,
+    "primitives": 14.5,
+    "groups": 66.4,
+    "finish": 53.6,
+    "extract": 3.3
    },
-   "totalMs": 156.5
+   "totalMs": 149.6
   },
   "whiteFrac": [
    [
@@ -689,13 +689,13 @@
    "activeCells": 724992,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 7.1,
-    "sample": 244.2,
-    "vertices": 792,
-    "faces": 26.6
+    "cavity": 0,
+    "activate": 7.7,
+    "sample": 230.2,
+    "vertices": 734.2,
+    "faces": 24.7
    },
-   "totalMs": 1118.3
+   "totalMs": 1053.5
   },
   "whiteFrac": [
    [
@@ -722,13 +722,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 13,
-    "primitives": 15.4,
-    "groups": 20.3,
-    "finish": 61.9,
-    "extract": 3.3
+    "wasm": 12.3,
+    "primitives": 16.1,
+    "groups": 20.7,
+    "finish": 61.6,
+    "extract": 3.2
    },
-   "totalMs": 120.7
+   "totalMs": 120.1
   },
   "whiteFrac": [
    [
@@ -758,12 +758,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 12.6,
-    "sample": 1181.6,
-    "vertices": 4987.4,
-    "faces": 28.4
+    "activate": 13.2,
+    "sample": 1231.4,
+    "vertices": 5059.3,
+    "faces": 30.1
    },
-   "totalMs": 6268.2
+   "totalMs": 6418.4
   },
   "whiteFrac": [
    [
@@ -790,13 +790,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 6.9,
-    "primitives": 5.3,
-    "groups": 16.8,
+    "wasm": 8.6,
+    "primitives": 5.9,
+    "groups": 17.9,
     "finish": 1.1,
-    "extract": 0.6
+    "extract": 0.8
    },
-   "totalMs": 30.9
+   "totalMs": 34.5
   },
   "whiteFrac": [
    [
@@ -827,13 +827,13 @@
     "Mesh wall for Group 1 drawn at 0.21 cm, not 0.20 cm (grid too coarse at this size)."
    ],
    "timings": {
-    "cavity": 0,
-    "activate": 505.9,
-    "sample": 5419.9,
-    "vertices": 21928.4,
-    "faces": 110.9
+    "cavity": 0.1,
+    "activate": 496.4,
+    "sample": 5540.3,
+    "vertices": 22082.3,
+    "faces": 112.7
    },
-   "totalMs": 28505.2
+   "totalMs": 28841.1
   },
   "whiteFrac": [
    [
@@ -868,13 +868,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 13.6,
-    "primitives": 16.9,
-    "groups": 73.1,
-    "finish": 48.9,
-    "extract": 3
+    "wasm": 7.6,
+    "primitives": 14.5,
+    "groups": 66.9,
+    "finish": 50.5,
+    "extract": 3.2
    },
-   "totalMs": 160.3
+   "totalMs": 148.2
   },
   "whiteFrac": [
    [
@@ -911,13 +911,13 @@
    "activeCells": 2022912,
    "warnings": [],
    "timings": {
-    "cavity": 0.2,
-    "activate": 37.2,
-    "sample": 2354.5,
-    "vertices": 9011.5,
-    "faces": 64.4
+    "cavity": 0,
+    "activate": 39.6,
+    "sample": 2211.3,
+    "vertices": 8553.9,
+    "faces": 66.1
    },
-   "totalMs": 11667.8
+   "totalMs": 11205.8
   },
   "whiteFrac": [
    [
@@ -954,13 +954,13 @@
     "Sphere 1: opening on curved face \"surface\" not supported by the mesh kernel"
    ],
    "timings": {
-    "wasm": 6.9,
-    "primitives": 93.4,
-    "groups": 545.3,
-    "finish": 262,
-    "extract": 16.4
+    "wasm": 8.1,
+    "primitives": 99.9,
+    "groups": 551.6,
+    "finish": 258.7,
+    "extract": 16.8
    },
-   "totalMs": 1004.4
+   "totalMs": 1043
   },
   "whiteFrac": [
    [
@@ -997,13 +997,13 @@
    "activeCells": 872960,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 8.7,
-    "sample": 515.7,
-    "vertices": 1901.3,
-    "faces": 26.7
+    "cavity": 0.1,
+    "activate": 9.3,
+    "sample": 505.2,
+    "vertices": 1890.9,
+    "faces": 25.4
    },
-   "totalMs": 2518.3
+   "totalMs": 2487.5
   },
   "whiteFrac": [
    [
@@ -1040,13 +1040,13 @@
     "Sphere: X/Z scale differs, wall thickness approximate"
    ],
    "timings": {
-    "wasm": 14.5,
-    "primitives": 16,
-    "groups": 62.6,
-    "finish": 24.6,
-    "extract": 2.6
+    "wasm": 22.1,
+    "primitives": 15.9,
+    "groups": 65.2,
+    "finish": 23.9,
+    "extract": 2.5
    },
-   "totalMs": 124.7
+   "totalMs": 132.3
   },
   "whiteFrac": [
    [
@@ -1083,13 +1083,13 @@
    "activeCells": 777728,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 11.7,
-    "sample": 411.2,
-    "vertices": 1615.3,
-    "faces": 26.2
+    "cavity": 0,
+    "activate": 10.1,
+    "sample": 388.8,
+    "vertices": 1584.8,
+    "faces": 25.4
    },
-   "totalMs": 2126.5
+   "totalMs": 2067.1
   },
   "whiteFrac": [
    [
@@ -1116,13 +1116,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 19,
-    "primitives": 4.1,
-    "groups": 7.5,
-    "finish": 0.5,
-    "extract": 0.4
+    "wasm": 14.5,
+    "primitives": 0.5,
+    "groups": 1.5,
+    "finish": 0.2,
+    "extract": 0.2
    },
-   "totalMs": 31.5
+   "totalMs": 16.9
   },
   "whiteFrac": [
    [
@@ -1152,12 +1152,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 10.5,
-    "sample": 1270.3,
-    "vertices": 3646.1,
-    "faces": 21.5
+    "activate": 8.6,
+    "sample": 1176.9,
+    "vertices": 3536.9,
+    "faces": 22.6
    },
-   "totalMs": 4975.5
+   "totalMs": 4774.3
   },
   "whiteFrac": [
    [
@@ -1192,13 +1192,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 7.2,
-    "primitives": 5.5,
-    "groups": 13.3,
-    "finish": 7.3,
-    "extract": 0.6
+    "wasm": 12.8,
+    "primitives": 1.1,
+    "groups": 3.9,
+    "finish": 4.5,
+    "extract": 0.3
    },
-   "totalMs": 34
+   "totalMs": 22.7
   },
   "whiteFrac": [
    [
@@ -1235,13 +1235,13 @@
    "activeCells": 458240,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 6.6,
-    "sample": 386,
-    "vertices": 1088.6,
-    "faces": 14.7
+    "cavity": 0,
+    "activate": 8.6,
+    "sample": 381.3,
+    "vertices": 1069.4,
+    "faces": 15.5
    },
-   "totalMs": 1513.2
+   "totalMs": 1492.1
   },
   "whiteFrac": [
    [
@@ -1268,13 +1268,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 8.6,
-    "primitives": 25.5,
-    "groups": 70.2,
-    "finish": 20.6,
-    "extract": 3.3
+    "wasm": 7.8,
+    "primitives": 24.8,
+    "groups": 69.8,
+    "finish": 20.7,
+    "extract": 3
    },
-   "totalMs": 133.7
+   "totalMs": 131.4
   },
   "whiteFrac": [
    [
@@ -1305,11 +1305,11 @@
    "timings": {
     "cavity": 0.1,
     "activate": 14.6,
-    "sample": 783.5,
-    "vertices": 2835.6,
-    "faces": 32.9
+    "sample": 800.8,
+    "vertices": 2882.5,
+    "faces": 38.2
    },
-   "totalMs": 3757
+   "totalMs": 3816.3
   },
   "whiteFrac": [
    [
@@ -1336,13 +1336,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 19.5,
-    "primitives": 16,
-    "groups": 74.8,
-    "finish": 31.5,
+    "wasm": 21.2,
+    "primitives": 16.7,
+    "groups": 78.5,
+    "finish": 31.9,
     "extract": 2.7
    },
-   "totalMs": 147.5
+   "totalMs": 153.9
   },
   "whiteFrac": [
    [
@@ -1371,13 +1371,13 @@
    "activeCells": 843264,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 260.5,
-    "sample": 1140,
-    "vertices": 2758.8,
-    "faces": 26.5
+    "cavity": 0.2,
+    "activate": 259.4,
+    "sample": 1166.5,
+    "vertices": 2773.4,
+    "faces": 23
    },
-   "totalMs": 4225.5
+   "totalMs": 4268.3
   },
   "whiteFrac": [
    [
@@ -1404,13 +1404,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 14.3,
-    "primitives": 19.8,
-    "groups": 52.5,
-    "finish": 50.9,
-    "extract": 2.9
+    "wasm": 12.7,
+    "primitives": 20,
+    "groups": 51.5,
+    "finish": 50.3,
+    "extract": 2.2
    },
-   "totalMs": 145.5
+   "totalMs": 140.9
   },
   "whiteFrac": [
    [
@@ -1443,12 +1443,12 @@
    ],
    "timings": {
     "cavity": 0.1,
-    "activate": 1408.7,
-    "sample": 4104.7,
-    "vertices": 15427.5,
-    "faces": 112.5
+    "activate": 1472.3,
+    "sample": 4308.4,
+    "vertices": 16265.7,
+    "faces": 134.6
    },
-   "totalMs": 21680.3
+   "totalMs": 22922.9
   },
   "whiteFrac": [
    [
@@ -1475,13 +1475,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 8.1,
-    "primitives": 34.5,
-    "groups": 91.4,
-    "finish": 67.8,
-    "extract": 3.5
+    "wasm": 14,
+    "primitives": 30.2,
+    "groups": 72.5,
+    "finish": 67.6,
+    "extract": 3.6
    },
-   "totalMs": 209.6
+   "totalMs": 192.8
   },
   "whiteFrac": [
    [
@@ -1511,12 +1511,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 247.1,
-    "sample": 1368.9,
-    "vertices": 2551.6,
-    "faces": 32.1
+    "activate": 262.9,
+    "sample": 1338.1,
+    "vertices": 2591.7,
+    "faces": 31.3
    },
-   "totalMs": 4262.6
+   "totalMs": 4296.2
   },
   "whiteFrac": [
    [
@@ -1543,11 +1543,11 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 14.7,
-    "primitives": 20.3,
-    "groups": 23.2,
-    "finish": 30.7,
-    "extract": 20.2
+    "wasm": 14.3,
+    "primitives": 20.9,
+    "groups": 24.3,
+    "finish": 30.2,
+    "extract": 19.6
    },
    "totalMs": 112.5
   },
@@ -1578,13 +1578,13 @@
    "activeCells": 806400,
    "warnings": [],
    "timings": {
-    "cavity": 0.1,
-    "activate": 10.4,
-    "sample": 1094.7,
-    "vertices": 3798.8,
-    "faces": 29
+    "cavity": 0,
+    "activate": 11,
+    "sample": 1028.9,
+    "vertices": 3705.9,
+    "faces": 27.4
    },
-   "totalMs": 5008.9
+   "totalMs": 4834.5
   },
   "whiteFrac": [
    [
@@ -1611,13 +1611,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 7.4,
-    "primitives": 4.5,
-    "groups": 8.3,
-    "finish": 0.6,
-    "extract": 0.5
+    "wasm": 14.8,
+    "primitives": 1.4,
+    "groups": 1.9,
+    "finish": 0.3,
+    "extract": 0.2
    },
-   "totalMs": 21.3
+   "totalMs": 18.7
   },
   "whiteFrac": [
    [
@@ -1647,12 +1647,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0,
-    "activate": 15.3,
-    "sample": 640.9,
-    "vertices": 1861.6,
-    "faces": 32.3
+    "activate": 17.3,
+    "sample": 697.2,
+    "vertices": 2076.9,
+    "faces": 34.3
    },
-   "totalMs": 2612.9
+   "totalMs": 2914.4
   },
   "whiteFrac": [
    [
@@ -1682,12 +1682,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0,
-    "activate": 6.7,
-    "sample": 251,
-    "vertices": 718.5,
-    "faces": 24.2
+    "activate": 8.4,
+    "sample": 250.4,
+    "vertices": 719.1,
+    "faces": 24.6
    },
-   "totalMs": 1040.9
+   "totalMs": 1043.5
   },
   "whiteFrac": [
    [
@@ -1716,13 +1716,13 @@
    "activeCells": 743936,
    "warnings": [],
    "timings": {
-    "cavity": 0,
-    "activate": 6.5,
-    "sample": 168.4,
-    "vertices": 387.2,
-    "faces": 23
+    "cavity": 0.1,
+    "activate": 7.4,
+    "sample": 169.6,
+    "vertices": 386.5,
+    "faces": 23.2
    },
-   "totalMs": 618.6
+   "totalMs": 623.1
   },
   "whiteFrac": [
    [
@@ -1752,12 +1752,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0,
-    "activate": 11.5,
-    "sample": 679.6,
-    "vertices": 2102.8,
-    "faces": 22.9
+    "activate": 12.5,
+    "sample": 732.8,
+    "vertices": 2173.7,
+    "faces": 23.2
    },
-   "totalMs": 2848.2
+   "totalMs": 2977.9
   },
   "whiteFrac": [
    [
@@ -1788,11 +1788,11 @@
    "timings": {
     "cavity": 0.1,
     "activate": 15.7,
-    "sample": 1261.8,
-    "vertices": 4470.4,
-    "faces": 40.1
+    "sample": 1245.1,
+    "vertices": 4400.8,
+    "faces": 37
    },
-   "totalMs": 5873.8
+   "totalMs": 5808.7
   },
   "whiteFrac": [
    [
@@ -1821,13 +1821,13 @@
    "activeCells": 1321472,
    "warnings": [],
    "timings": {
-    "cavity": 0.3,
-    "activate": 267.4,
-    "sample": 2630.7,
-    "vertices": 4458.8,
-    "faces": 30.4
+    "cavity": 0.2,
+    "activate": 242.9,
+    "sample": 2609.2,
+    "vertices": 4459,
+    "faces": 33
    },
-   "totalMs": 7446.3
+   "totalMs": 7406
   },
   "whiteFrac": [
    [
@@ -1854,13 +1854,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 18.5,
-    "primitives": 37.1,
-    "groups": 38.9,
-    "finish": 40.5,
-    "extract": 2.9
+    "wasm": 14.5,
+    "primitives": 40.6,
+    "groups": 41.6,
+    "finish": 41.9,
+    "extract": 3
    },
-   "totalMs": 141.5
+   "totalMs": 145.5
   },
   "whiteFrac": [
    [
@@ -1889,13 +1889,13 @@
    "activeCells": 1672704,
    "warnings": [],
    "timings": {
-    "cavity": 0.2,
-    "activate": 34.7,
-    "sample": 9148.3,
-    "vertices": 43712.9,
-    "faces": 58.1
+    "cavity": 0.7,
+    "activate": 39.9,
+    "sample": 8866.8,
+    "vertices": 42426.1,
+    "faces": 58
    },
-   "totalMs": 53163.1
+   "totalMs": 51622
   },
   "whiteFrac": [],
   "width": 1560,
@@ -1913,13 +1913,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 8,
-    "primitives": 81.5,
-    "groups": 55.4,
-    "finish": 118.3,
-    "extract": 9.6
+    "wasm": 7,
+    "primitives": 73.1,
+    "groups": 53.6,
+    "finish": 116.7,
+    "extract": 7.1
    },
-   "totalMs": 283.1
+   "totalMs": 268.2
   },
   "whiteFrac": [],
   "width": 1560,
@@ -1939,13 +1939,13 @@
    "activeCells": 551936,
    "warnings": [],
    "timings": {
-    "cavity": 0.5,
-    "activate": 16.2,
-    "sample": 1648,
-    "vertices": 6289.3,
-    "faces": 20.9
+    "cavity": 0.6,
+    "activate": 9.1,
+    "sample": 1597.3,
+    "vertices": 6157.1,
+    "faces": 20.8
    },
-   "totalMs": 8007.3
+   "totalMs": 7815.9
   },
   "whiteFrac": [],
   "width": 1560,
@@ -1963,13 +1963,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 6.7,
-    "primitives": 99.8,
-    "groups": 253.7,
-    "finish": 283.2,
-    "extract": 6.3
+    "wasm": 9.9,
+    "primitives": 110.8,
+    "groups": 274.8,
+    "finish": 244,
+    "extract": 8.8
    },
-   "totalMs": 659.8
+   "totalMs": 657.2
   },
   "whiteFrac": [],
   "width": 1560,
@@ -1987,13 +1987,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 6.9,
-    "primitives": 37.8,
-    "groups": 63.7,
-    "finish": 90,
-    "extract": 4.3
+    "wasm": 7.4,
+    "primitives": 39.1,
+    "groups": 65.1,
+    "finish": 83.6,
+    "extract": 4.5
    },
-   "totalMs": 208
+   "totalMs": 205.3
   },
   "whiteFrac": [
    [
@@ -2020,13 +2020,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 16.7,
+    "wasm": 14.1,
     "primitives": 0.8,
-    "groups": 7.1,
-    "finish": 6.5,
+    "groups": 7.5,
+    "finish": 6.4,
     "extract": 0.4
    },
-   "totalMs": 31.9
+   "totalMs": 29.6
   },
   "whiteFrac": [
    [
@@ -2053,13 +2053,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 7.3,
-    "primitives": 24.2,
-    "groups": 69.2,
-    "finish": 62.9,
-    "extract": 5.3
+    "wasm": 8,
+    "primitives": 23.7,
+    "groups": 70.3,
+    "finish": 62.5,
+    "extract": 5
    },
-   "totalMs": 175.4
+   "totalMs": 175.9
   },
   "whiteFrac": [
    [
@@ -2088,13 +2088,13 @@
     "Pebble: X/Z scale differs, wall thickness approximate"
    ],
    "timings": {
-    "wasm": 21,
-    "primitives": 16.5,
-    "groups": 13.4,
-    "finish": 31.8,
-    "extract": 2.8
+    "wasm": 20.3,
+    "primitives": 15.7,
+    "groups": 14.2,
+    "finish": 34.5,
+    "extract": 2.9
    },
-   "totalMs": 90.7
+   "totalMs": 91.5
   },
   "whiteFrac": [
    [
@@ -2123,13 +2123,13 @@
     "Group 1: smooth blend needs the SDF kernel; shown as a sharp union"
    ],
    "timings": {
-    "wasm": 13.6,
-    "primitives": 42.1,
-    "groups": 217.9,
-    "finish": 58.2,
-    "extract": 9
+    "wasm": 13.8,
+    "primitives": 30.1,
+    "groups": 207.1,
+    "finish": 57.4,
+    "extract": 4.2
    },
-   "totalMs": 349.2
+   "totalMs": 320.6
   },
   "whiteFrac": [
    [
@@ -2159,12 +2159,12 @@
    "warnings": [],
    "timings": {
     "cavity": 0.4,
-    "activate": 14.1,
-    "sample": 683,
-    "vertices": 2013.4,
-    "faces": 18.6
+    "activate": 11.8,
+    "sample": 679.5,
+    "vertices": 2025.2,
+    "faces": 21.8
    },
-   "totalMs": 2740.5
+   "totalMs": 2751.1
   },
   "whiteFrac": [],
   "width": 1560,
@@ -2182,13 +2182,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 15.6,
-    "primitives": 88.5,
-    "groups": 137.6,
-    "finish": 29.6,
-    "extract": 3.9
+    "wasm": 8.5,
+    "primitives": 64.6,
+    "groups": 135.4,
+    "finish": 29.8,
+    "extract": 3.8
    },
-   "totalMs": 279.1
+   "totalMs": 246.1
   },
   "whiteFrac": [],
   "width": 1560,
@@ -2208,13 +2208,13 @@
    "activeCells": 723968,
    "warnings": [],
    "timings": {
-    "cavity": 0.4,
-    "activate": 410.4,
-    "sample": 1602.7,
-    "vertices": 3558.4,
-    "faces": 20.7
+    "cavity": 0.2,
+    "activate": 394.3,
+    "sample": 1679.3,
+    "vertices": 3657.1,
+    "faces": 23.5
    },
-   "totalMs": 5625.9
+   "totalMs": 5796.5
   },
   "whiteFrac": [],
   "width": 1560,
@@ -2232,13 +2232,13 @@
    "nonManifoldEdges": 0,
    "warnings": [],
    "timings": {
-    "wasm": 18.8,
-    "primitives": 81.5,
-    "groups": 112.9,
-    "finish": 52,
-    "extract": 4.6
+    "wasm": 20.1,
+    "primitives": 77.2,
+    "groups": 110.5,
+    "finish": 53.1,
+    "extract": 4.4
    },
-   "totalMs": 274.5
+   "totalMs": 269.9
   },
   "whiteFrac": [],
   "width": 1560,
@@ -2258,13 +2258,13 @@
    "activeCells": 1088512,
    "warnings": [],
    "timings": {
-    "cavity": 0.7,
-    "activate": 329.1,
-    "sample": 2754.5,
-    "vertices": 5875.7,
-    "faces": 46.8
+    "cavity": 0.5,
+    "activate": 273.5,
+    "sample": 2878.8,
+    "vertices": 5986.6,
+    "faces": 30.7
    },
-   "totalMs": 9156.8
+   "totalMs": 9233.3
   },
   "whiteFrac": [
    [
@@ -2293,13 +2293,13 @@
     "Group 1: rounded cut rims need the SDF kernel; shown sharp"
    ],
    "timings": {
-    "wasm": 20.2,
-    "primitives": 50.7,
-    "groups": 91.3,
-    "finish": 92.8,
-    "extract": 4.7
+    "wasm": 7.6,
+    "primitives": 48.4,
+    "groups": 93.7,
+    "finish": 95.6,
+    "extract": 8.8
    },
-   "totalMs": 265.6
+   "totalMs": 259.3
   },
   "whiteFrac": [
    [
