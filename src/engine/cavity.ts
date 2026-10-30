@@ -12,7 +12,8 @@
 // and measures the distance to that seed's small tangent disc.
 
 import type { Quality } from './document';
-import { type CompiledGroup, baseDepth, shapeSDF, shellSDF } from './scene';
+import { type CompiledGroup, baseDepth, needsCavityGrid, needsRoundGrid, shapeSDF, shellSDF } from './scene';
+import { type Lattice, buildRoundGrid } from './round';
 import { type CompiledObject, faceAtWorld, normalToWorld, sdfWorld, toWorld } from './primitives';
 
 export interface CavityGrid {
@@ -26,21 +27,46 @@ export interface CavityGrid {
   clampV: number;
   /** Walls up to this thickness are represented exactly (grid can be reused). */
   tMax: number;
+  /** A compound rounding on the same lattice (engine/round), and its radius. */
+  round?: Float32Array;
+  roundR?: number;
+  /** Only a rounding: the group isn't hollow, or its depth needs no grid. */
+  noCavity?: boolean;
+}
+
+/** A group's grid: its compound rounding (computed first: the walls follow the
+ *  rounded surface) and its cavity depth, on one lattice. */
+export function buildUnitGrid(g: CompiledGroup, quality: Quality): CavityGrid {
+  if (!needsRoundGrid(g)) return buildCavityGrid(g, quality);
+  const rg = buildRoundGrid(g, quality);
+  g.roundGrid = rg;
+  const lat: Lattice = { origin: rg.origin, h: rg.h, dims: rg.dims };
+  if (needsCavityGrid(g)) return { ...buildCavityGrid(g, quality, lat), round: rg.data, roundR: rg.r };
+  return {
+    groupIndex: g.index, origin: rg.origin, h: rg.h, dims: rg.dims, data: new Float32Array(rg.data.length),
+    clampV: 1, tMax: Infinity, round: rg.data, roundR: rg.r, noCavity: true,
+  };
+}
+
+/** Give a compiled group the rounding its grid carries (a grid built elsewhere, say a worker). */
+export function attachGrid(g: CompiledGroup, c: CavityGrid | null | undefined): void {
+  g.roundGrid = c?.round ? { origin: c.origin, h: c.h, dims: c.dims, data: c.round, r: c.roundR ?? 0 } : undefined;
 }
 
 const BUDGET: Record<Quality, number> = { draft: 120_000, normal: 700_000, fine: 2_500_000 };
 const B = 8; // block size for culling
 
-export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid {
+export function buildCavityGrid(g: CompiledGroup, quality: Quality, lattice?: Lattice): CavityGrid {
   const t = g.t;
   const sb = g.shellBounds;
   const ext = [0, 1, 2].map((a) => sb.max[a] - sb.min[a]);
-  // texel size from the budget, then pad around the shells
+  // texel size from the budget, then pad around the shells (or the rounding's lattice)
   let h = Math.cbrt((ext[0] + 2) * (ext[1] + 2) * (ext[2] + 2) / BUDGET[quality]);
   h = Math.max(h, Math.max(...ext) / 400);
   const pad = 2 * h + 0.01;
-  const origin: [number, number, number] = [sb.min[0] - pad, sb.min[1] - pad, sb.min[2] - pad];
-  const dims = [0, 1, 2].map((a) => Math.max(2, Math.ceil((ext[a] + 2 * pad) / h) + 1)) as [number, number, number];
+  let origin: [number, number, number] = [sb.min[0] - pad, sb.min[1] - pad, sb.min[2] - pad];
+  let dims = [0, 1, 2].map((a) => Math.max(2, Math.ceil((ext[a] + 2 * pad) / h) + 1)) as [number, number, number];
+  if (lattice) ({ origin, h, dims } = lattice);
   const [nx, ny, nz] = dims;
   const N = nx * ny * nz;
   // Depth band covers walls up to ~1.6x the current one, so a thickness slider
@@ -227,7 +253,8 @@ export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid 
     // The seeds' small discs would only add noise there (they reach a little past
     // the edge of an opening), which shows as a wavy rim where a shallow shoulder
     // meets the opening.
-    data[q] = s >= 0 && sObj[s] === top.i && top.gap > Math.max(2 * h, g.k) + h ? 0 : D - A;
+    // (not under a compound rounding: there the surface isn't the objects' own)
+    data[q] = !g.roundGrid && s >= 0 && sObj[s] === top.i && top.gap > Math.max(2 * h, g.k) + h ? 0 : D - A;
   }
   return { groupIndex: g.index, origin, h, dims, data, clampV, tMax };
 }

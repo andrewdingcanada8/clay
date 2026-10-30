@@ -34,7 +34,8 @@ export function expandDoc(doc: SceneDoc, notes?: string[]): SceneDoc {
 
 function resolveRound(out: SceneDoc): SceneDoc {
   if (out.groups.some((g) => (g.round ?? 0) > 0)) {
-    const gr = new Map(out.groups.map((g) => [g.id, g.round ?? 0]));
+    // (a compound round rounds the body as a whole: engine/round)
+    const gr = new Map(out.groups.map((g) => [g.id, g.compound ? 0 : g.round ?? 0]));
     out.objects = out.objects.map((o) => {
       const r = Math.max(o.params.round ?? 0, gr.get(o.groupId) ?? 0);
       return r > 0 ? { ...o, params: { ...o.params, round: r } } : o;

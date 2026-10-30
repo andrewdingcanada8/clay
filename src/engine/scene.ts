@@ -34,6 +34,16 @@ export interface CompiledPin {
   r: number;
 }
 
+/** A compound rounding: on a lattice, the rounded body's field minus the sharp one's. */
+export interface RoundGrid {
+  origin: [number, number, number];
+  h: number;
+  dims: [number, number, number];
+  data: Float32Array;
+  /** Outside the band the correction is -r: still a lower bound on the distance. */
+  r: number;
+}
+
 export interface CompiledGroup {
   index: number;
   id: string;
@@ -41,8 +51,15 @@ export interface CompiledGroup {
   t: number;
   /** Smooth-union radius (0 = sharp min). */
   k: number;
-  /** Edge rounding: the rims of its cuts are a smooth max of this radius. */
+  /** Edge rounding radius. */
   round: number;
+  /** Round the finished body as a whole (a grid, engine/round) rather than each
+   *  object and the rims of its cuts. */
+  compound: boolean;
+  /** Smooth-max radius of the cut rims: the rounding, unless it is compound. */
+  rim: number;
+  /** Compound rounding, once built: the correction to the sharp body's field. */
+  roundGrid?: RoundGrid;
   /** Shelling applies (global switch on and the group has shell objects). */
   hollow: boolean;
   shells: CompiledObject[];
@@ -60,6 +77,7 @@ export function compileGroups(doc: SceneDoc): CompiledGroup[] {
   const byId = new Map(objs.map((o) => [o.obj.id, o]));
   const groups: CompiledGroup[] = doc.groups.map((g, index) => ({
     index, id: g.id, name: g.name, t: Math.max(0.01, g.thickness), k: Math.max(0, g.blend ?? 0), round: Math.max(0, g.round ?? 0), hollow: false,
+    compound: !!g.compound && (g.round ?? 0) > 0, rim: g.compound ? 0 : Math.max(0, g.round ?? 0),
     shells: [], solids: [], subs: [], pins: [], holes: new Set(), bounds: emptyAABB(), shellBounds: emptyAABB(),
   }));
   const gById = new Map(groups.map((g) => [g.id, g]));
@@ -139,11 +157,39 @@ export function smax(a: number, b: number, k: number): number {
   return -smin(-a, -b, k);
 }
 
-/** The shell shape: the shell union with the subtract objects carved out. */
+/** The shell shape: the shell union with the cuts carved out (rounded, Subtract
+ *  objects before the rounding and Cutouts after it). */
 export function shapeSDF(g: CompiledGroup, x: number, y: number, z: number): number {
-  let sub = Infinity;
-  for (const o of g.subs) sub = Math.min(sub, sdfWorld(o, x, y, z));
-  return smax(shellSDF(g, x, y, z), -sub, g.round);
+  let subS = Infinity, subC = Infinity;
+  for (const o of g.subs) {
+    const d = sdfWorld(o, x, y, z);
+    if (o.obj.mode === 'cutout') subC = Math.min(subC, d); else subS = Math.min(subS, d);
+  }
+  return smax(smax(shellSDF(g, x, y, z), -subS, g.rim) + roundCorrection(g, x, y, z), -subC, g.rim);
+}
+
+/** The sharp body a compound rounding rounds: Shell and Solid objects less the Subtract ones. */
+export function bodySDF(g: CompiledGroup, x: number, y: number, z: number): number {
+  let u = Infinity, sub = Infinity;
+  for (const o of g.shells) u = smin(u, sdfWorld(o, x, y, z), g.k);
+  for (const o of g.solids) u = smin(u, sdfWorld(o, x, y, z), g.k);
+  for (const o of g.subs) if (o.obj.mode !== 'cutout') sub = Math.min(sub, sdfWorld(o, x, y, z));
+  return smax(u, -sub, g.rim);
+}
+
+/** Compound rounding: what to add to the sharp field here (0 without a grid). */
+export function roundCorrection(g: CompiledGroup, x: number, y: number, z: number): number {
+  const c = g.roundGrid;
+  if (!c) return 0;
+  const fx = (x - c.origin[0]) / c.h, fy = (y - c.origin[1]) / c.h, fz = (z - c.origin[2]) / c.h;
+  const [nx, ny, nz] = c.dims;
+  if (fx < 0 || fy < 0 || fz < 0 || fx > nx - 1 || fy > ny - 1 || fz > nz - 1) return -c.r;
+  const i = Math.min(nx - 2, Math.floor(fx)), j = Math.min(ny - 2, Math.floor(fy)), k = Math.min(nz - 2, Math.floor(fz));
+  const u = fx - i, v = fy - j, w = fz - k;
+  const D = c.data, q = i + nx * (j + ny * k), sxy = nx * ny;
+  const c00 = D[q] * (1 - u) + D[q + 1] * u, c10 = D[q + nx] * (1 - u) + D[q + nx + 1] * u;
+  const c01 = D[q + sxy] * (1 - u) + D[q + sxy + 1] * u, c11 = D[q + sxy + nx] * (1 - u) + D[q + sxy + nx + 1] * u;
+  return (c00 * (1 - v) + c10 * v) * (1 - w) + (c01 * (1 - v) + c11 * v) * w;
 }
 
 const tmp: Vec3 = [0, 0, 0];
@@ -229,7 +275,17 @@ export function approxDepth(g: CompiledGroup, x: number, y: number, z: number): 
  * shallow shoulder running into its open top).
  */
 export function needsCavityGrid(g: CompiledGroup): boolean {
-  return g.hollow && (g.shells.length > 1 || (g.round > 0 && g.subs.length > 0));
+  return g.hollow && (g.shells.length > 1 || (g.rim > 0 && g.subs.length > 0) || g.compound);
+}
+
+/** Whether a group's grid also carries a compound rounding (engine/round). */
+export function needsRoundGrid(g: CompiledGroup): boolean {
+  return g.compound;
+}
+
+/** Whether a group gets a grid at all (cavity depth, compound rounding or both). */
+export function needsUnitGrid(g: CompiledGroup): boolean {
+  return needsCavityGrid(g) || needsRoundGrid(g);
 }
 
 /** Bounding sphere of an object (centre, radius); the shader uses the same one. */
@@ -292,12 +348,18 @@ export function evalScene(groups: CompiledGroup[], depth: DepthFn, x: number, y:
     const dx = Math.max(b.min[0] - x, 0, x - b.max[0]), dy = Math.max(b.min[1] - y, 0, y - b.max[1]), dz = Math.max(b.min[2] - z, 0, z - b.max[2]);
     const boxD = Math.hypot(dx, dy, dz);
     if (boxD > Math.min(s, cull)) continue;
-    let fs = Infinity, fo = Infinity, sub = Infinity;
+    let fs = Infinity, fo = Infinity, subS = Infinity, subC = Infinity;
     for (const o of g.shells) fs = smin(fs, sdfWorld(o, x, y, z), g.k);
     for (const o of g.solids) fo = smin(fo, sdfWorld(o, x, y, z), g.k);
-    for (const o of g.subs) sub = Math.min(sub, sdfWorld(o, x, y, z));
+    for (const o of g.subs) {
+      const d = sdfWorld(o, x, y, z);
+      if (o.obj.mode === 'cutout') subC = Math.min(subC, d); else subS = Math.min(subS, d);
+    }
+    const sub = Math.min(subS, subC);
     const U = smin(fs, fo, g.k);
-    const G = smax(U, -sub, g.round), F = smax(fs, -sub, g.round);
+    // Subtract objects, then the compound rounding, then Cutouts (see shapeSDF)
+    const rc = roundCorrection(g, x, y, z);
+    const G = smax(smax(U, -subS, g.rim) + rc, -subC, g.rim), F = smax(smax(fs, -subS, g.rim) + rc, -subC, g.rim);
     let cut = Infinity, kind: typeof last.kind = 'material';
     if (g.hollow && F < OPENING_EPS) {
       const c = Math.max(F - OPENING_EPS, g.t - depth(g, x, y, z));

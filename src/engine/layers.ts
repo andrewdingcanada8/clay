@@ -346,7 +346,7 @@ export function flattenLayers(src: SceneDoc, notes: string[] = []): SceneDoc {
         if (!effects) { walk(g.children ?? [], { ...c, cuts: [...ctx.cuts, ...above] }); return; }
         if (ctx.unit) nested.push([ctx.unit, `"${g.name}" is built as a body of its own inside "${ctx.unit.g.name}"`]);
         const hollow = g.shell ?? childIds(doc, g.id).some((x) => objs.get(x)?.mode === 'shell');
-        const u = newUnit({ id: g.id + c.suffix, name: g.name, thickness: g.thickness, blend: g.blend, round: g.round }, hollow);
+        const u = newUnit({ id: g.id + c.suffix, name: g.name, thickness: g.thickness, blend: g.blend, round: g.round, compound: (g.round ?? 0) > 0 || undefined }, hollow);
         const inherited = [...ctx.cuts, ...above];
         cutUnit(u, inherited, hollow ? 'cutout' : 'subtract');
         walk(g.children ?? [], { ...c, unit: u, cuts: inherited.map((x) => ({ ...x, kind: hollow ? 'cutout' : x.kind })) });

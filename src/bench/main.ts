@@ -5,15 +5,16 @@ import * as THREE from 'three';
 import { examples } from '../examples';
 import '../browserSetup';
 import { buildMesh } from '../engine/build';
-import type { KernelName, Quality } from '../engine/document';
-import { buildCavityGrid, type CavityGrid, cavityDepth } from '../engine/cavity';
+import { type KernelName, type Quality, cloneDoc, normalizeDoc } from '../engine/document';
+import { attachGrid, buildUnitGrid, type CavityGrid, cavityDepth } from '../engine/cavity';
 import { buildSDF } from '../engine/sdfKernel';
-import { approxDepth, compileGroups, needsCavityGrid, traceScene } from '../engine/scene';
+import { approxDepth, compileGroups, needsUnitGrid, traceScene } from '../engine/scene';
 import type { Vec3 } from '../engine/math';
 import { SdfRenderer } from '../app/raymarch';
 import type { BuildResult } from '../engine/kernel';
 import { flaggedCases } from './flagged';
 import { expandDoc } from '../engine/symmetry';
+import { toLayers } from '../engine/layers';
 
 const params = new URLSearchParams(location.search);
 const caseId = params.get('case') ?? 'open-box';
@@ -31,8 +32,8 @@ async function main() {
   const ex = cases.find((e) => e.id === caseId);
   if (!ex) throw new Error(`unknown case ${caseId}`);
   const doc = { ...ex.doc, kernel, meshMethod: kernelParam === 'mesh-mk' ? 'minkowski' as const : 'offset' as const };
-  // placed parts build as their own groups, as in the app
-  Object.assign(doc, expandDoc(doc));
+  // built as in the app: in the layer tree, flattened into units
+  Object.assign(doc, expandDoc(toLayers(normalizeDoc(cloneDoc(doc)))));
   // overrides for reproducing app states: ?wall=cm&blend=cm&nogrid=1
   if (params.get('wall')) doc.groups = doc.groups.map((g) => ({ ...g, thickness: Number(params.get('wall')) }));
   if (params.get('blend')) doc.groups = doc.groups.map((g) => ({ ...g, blend: Number(params.get('blend')) }));
@@ -47,7 +48,7 @@ async function main() {
     const t0 = performance.now();
     const groups = compileGroups(doc);
     gridArr = [];
-    for (const g of groups) gridArr[g.index] = needsCavityGrid(g) && !params.get('nogrid') ? buildCavityGrid(g, quality) : null;
+    for (const g of groups) gridArr[g.index] = needsUnitGrid(g) && !params.get('nogrid') ? buildUnitGrid(g, quality) : null;
     cavityMs = performance.now() - t0;
     sdfR = new SdfRenderer();
     sdfR.setDoc(doc);
@@ -205,9 +206,10 @@ async function main() {
   for (const [name, d] of [['+X', new THREE.Vector3(1, 0, 0)], ['+Y', new THREE.Vector3(0, 1, 0)], ['-Y', new THREE.Vector3(0, -1, 0)]] as [string, THREE.Vector3][]) {
     if (sdf) {
       const groups = compileGroups(doc);
+      groups.forEach((g) => attachGrid(g, gridArr[g.index]));
       const depth = (g: { index: number }, x: number, y: number, z: number) => {
         const c = gridArr[g.index];
-        return c ? cavityDepth(c, g as never, x, y, z) : approxDepth(g as never, x, y, z);
+        return c && !c.noCavity ? cavityDepth(c, g as never, x, y, z) : approxDepth(g as never, x, y, z);
       };
       const h = traceScene(groups, depth, p0.toArray() as Vec3, d.toArray() as Vec3, 0.01, 500);
       if (h) hits.push([name, new THREE.Vector3(...h.p), d]);

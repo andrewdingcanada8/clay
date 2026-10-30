@@ -22,7 +22,8 @@ describe('rounded edges', () => {
     expect(prism.sdfLocal(0, 0, 3 * Math.cos(Math.PI / 6))).toBeCloseTo(0, 3);
   });
   it('group rounding reaches every object; meshes stay closed', async () => {
-    const d = emptyDoc();
+    // (a flat document from before layers: its group Round rounds each object)
+    const d = { ...emptyDoc(), root: undefined };
     d.groups[0].round = 0.4;
     d.objects.push(makeObject('box', { params: { x: 4, y: 4, z: 4 }, holes: ['py'] }));
     d.objects.push(makeObject('cylinder', { params: { r: 1.5, h: 6 }, transform: { position: [3, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } }));

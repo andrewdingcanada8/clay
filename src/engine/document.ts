@@ -43,6 +43,9 @@ export interface Group {
   hidden?: boolean;
   /** Folded in the Layers list. */
   collapsed?: boolean;
+  /** Built units from the layer tree: Round rounds the finished body as a whole
+   *  (engine/round), not each object and the rims of its cuts. */
+  compound?: boolean;
   /** Wall thickness (cm) for this group's shell. */
   thickness: number;
   /** Smooth-union radius (cm) between the group's shell and solid objects; 0 = sharp. SDF only. */

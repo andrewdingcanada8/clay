@@ -64,11 +64,11 @@ export class Builder {
         const { buildMesh } = await import('../engine/build');
         this.handle({ id: job.id, kind: 'mesh', result: await buildMesh(job.doc, job.quality) });
       } else {
-        const { compileGroups, needsCavityGrid } = await import('../engine/scene');
-        const { buildCavityGrid } = await import('../engine/cavity');
+        const { compileGroups, needsUnitGrid } = await import('../engine/scene');
+        const { buildUnitGrid } = await import('../engine/cavity');
         const t0 = performance.now();
         const want = new Set(job.groups ?? []);
-        const grids = compileGroups(job.doc).filter((g) => needsCavityGrid(g) && (!job.groups || want.has(g.index))).map((g) => buildCavityGrid(g, job.quality));
+        const grids = compileGroups(job.doc).filter((g) => needsUnitGrid(g) && (!job.groups || want.has(g.index))).map((g) => buildUnitGrid(g, job.quality));
         this.handle({ id: job.id, kind: 'cavity', grids, ms: performance.now() - t0 });
       }
     } catch (err) {

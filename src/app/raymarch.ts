@@ -9,7 +9,7 @@
 // openings — never recompiles.
 
 import * as THREE from 'three';
-import type { CavityGrid } from '../engine/cavity';
+import { type CavityGrid, attachGrid } from '../engine/cavity';
 import { type SceneDoc, isCut } from '../engine/document';
 import { buildProfileTable, tableProfile } from '../engine/profileTable';
 import { MAX_PATH_POINTS, MAX_SECTION_POINTS, sweepGeo } from '../engine/sweep';
@@ -71,6 +71,8 @@ uniform float uK[${MAX_GROUPS}];
 uniform float uRound[${MAX_GROUPS}]; // rounds the rims of the group's cuts
 uniform int uHollow[${MAX_GROUPS}];
 uniform int uUseGrid[${MAX_GRIDS}];
+uniform int uUseRound[${MAX_GRIDS}]; // the grid's second channel: a compound rounding
+uniform float uRoundR[${MAX_GRIDS}];
 uniform float uCavH[${MAX_GRIDS}];
 uniform vec4 uPins[${MAX_PINS * 2}];
 ${range(MAX_GRIDS).map((i) => `uniform sampler3D uCav${i}; uniform vec3 uCavO${i}; uniform vec3 uCavS${i}; uniform float uCavC${i};`).join('\n')}
@@ -365,7 +367,7 @@ float holeDepth(int i, vec3 p) {
 
 // Tricubic B-spline lookup from 8 trilinear fetches (smooth, no texel banding).
 // f is in texel units with texel centres at integers.
-float cubicR(sampler3D tex, vec3 f, vec3 dims) {
+vec2 cubic(sampler3D tex, vec3 f, vec3 dims) {
   vec3 i = floor(f), x = f - i, o = 1.0 - x;
   vec3 w0 = o * o * o / 6.0;
   vec3 w1 = (4.0 - 6.0 * x * x + 3.0 * x * x * x) / 6.0;
@@ -374,13 +376,29 @@ float cubicR(sampler3D tex, vec3 f, vec3 dims) {
   vec3 g0 = w0 + w1, g1 = w2 + w3;
   vec3 a = (i - 1.0 + w1 / g0 + 0.5) / dims;
   vec3 b = (i + 1.0 + w3 / g1 + 0.5) / dims;
-  float v000 = texture(tex, vec3(a.x, a.y, a.z)).r, v100 = texture(tex, vec3(b.x, a.y, a.z)).r;
-  float v010 = texture(tex, vec3(a.x, b.y, a.z)).r, v110 = texture(tex, vec3(b.x, b.y, a.z)).r;
-  float v001 = texture(tex, vec3(a.x, a.y, b.z)).r, v101 = texture(tex, vec3(b.x, a.y, b.z)).r;
-  float v011 = texture(tex, vec3(a.x, b.y, b.z)).r, v111 = texture(tex, vec3(b.x, b.y, b.z)).r;
-  float y0 = g0.y * (g0.x * v000 + g1.x * v100) + g1.y * (g0.x * v010 + g1.x * v110);
-  float y1 = g0.y * (g0.x * v001 + g1.x * v101) + g1.y * (g0.x * v011 + g1.x * v111);
+  vec2 v000 = texture(tex, vec3(a.x, a.y, a.z)).rg, v100 = texture(tex, vec3(b.x, a.y, a.z)).rg;
+  vec2 v010 = texture(tex, vec3(a.x, b.y, a.z)).rg, v110 = texture(tex, vec3(b.x, b.y, a.z)).rg;
+  vec2 v001 = texture(tex, vec3(a.x, a.y, b.z)).rg, v101 = texture(tex, vec3(b.x, a.y, b.z)).rg;
+  vec2 v011 = texture(tex, vec3(a.x, b.y, b.z)).rg, v111 = texture(tex, vec3(b.x, b.y, b.z)).rg;
+  vec2 y0 = g0.y * (g0.x * v000 + g1.x * v100) + g1.y * (g0.x * v010 + g1.x * v110);
+  vec2 y1 = g0.y * (g0.x * v001 + g1.x * v101) + g1.y * (g0.x * v011 + g1.x * v111);
   return g0.z * y0 + g1.z * y1;
+}
+float cubicR(sampler3D tex, vec3 f, vec3 dims) { return cubic(tex, f, dims).r; }
+
+// Compound rounding from grid k: what to add to the sharp body's field Gs (engine/round);
+// trilinear, and tricubic near the rounded surface (smooth, no texel facets). Outside
+// the grid, -r: still a lower bound on the distance.
+float roundCorr(int k, vec3 p, float Gs) {
+${range(MAX_GRIDS).map((i) => `  if (k == ${i}) {
+    vec3 dims = vec3(textureSize(uCav${i}, 0));
+    vec3 tc = (p - uCavO${i}) * uCavS${i} + 0.5 / dims;
+    if (any(lessThan(tc, vec3(0.0))) || any(greaterThan(tc, vec3(1.0)))) return -uRoundR[${i}];
+    float c = texture(uCav${i}, tc).g;
+    if (abs(Gs + c) < 2.0 * uCavH[${i}]) c = cubic(uCav${i}, tc * dims - 0.5, dims).g;
+    return c;
+  }`).join('\n')}
+  return 0.0;
 }
 
 // Cavity depth from grid k: the analytic base depth A plus the grid's correction
@@ -493,18 +511,21 @@ float map(vec3 p) {
     // Cuts are carved from the shape before it is hollowed, and a closed cut's
     // surface bounds the depth too (see scene.baseDepth). Where the bound shows a
     // cut can't change either, its bound stands in for it.
-    float sub = 1e5;
+    // (a cutout is 'open': it gets no wall, and it cuts after any compound rounding)
+    float subS = 1e5, subC = 1e5;
     for (int i = R.z; i < R.w; i++) {
       if (!objOn(i)) continue;
       bool open = int(row(i, 6).z) != 0;
       float b = bound(i, p);
       float d = b < max(-G, open ? -1e5 : D) + 0.5 ? sdObj(i, p) : b;
-      sub = min(sub, d);
-      if (!open) D = min(D, d);
+      if (open) subC = min(subC, d); else { subS = min(subS, d); D = min(D, d); }
     }
-    // (a smooth max: the cut's rim rounded by the group's rounding, as scene.evalScene)
-    G = -smin(-G, sub, uRound[g]);
-    float F = -smin(-fs, sub, uRound[g]);
+    // (smooth maxes: the cuts' rims rounded by the group's rounding, as scene.evalScene;
+    // a compound rounding comes from the grid instead)
+    float Gs = -smin(-G, subS, uRound[g]);
+    float rc = g < ${MAX_GRIDS} && uUseRound[min(g, ${MAX_GRIDS - 1})] == 1 ? roundCorr(g, p, Gs) : 0.0;
+    G = -smin(-(Gs + rc), subC, uRound[g]);
+    float F = -smin(-(-smin(-fs, subS, uRound[g]) + rc), subC, uRound[g]);
     if (deep && F < ${OPENING_EPS.toFixed(3)}) {
       if (useGrid) D = gridDepth(g, p, uT[g], D);
       cav = max(F - ${OPENING_EPS.toFixed(3)}, uT[g] - D);
@@ -659,6 +680,8 @@ export class SdfRenderer {
       uRound: { value: range(MAX_GROUPS).map(() => 0) },
       uHollow: { value: range(MAX_GROUPS).map(() => 0) },
       uUseGrid: { value: range(MAX_GRIDS).map(() => 0) },
+      uUseRound: { value: range(MAX_GRIDS).map(() => 0) },
+      uRoundR: { value: range(MAX_GRIDS).map(() => 0) },
       uCavH: { value: range(MAX_GRIDS).map(() => 0) },
       uPins: { value: range(MAX_PINS * 2).map(() => new THREE.Vector4()) },
     };
@@ -747,7 +770,7 @@ export class SdfRenderer {
       (u.uGroupE.value as THREE.Vector4[])[k].set((gb.max[0] - gb.min[0]) / 2 + 0.05, (gb.max[1] - gb.min[1]) / 2 + 0.05, (gb.max[2] - gb.min[2]) / 2 + 0.05, 0);
       (u.uT.value as number[])[k] = g.t;
       (u.uK.value as number[])[k] = g.k;
-      (u.uRound.value as number[])[k] = g.round;
+      (u.uRound.value as number[])[k] = g.rim;
       (u.uHollow.value as number[])[k] = g.hollow ? 1 : 0;
     });
     u.uGroupCount.value = groups.length;
@@ -791,11 +814,15 @@ export class SdfRenderer {
         this.gridTex[k]?.dispose();
         this.gridTex[k] = null;
         if (c) {
-          const half = new Uint16Array(c.data.length);
-          for (let q = 0; q < c.data.length; q++) half[q] = THREE.DataUtils.toHalfFloat(c.data[q]);
+          // red: the cavity depth correction; green: the compound rounding (if any)
+          const half = new Uint16Array(2 * c.data.length);
+          for (let q = 0; q < c.data.length; q++) {
+            half[2 * q] = THREE.DataUtils.toHalfFloat(c.data[q]);
+            half[2 * q + 1] = THREE.DataUtils.toHalfFloat(c.round ? c.round[q] : 0);
+          }
           const tex = new THREE.Data3DTexture(half, c.dims[0], c.dims[1], c.dims[2]);
           tex.type = THREE.HalfFloatType;
-          tex.format = THREE.RedFormat;
+          tex.format = THREE.RGFormat;
           tex.minFilter = tex.magFilter = THREE.LinearFilter;
           tex.wrapS = tex.wrapT = tex.wrapR = THREE.ClampToEdgeWrapping;
           tex.unpackAlignment = 1;
@@ -805,7 +832,10 @@ export class SdfRenderer {
         this.gridSrc[k] = c;
       }
       u[`uCav${k}`].value = this.gridTex[k];
-      (u.uUseGrid.value as number[])[k] = c ? 1 : 0;
+      (u.uUseGrid.value as number[])[k] = c && !c.noCavity ? 1 : 0;
+      (u.uUseRound.value as number[])[k] = c?.round ? 1 : 0;
+      (u.uRoundR.value as number[])[k] = c?.roundR ?? 0;
+      if (g) attachGrid(g, c); // CPU picking sees the rounding too
       (u.uCavH.value as number[])[k] = c ? c.h : 0;
       if (c) {
         u[`uCavO${k}`].value.set(...c.origin);

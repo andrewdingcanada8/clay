@@ -20,7 +20,8 @@ import type { Vec3 } from './math';
 import { edgeStats } from './meshCheck';
 import { type CompiledObject, compileScene, normalToWorld, revolveOutline, toWorld } from './primitives';
 import { type SweepSpin, sectionRing, sweepParts } from './sweep';
-import { pinDepth } from './scene';
+import { approxDepth, compileGroups, evalScene, pinDepth } from './scene';
+import { attachGrid, buildUnitGrid, cavityDepth } from './cavity';
 
 let wasmPromise: Promise<ManifoldToplevel> | null = null;
 let wasmUrl: string | undefined;
@@ -51,6 +52,8 @@ export function getManifold(): Promise<ManifoldToplevel> {
 }
 
 const SEGMENTS: Record<Quality, number> = { draft: 32, normal: 72, fine: 128 };
+/** Cells across a compound-rounded group (meshed from its field). */
+const LEVEL_CELLS: Record<Quality, number> = { draft: 60, normal: 110, fine: 170 };
 
 function signedArea(pts: [number, number][]): number {
   let a = 0;
@@ -348,7 +351,26 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
   // Each group: (shell ∪ solid) − (cavity ∪ subtract ∪ pins), the cavity hollowed from
   // (shell − closed cuts). Groups never cut each other.
   const groupResults: Manifold[] = [];
+  let compiled: ReturnType<typeof compileGroups> | null = null;
   for (const g of doc.groups) {
+    if (g.compound && (g.round ?? 0) > 0) {
+      // Rounded as a whole: there is no exact mesh operation for that, so this group
+      // is meshed from the same field the SDF kernel draws (engine/round).
+      compiled ??= compileGroups(doc);
+      const cg = compiled.find((x) => x.id === g.id);
+      if (!cg) continue;
+      const grid = buildUnitGrid(cg, quality);
+      attachGrid(cg, grid);
+      const depth = (gg: typeof cg, x: number, y: number, z: number) => (!grid.noCavity ? cavityDepth(grid, gg, x, y, z) : gg.hollow ? approxDepth(gg, x, y, z) : -Infinity);
+      const b = cg.bounds, pad = 0.5;
+      const size = Math.max(...[0, 1, 2].map((a) => b.max[a] - b.min[a]));
+      const edge = Math.min(size / LEVEL_CELLS[quality], cg.hollow ? cg.t / 2.2 : Infinity);
+      const m = keep(Manifold.levelSet((p: Vec3) => -evalScene([cg], depth, p[0], p[1], p[2]),
+        { min: [b.min[0] - pad, b.min[1] - pad, b.min[2] - pad], max: [b.max[0] + pad, b.max[1] + pad, b.max[2] + pad] }, Math.max(edge, size / 400)));
+      if (!m.isEmpty()) groupResults.push(m);
+      warnings.push(`${g.name}: rounded as a whole, meshed from its distance field`);
+      continue;
+    }
     const members = objs.filter((c) => c.obj.groupId === g.id);
     const shells = members.filter((c) => c.obj.mode === 'shell');
     const solids = members.filter((c) => c.obj.mode === 'solid');

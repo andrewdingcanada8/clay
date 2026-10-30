@@ -8,12 +8,12 @@
 // Meshing: sparse 8^3 blocks (skipped only when the surface provably cannot pass
 // through them), dual contouring with a QEF per cell to keep sharp edges.
 
-import { buildCavityGrid, type CavityGrid, cavityDepth } from './cavity';
+import { type CavityGrid, attachGrid, buildUnitGrid, cavityDepth } from './cavity';
 import type { Quality, SceneDoc } from './document';
 import { type BuildResult, Timer } from './kernel';
 import type { Vec3 } from './math';
 import { edgeStats } from './meshCheck';
-import { type CompiledGroup, approxDepth, compileGroups, evalScene, needsCavityGrid, sceneBounds } from './scene';
+import { type CompiledGroup, approxDepth, compileGroups, evalScene, needsUnitGrid, sceneBounds } from './scene';
 
 const B = 8;
 const B1 = B + 1;
@@ -25,14 +25,14 @@ const QUALITY_BUDGET: Record<Quality, number> = { draft: 800_000, normal: 4_000_
 interface Block { bi: number; bj: number; bk: number; values: Float32Array; vidx: Int32Array }
 
 export function cavityGrids(groups: CompiledGroup[], quality: Quality): (CavityGrid | null)[] {
-  return groups.map((g) => (needsCavityGrid(g) ? buildCavityGrid(g, quality) : null));
+  return groups.map((g) => (needsUnitGrid(g) ? buildUnitGrid(g, quality) : null));
 }
 
 export function depthFromGrids(grids: (CavityGrid | null)[]) {
   return (g: CompiledGroup, x: number, y: number, z: number) => {
     const c = grids[g.index];
     // no grid: the analytic depth is exact for this group (see needsCavityGrid)
-    return c ? cavityDepth(c, g, x, y, z) : g.hollow ? approxDepth(g, x, y, z) : -Infinity;
+    return c && !c.noCavity ? cavityDepth(c, g, x, y, z) : g.hollow ? approxDepth(g, x, y, z) : -Infinity;
   };
 }
 
@@ -61,7 +61,7 @@ export function buildSDF(doc: SceneDoc, quality: Quality, grids?: (CavityGrid | 
   // cavity depth grids (exact wall), computed once
   const gridIndex: (CavityGrid | null)[] = [];
   const cg = grids ?? cavityGrids(groups, quality === 'draft' ? 'draft' : quality);
-  groups.forEach((g, i) => { gridIndex[g.index] = cg[i] ?? null; });
+  groups.forEach((g, i) => { gridIndex[g.index] = cg[i] ?? null; attachGrid(g, cg[i]); });
   const depth = depthFromGrids(gridIndex);
   timer.lap('cavity');
 

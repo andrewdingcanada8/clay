@@ -244,9 +244,10 @@ function ghostOutline(live = false) {
 // becomes its own group (see engine/parts). Group indices below refer to it.
 function cavityKey(r: SceneDoc, gi: number): string {
   const g = r.groups[gi];
-  // the cavity follows the shell objects and the cuts carved before hollowing
-  const shells = r.objects.filter((o) => o.groupId === g.id && o.mode !== 'solid' && !o.hidden);
-  return JSON.stringify([ui.quality, g.blend ?? 0, shells.map((o) => [o.type, o.mode, o.params, o.transform, o.holes])]);
+  // the cavity follows the shell objects and the cuts carved before hollowing; a
+  // compound rounding follows the whole body
+  const shells = r.objects.filter((o) => o.groupId === g.id && (g.compound || o.mode !== 'solid') && !o.hidden);
+  return JSON.stringify([ui.quality, g.blend ?? 0, g.compound ? g.round : 0, r.shell.enabled, shells.map((o) => [o.type, o.mode, o.params, o.transform, o.holes])]);
 }
 
 /** Whether group gi of the built document needs a cavity grid (scene.needsCavityGrid,
@@ -255,6 +256,7 @@ function needsGrid(r: SceneDoc, gi: number): boolean {
   const g = r.groups[gi];
   const members = r.objects.filter((o) => o.groupId === g.id && !o.hidden && o.type !== 'part');
   const shells = members.filter((o) => o.mode === 'shell').length;
+  if (g.compound && (g.round ?? 0) > 0 && members.length) return true; // the rounding (engine/round)
   return r.shell.enabled && shells > 0 && (shells > 1 || ((g.round ?? 0) > 0 && members.some((o) => isCut(o.mode))));
 }
 
@@ -287,8 +289,7 @@ function sync(interactive: boolean) {
   const missing: number[] = [];
   const keys: Record<number, string> = {};
   r.groups.forEach((g, i) => {
-    const hollow = r.shell.enabled && r.objects.some((o) => o.groupId === g.id && o.mode === 'shell' && !o.hidden);
-    if (hollow && !grids[i] && needsGrid(r, i)) { missing.push(i); keys[i] = cavityKey(r, i); }
+    if (!grids[i] && needsGrid(r, i)) { missing.push(i); keys[i] = cavityKey(r, i); }
   });
   if (missing.length && !interactive) builder.request('cavity', r, ui.quality, { groups: missing, tag: keys });
   if (frameOnNext) { view.frame(); frameOnNext = false; }
@@ -342,8 +343,10 @@ function renderStatus() {
     const hollow = r.shell.enabled && r.objects.some((o) => o.mode === 'shell');
     // exact once every group that needs a grid has one (the others are exact anyway)
     const grids = currentGrids(r);
-    const exact = !hollow || r.groups.every((_, i) => !needsGrid(r, i) || !!grids[i]);
-    chips.push(`<span class="chip ${busy ? 'busy' : 'ok'}">SDF · live${hollow ? (exact && !busy ? ' · exact walls' : ' · refining walls') : ''}</span>`);
+    const exact = r.groups.every((_, i) => !needsGrid(r, i) || !!grids[i]);
+    const rounding = r.groups.some((g) => g.compound && (g.round ?? 0) > 0);
+    const what = hollow ? 'walls' : 'rounding';
+    chips.push(`<span class="chip ${busy ? 'busy' : 'ok'}">SDF · live${hollow || rounding ? (exact && !busy ? ` · exact ${what}` : ` · refining ${what}`) : ''}</span>`);
   } else {
     const kernelName = doc.meshMethod === 'minkowski' ? 'Mesh · Minkowski' : 'Mesh';
     chips.push(`<span class="chip ${busy ? 'busy' : 'ok'}">${kernelName}${busy ? ' · building' : s ? ` · ${fmtMs(s.totalMs)}` : ''}</span>`);

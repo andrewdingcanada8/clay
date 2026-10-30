@@ -55,7 +55,9 @@ Last updated: 2026-10-27. Benchmark numbers come from `bench/REPORT.md`, which `
 | ✅ | Parametric sweep: lift graph and turns (Add → Coil) | Lift editor: distance along the path → height off the plane (flat by default, same spline tools). Closed paths go round N turns; a rising lift makes a coil. |
 | ✅ | Saves: save, new, gallery, open, rename, duplicate, delete | Stored in the artifact's database (`pieces`), browser storage as fallback; thumbnails and the view (camera, quality, section) saved with each piece. |
 | ✅ | Flag a saved piece as a problem (SDF / Mesh, note) | Claude reads flagged rows and copies them to `bench/flagged/` as bench cases `flagged-<id>`. |
-| ✅ | Parts: save a group as a reusable part (Shell tab → Save as part), add from the Add tab | Placed parts build as their own group (finished geometry); "Cut" carves the part's envelope. Uniform scale only. Unpack turns a part back into a group. Library stored with the artifact (`parts`). |
+| ✅ | Parts: save a group as a reusable part (Layers tab → Save as part), add from the Add tab | A part is a saved group: adding it inserts an editable copy (nested groups, mirrors and pins included). Parts saved before layers convert on insert. Library stored with the artifact (`parts`). |
+| ✅ | Layers: nested groups like a paint program's (Layers tab) | Every layer has an op (Add / Subtract / Cutout) applied bottom to top in its group; groups move, turn and scale (uniformly) their contents, mirror or repeat them, and carry effects: Shell (hollow as one body), Blend, Round. Old pieces migrate (`engine/layers.toLayers`). Built by flattening into units (`flattenLayers`); approximations noted in the status bar: inside an effect group a cut also takes the layers above it, and an effect group inside another is built as a body of its own. |
+| ✅ | Compound Round: a group rounded as a whole | `engine/round`: an opening then a closing of the finished body (Add less Subtract) on a grid, with the radius limited locally to the clay's (or the gap's) half-thickness so nothing thin is erased or filled. Built on release in the worker (with the cavity grid, which then follows the rounded surface); SDF draws it as a correction in the grid's second channel; Mesh meshes the group from the same field (`Manifold.levelSet`). |
 | ⬜ | Extrude an arbitrary 2D outline | |
 | ✅ | Smooth blends between joined shapes (per-group Blend cm) | SDF only (smooth min); the Mesh kernel shows a sharp union and warns. |
 | ✅ | SDF inner wall exact away from joins | Cavity grid stores only the correction to the analytic per-object depth (D = A + C), so rims and openings on large pieces stay round; the grid matters only at joins/blends. |
@@ -67,7 +69,7 @@ Last updated: 2026-10-27. Benchmark numbers come from `bench/REPORT.md`, which `
 | ✅ | Parametric: edit any object's parameters or profile later | Whole doc rebuilds; no undo needed. |
 | ✅ | Undo / redo | JSON snapshots; Ctrl/Cmd+Z. |
 | ✅ | Autosave in browser storage | |
-| ⬜ | Multi-select, grouping, mirror/array tools | |
+| ⬜ | Multi-select; drag to reorder layers; exact nested effects (Shell or Round of a group inside another effect group, cuts strictly bottom to top inside effect groups) | Grouping and mirror/repeat are done. |
 | ⬜ | Import meshes (STL/OBJ) and shell them | Possible in the SDF kernel via mesh → distance field. |
 | ⬜ | Export (STL/OBJ) | Not needed yet. |
 

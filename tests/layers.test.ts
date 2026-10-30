@@ -24,7 +24,8 @@ const box = (x: number, y = 0, z = 0, s = 4) => ({ params: { x: s, y: s, z: s },
 
 describe('layer tree', () => {
   it('migrating a flat document builds the same field (every example)', () => {
-    for (const ex of examples()) {
+    // (a group's Round is now compound: it rounds the body as a whole, by design)
+    for (const ex of examples().filter((e) => !e.doc.groups.some((g) => (g.round ?? 0) > 0))) {
       const flat = normalizeDoc(cloneDoc(ex.doc));
       flat.root = undefined;
       const a = samples(flat);
@@ -108,4 +109,56 @@ describe('layer tree', () => {
     ungroup(d, g);
     worldTransform(d, a.id).position.forEach((v, i) => expect(v).toBeCloseTo(before[i], 6));
   });
+});
+
+describe('compound rounding', () => {
+  it('rounds the finished body: no groove where boxes meet flush, round outer edges and cut rims', async () => {
+    const { buildUnitGrid, attachGrid } = await import('../src/engine/cavity');
+    const d = emptyDoc();
+    const g = d.groups[0];
+    g.shell = false;
+    g.round = 0.6;
+    const a = makeObject('box', { params: { x: 4, y: 4, z: 4 }, transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } });
+    const b = makeObject('box', { params: { x: 4, y: 4, z: 4 }, transform: { position: [3, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } });
+    const c = makeObject('box', { mode: 'subtract', params: { x: 2, y: 2, z: 8 }, transform: { position: [-2, 2, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } });
+    d.objects.push(a, b, c);
+    g.children = [a.id, b.id, c.id];
+    const groups = compileGroups(expandDoc(d));
+    expect(groups.length).toBe(1);
+    const u = groups[0];
+    expect(u.compound).toBe(true);
+    const grid = buildUnitGrid(u, 'normal');
+    attachGrid(u, grid);
+    const f = (x: number, y: number, z: number) => evalScene(groups, approxDepth, x, y, z);
+    // flat faces stay put
+    expect(Math.abs(f(0.5, 2, 0))).toBeLessThan(0.05);
+    expect(Math.abs(f(1.5, 2, 1))).toBeLessThan(0.05); // over the seam: no groove
+    expect(f(1, 1.9, 1)).toBeLessThan(0); // just under the top at the seam: clay
+    // the outer corner is rounded off: the sharp corner point is now outside
+    expect(f(4.95, 1.95, 1.95)).toBeGreaterThan(0.1);
+    // the cut's rim (convex) is rounded too, and its inner corner (concave) filled
+    expect(f(-0.95, 1.95, 0)).toBeGreaterThan(0.05);
+    expect(f(-1.05, 1.05, 0)).toBeLessThan(0);
+  }, 60000);
+});
+
+describe('compound rounding, mesh kernel', () => {
+  it('meshes a rounded group from its field: closed, corners rounded', async () => {
+    const { buildMeshKernel } = await import('../src/engine/meshKernel');
+    const d = emptyDoc();
+    const g = d.groups[0];
+    g.shell = false;
+    g.round = 0.6;
+    const a = makeObject('box', { params: { x: 4, y: 4, z: 4 } });
+    const b = makeObject('box', { params: { x: 4, y: 4, z: 4 }, transform: { position: [3, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } });
+    d.objects.push(a, b);
+    g.children = [a.id, b.id];
+    const r = await buildMeshKernel(expandDoc(d), 'draft');
+    expect(r.stats.triangles).toBeGreaterThan(100);
+    expect(r.stats.boundaryEdges).toBe(0);
+    // no vertex at the sharp corner (5, 2, 2)
+    let near = Infinity;
+    for (let i = 0; i < r.positions.length; i += 3) near = Math.min(near, Math.hypot(r.positions[i] - 5, r.positions[i + 1] - 2, r.positions[i + 2] - 2));
+    expect(near).toBeGreaterThan(0.15);
+  }, 120000);
 });

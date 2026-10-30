@@ -38,14 +38,14 @@ Quality: normal. Images: `bench/out/<case>-<kernel>.png`.
 | tower | mesh | 22 | 378 | 0 | 0 | 53.3 |  |
 | thick-wall | sdf | 1492 | 94984 | 0 | 0 | 0.9 |  |
 | thick-wall | mesh | 116 | 24186 | 0 | 0 | 0.0 |  |
-| cut-sphere | sdf | 3816 | 269300 | 0 | 5 | 5.1 |  |
+| cut-sphere | sdf | 3828 | 269280 | 0 | 5 | 5.0 |  |
 | cut-sphere | mesh | 90 | 16590 | 0 | 0 | 5.0 |  |
-| mug-stick | sdf | 4268 | 165512 | 0 | 128 | 17.1 |  |
+| mug-stick | sdf | 4488 | 165500 | 0 | 125 | 17.0 |  |
 | mug-stick | mesh | 140 | 26902 | 0 | 0 | 17.3 |  |
 | mug-thin | sdf | 22923 | 925152 | 85 | 110 | 20.2 | Mesh wall for Group 1 drawn at 0.25 cm, not 0.08 cm (grid too coarse at this size).; 44 quads skipped at block borders |
 | mug-thin | mesh | 202 | 26890 | 0 | 0 | 19.6 |  |
-| two-groups | sdf | 4296 | 224816 | 0 | 0 | 33.4 |  |
-| two-groups | mesh | 80 | 21024 | 0 | 0 | 33.3 |  |
+| two-groups | sdf | 3360 | 224824 | 0 | 0 | 33.4 |  |
+| two-groups | mesh | 134 | 21024 | 0 | 0 | 33.3 |  |
 | frustums | sdf | 4835 | 213536 | 0 | 0 | 53.6 |  |
 | frustums | mesh | 14 | 68 | 0 | 0 | 51.9 |  |
 | big-pins | sdf | 2914 | 271044 | 0 | 0 | 22.7 |  |
@@ -54,9 +54,9 @@ Quality: normal. Images: `bench/out/<case>-<kernel>.png`.
 | sdf-narrow-join | mesh | 140 | 39960 | 0 | 0 | 1.9 |  |
 | sdf-pebble | sdf | 623 | 150660 | 0 | 0 | 0.0 |  |
 | sdf-pebble | mesh | 58 | 20448 | 0 | 0 | 0.0 | Pebble: X/Z scale differs, wall thickness approximate |
-| sdf-blend | sdf | 3064 | 158648 | 0 | 4 | 1.9 |  |
+| sdf-blend | sdf | 3403 | 158648 | 0 | 4 | 1.9 |  |
 | sdf-blend | mesh | 275 | 52042 | 0 | 0 | 1.6 | Group 1: smooth blend needs the SDF kernel; shown as a sharp union |
-| teapot | sdf | 5809 | 345160 | 0 | 18 | 25.7 |  |
+| teapot | sdf | 6090 | 345112 | 0 | 18 | 25.7 |  |
 | teapot | mesh | 161 | 36750 | 0 | 0 | 25.6 |  |
 | sweep-mug | sdf | 7406 | 216992 | 0 | 1 | 26.0 |  |
 | sweep-mug | mesh | 91 | 22670 | 0 | 0 | 26.0 |  |
@@ -68,7 +68,7 @@ Quality: normal. Images: `bench/out/<case>-<kernel>.png`.
 | sweep-corners | mesh | 201 | 24680 | 0 | 0 | 0.0 |  |
 | flagged-pmvrzc7lj484po | sdf | 5797 | 151020 | 0 | 4 | 0.0 |  |
 | flagged-pmvrzc7lj484po | mesh | 197 | 32526 | 0 | 0 | 0.0 |  |
-| round-mirror | sdf | 9058 | 220092 | 0 | 10 | 31.7 |  |
-| round-mirror | mesh | 200 | 40248 | 0 | 0 | 26.7 | Group 1: rounded cut rims need the SDF kernel; shown sharp |
+| round-mirror | sdf | 8987 | 220908 | 0 | 5 | 30.7 |  |
+| round-mirror | mesh | 7016 | 244132 | 0 | 0 | 31.0 | Group 1: rounded as a whole, meshed from its distance field |
 | flagged-pmvthxhy99j3f9 | sdf | 9405 | 200720 | 0 | 0 | 0.0 |  |
 | flagged-pmvthxhy99j3f9 | mesh | 157 | 43596 | 0 | 0 | 0.0 | Group 1: smooth blend needs the SDF kernel; shown as a sharp union |
