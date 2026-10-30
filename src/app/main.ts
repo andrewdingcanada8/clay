@@ -70,7 +70,6 @@ interface UIState {
   flagFor: string | null;
   deleteFor: string | null;
   /** waiting on "save or discard" before opening another piece or starting a new one */
-  pending: { open: string } | { example: string } | 'new' | null;
   /** group id being saved as a part (name prompt open) */
   partNaming: string | null;
   /** library part cards: open ⋯ menu, renaming, confirming delete */
@@ -99,7 +98,8 @@ const exampleList = examples();
 const EXAMPLE_THUMBS: Record<string, string> = Object.fromEntries(Object.entries(
   import.meta.glob('../assets/example-thumbs/*.jpg', { eager: true, query: '?inline', import: 'default' }) as Record<string, string>,
 ).map(([path, url]) => [path.split('/').pop()!.replace(/\.jpg$/, ''), url]));
-let doc: SceneDoc = loadSaved() ?? cloneDoc(exampleList.find((e) => e.id === 'vase-sticks')!.doc);
+const restoredDoc = loadSaved();
+let doc: SceneDoc = restoredDoc ?? cloneDoc(exampleList.find((e) => e.id === 'vase-sticks')!.doc);
 let committed = JSON.stringify(doc);
 const past: string[] = [];
 const future: string[] = [];
@@ -107,7 +107,7 @@ const ui: UIState = {
   tab: 'edit', sheetOpen: true, selectedId: doc.objects[0]?.id ?? null, gizmo: 'translate', holeMode: 'face', pinRadius: 0.5,
   quality: 'normal', section: { on: false, axis: 'z', t: 0.5 }, wire: false, hand: true, lockScale: false,
   profileEditing: null, curveField: 'points', profilePoint: -1, showGallery: false, galleryTab: 'mine', fps: null,
-  menuFor: null, renameFor: null, flagFor: null, deleteFor: null, pending: null,
+  menuFor: null, renameFor: null, flagFor: null, deleteFor: null,
   partNaming: null, libMenu: null, libRename: null, libDelete: null,
 };
 let lastResult: BuildResult | null = null;
@@ -265,12 +265,14 @@ function commit() {
   committed = s;
   save(doc);
   renderTopbar();
+  scheduleAutosave();
 }
 
 function restore(s: string) {
   doc = normalizeDoc(JSON.parse(s));
   committed = s;
   save(doc);
+  scheduleAutosave();
   if (!selected()) ui.selectedId = doc.objects[0]?.id ?? null;
   refreshGhost();
   sync(false);
@@ -889,13 +891,10 @@ panel.addEventListener('click', (e) => {
     case 'profile-zoom-in': profileEditor?.zoomBy(1.4); break;
     case 'profile-zoom-out': profileEditor?.zoomBy(1 / 1.4); break;
     case 'profile-fit': profileEditor?.fit(); break;
-    case 'close-gallery': ui.showGallery = false; ui.pending = null; renderPanel(); break;
+    case 'close-gallery': ui.showGallery = false; renderPanel(); break;
     case 'new-piece': newPiece(); break;
     case 'measure-fps': measureFps(); break;
     case 'save-piece': savePiece(); break;
-    case 'pending-save': resolvePending('save'); break;
-    case 'pending-discard': resolvePending('discard'); break;
-    case 'pending-cancel': ui.pending = null; renderPanel(); break;
     case 'add-group': {
       const id = newId('g');
       update((doc2) => { doc2.groups.push({ id, name: `Group ${doc2.groups.length + 1}`, thickness: DEFAULT_WALL }); });
@@ -962,7 +961,6 @@ function addObject(type: PrimitiveType, extra: Partial<SceneObject> = {}) {
 /** Examples open as a new, unsaved piece named after the example. */
 async function loadExample(id: string) {
   const ex = exampleList.find((e) => e.id === id)!;
-  if (needsConfirm()) { ui.pending = { example: id }; renderPanel(); return; }
   if (!(await leaveCurrent())) return;
   const d = cloneDoc(ex.doc);
   d.kernel = doc.kernel; d.meshMethod = doc.meshMethod;
@@ -994,7 +992,6 @@ document.getElementById('btn-redo')!.addEventListener('click', () => {
 document.getElementById('btn-frame')!.addEventListener('click', () => view.frame());
 document.getElementById('btn-gallery')!.addEventListener('click', () => {
   ui.showGallery = !ui.showGallery;
-  ui.pending = null;
   ui.sheetOpen = true;
   renderPanel();
 });
@@ -1090,16 +1087,16 @@ function storeError(e: unknown): string {
 }
 
 /** Save the open piece (a new entry if it was never saved). Resolves false on failure. */
-async function savePiece(): Promise<boolean> {
+async function savePiece(quiet = false): Promise<boolean> {
   const now = Date.now();
   const existing = store.get(current.id);
   const p: Piece = existing
     ? { ...existing, doc: cloneDoc(doc), thumb: view.snapshot(), view: viewState(), updatedAt: now }
-    : { id: newId('p'), name: current.id || current.name !== 'Untitled' ? current.name : `Piece ${store.list().length + 1}`, doc: cloneDoc(doc), thumb: view.snapshot(), view: viewState(), createdAt: now, updatedAt: now, flag: null };
+    : { id: newId('p'), name: current.id || current.name !== 'Untitled' ? current.name : untitledName(), doc: cloneDoc(doc), thumb: view.snapshot(), view: viewState(), createdAt: now, updatedAt: now, flag: null };
   setCurrent({ id: p.id, name: p.name, saved: committed });
   try {
     await store.put(p);
-    toast(`Saved "${p.name}"`);
+    if (!quiet) toast(`Saved "${p.name}"`);
     if (ui.showGallery) renderPanel();
     return true;
   } catch (e) {
@@ -1109,43 +1106,49 @@ async function savePiece(): Promise<boolean> {
   }
 }
 
-/** Unsaved work that was never saved needs an answer before it's replaced. */
-function needsConfirm() {
-  return !current.id && isDirty();
+/** Unsaved changes are saved before another piece replaces them (never-saved work becomes "Untitled"). */
+async function leaveCurrent(): Promise<boolean> {
+  clearTimeout(autosaveTimer);
+  if (isDirty()) return savePiece(true);
+  return true;
 }
 
-async function leaveCurrent(): Promise<boolean> {
-  if (current.id && isDirty()) return savePiece();
-  return true;
+// ---------- autosave: every committed change is saved shortly after, and when the page is hidden
+let autosaveTimer = 0;
+function scheduleAutosave() {
+  clearTimeout(autosaveTimer);
+  autosaveTimer = window.setTimeout(autosave, 1500);
+}
+let autosaving: Promise<boolean> | null = null;
+function autosave() {
+  clearTimeout(autosaveTimer);
+  if (!isDirty() || autosaving) { if (autosaving && isDirty()) scheduleAutosave(); return; }
+  autosaving = savePiece(true).finally(() => { autosaving = null; });
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') autosave(); });
+window.addEventListener('pagehide', autosave);
+
+/** A fresh name for never-saved work: Untitled, Untitled 2, ... */
+function untitledName(): string {
+  const names = new Set(store.list().map((p) => p.name));
+  for (let k = 1; ; k++) { const n = k === 1 ? 'Untitled' : `Untitled ${k}`; if (!names.has(n)) return n; }
 }
 
 async function openPiece(id: string) {
   const p = store.get(id);
   if (!p) return;
-  if (needsConfirm()) { ui.pending = { open: id }; renderPanel(); return; }
-  if (!(await leaveCurrent())) return;
+  if (id !== current.id && !(await leaveCurrent())) return;
   loadDoc(p.doc, { id: p.id, name: p.name }, p.view);
   toast(`Opened "${p.name}"`);
 }
 
 async function newPiece() {
-  if (needsConfirm()) { ui.pending = 'new'; renderPanel(); return; }
   if (!(await leaveCurrent())) return;
   const d = emptyDoc();
   d.kernel = doc.kernel; d.meshMethod = doc.meshMethod;
   loadDoc(d, { id: null, name: 'Untitled' }, null);
   ui.tab = 'add';
   renderPanel();
-}
-
-async function resolvePending(how: 'save' | 'discard') {
-  const p = ui.pending;
-  ui.pending = null;
-  if (how === 'save' && !(await savePiece())) return;
-  if (how === 'discard') setCurrent({ ...current, saved: committed }); // nothing left to ask about
-  if (p === 'new') newPiece();
-  else if (p && 'open' in p) openPiece(p.open);
-  else if (p) loadExample(p.example);
 }
 
 /** Replace the document wholesale (no undo across pieces) and restore its view. */
@@ -1224,21 +1227,17 @@ function pieceCard(p: Piece) {
 
 function galleryPanel() {
   const pieces = store.list();
-  const pending = ui.pending
-    ? `<div class="pending"><p>"${escapeHtml(current.name)}" has never been saved.</p>
-       <div class="row"><button class="btn primary" data-act="pending-save">Save it</button><button class="btn danger" data-act="pending-discard">Discard</button><button class="btn" data-act="pending-cancel">Cancel</button></div></div>` : '';
   const saveLabel = current.id && !isDirty() ? 'Saved' : 'Save';
   const body = ui.galleryTab === 'examples'
-    ? `<p class="hint">Benchmark scenes. Opening one replaces the open piece; save first if you want to keep it.</p>${examplesPanel()}`
+    ? `<p class="hint">Benchmark scenes. Opening one replaces the open piece; your changes are saved first.</p>${examplesPanel()}`
     : pieces.length
       ? `<div class="pieces">${pieces.map(pieceCard).join('')}</div>`
-      : '<p class="hint">No saved pieces yet. Save the open piece to start your gallery.</p>';
+      : '<p class="hint">No saved pieces yet. Your work is saved here automatically once you change something.</p>';
   return `<div class="section">
     <div class="row"><h3 style="margin-right:auto">Pieces</h3>
       <button class="btn" data-act="new-piece">New</button>
       <button class="btn primary" data-act="save-piece" ${saveLabel === 'Saved' ? 'disabled' : ''}>${saveLabel}</button>
       <button class="btn" data-act="close-gallery">Close</button></div>
-    ${pending}
     ${seg<'mine' | 'examples'>('galleryTab', ui.galleryTab, [['mine', `My pieces (${pieces.length})`], ['examples', 'Examples']])}
     <p class="hint">${store.kind === 'cloud' ? 'Saved with this artifact, on any device you open it on. Claude can read flagged pieces.' : 'Saved in this browser only.'}</p>
     ${body}</div>`;
@@ -1308,7 +1307,23 @@ async function flagPiece(id: string) {
 
 partStore.onChange = () => { if (ui.tab === 'add' && !ui.showGallery && !document.activeElement?.closest('.piece-form')) renderPanel(); };
 
+/** Browser storage doesn't always survive a reload, so a fresh start reopens the most recently saved piece. */
+let reopenChecked = false;
+function reopenLatest() {
+  if (reopenChecked || store.kind !== 'cloud') return;
+  reopenChecked = true;
+  const latest = store.list()[0];
+  // only when this browser kept nothing and nothing has been touched yet
+  if (latest && !restoredDoc && !past.length && !isDirty() && !current.id) {
+    loadDoc(latest.doc, { id: latest.id, name: latest.name }, latest.view);
+  }
+}
+
+// a change left unsaved last time (this browser kept it) is saved again soon
+if (isDirty()) scheduleAutosave();
+
 store.onChange = () => {
+  reopenLatest();
   if (current.id && !store.get(current.id) && store.kind === 'cloud') setCurrent({ ...current, id: null, saved: '' });
   renderTopbar();
   if (ui.showGallery && !document.activeElement?.closest('.piece-form')) renderPanel();
