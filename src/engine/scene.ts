@@ -222,14 +222,14 @@ export function approxDepth(g: CompiledGroup, x: number, y: number, z: number): 
 
 /**
  * Whether a hollow group needs a cavity grid. The analytic depth A is exact
- * wherever one object's surface is nearest, so a group with a single shell object,
- * no blend and no rounded cut rims has it exact everywhere (cuts bound it exactly
+ * wherever one object's surface is nearest, so a group with a single shell object
+ * (a blend has nothing to blend it with) and no rounded cut rims has it exact everywhere (cuts bound it exactly
  * too: see baseDepth). There the grid would only add its small interpolation noise,
  * which shows where the cavity meets an opening at a grazing angle (a wide pot's
  * shallow shoulder running into its open top).
  */
 export function needsCavityGrid(g: CompiledGroup): boolean {
-  return g.hollow && (g.shells.length > 1 || g.k > 0 || (g.round > 0 && g.subs.length > 0));
+  return g.hollow && (g.shells.length > 1 || (g.round > 0 && g.subs.length > 0));
 }
 
 /** Bounding sphere of an object (centre, radius); the shader uses the same one. */
@@ -245,26 +245,28 @@ export function boundSphere(o: CompiledObject): [number, number, number, number]
  * wherever a single object's surface is nearest (C = 0), and the grid only has to
  * carry the smooth correction near joins, blends and shared openings.
  */
-export function baseDepth(g: CompiledGroup, x: number, y: number, z: number, clampV: number, h: number): number {
+export function baseDepth(g: CompiledGroup, x: number, y: number, z: number, clampV: number, h: number, top?: { i: number; gap: number }): number {
   // Smooth max: where the deepest object switches, A gets a crease the trilinear
-  // correction can't follow; rounding it (over two texels, plus the blend radius in
-  // blended groups) keeps D = A + C smooth.
-  const k = 2 * h;
+  // correction can't follow; rounding it over two texels keeps D = A + C smooth.
+  // In a blended group the radius is the blend's: a smooth min of the objects'
+  // distances (the blended surface) is exactly the smooth max of their depths, and
+  // these depths already run on through openings, so A is right next to them too.
+  const k = Math.max(2 * h, g.k);
   // The two deepest terms only (as the shader; see there for the skip test).
   const fs = shellSDF(g, x, y, z);
   const lb = -fs - 0.25 * g.k * (g.shells.length - 1);
-  let t1 = -Infinity, t2 = -Infinity;
-  for (const o of g.shells) {
+  let t1 = -Infinity, t2 = -Infinity, i1 = -1;
+  g.shells.forEach((o, i) => {
     if (!o.obj.holes.length) {
       const [cx, cy, cz, r] = o.bsphere ??= boundSphere(o);
-      if (r - Math.hypot(x - cx, y - cy, z - cz) < Math.max(lb, t1) - k) continue;
+      if (r - Math.hypot(x - cx, y - cy, z - cz) < Math.max(lb, t1) - k) return;
     }
     const v = holeDepth(o, g.holes, x, y, z, 0.5 * h);
-    if (v > t1) { t2 = t1; t1 = v; } else if (v > t2) t2 = v;
-  }
+    if (v > t1) { t2 = t1; t1 = v; i1 = i; } else if (v > t2) t2 = v;
+  });
+  // which object is deepest, and by how much (for the grid: see cavity.ts)
+  if (top) { top.i = i1; top.gap = t1 - t2; }
   let d = t2 === -Infinity ? t1 : -smin(-t1, -t2, k);
-  // inside a blend the blended field itself is the better depth estimate (as the shader)
-  if (g.k > 0) d = -smin(-d, fs, k);
   // a closed cut's surface bounds the depth too
   for (const o of g.subs) if (o.obj.mode === 'subtract') d = Math.min(d, sdfWorld(o, x, y, z));
   return Math.max(-clampV, Math.min(clampV, d));

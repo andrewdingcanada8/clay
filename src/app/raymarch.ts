@@ -471,9 +471,12 @@ float map(vec3 p) {
       // without openings can't be deeper than -bound.
       float tau = useGrid ? 0.5 * uCavH[min(g, ${MAX_GRIDS - 1})] : 0.02;
       float t1 = -1e5, t2 = -1e5, lb = -fs - 0.25 * kb * float(R.y - R.x - 1);
+      // smoothing radius of the top two: two texels, or the blend's (as scene.baseDepth:
+      // the smooth max of the depths is exactly the blended surface's depth)
+      float kS = max(kA, kb);
       for (int i = R.x; i < R.y; i++) {
         if (!objOn(i)) continue;
-        if (int(row(i, 6).z) == 0 && -bound(i, p) < max(lb, t1) - kA) continue;
+        if (int(row(i, 6).z) == 0 && -bound(i, p) < max(lb, t1) - kS) continue;
         float d = sdCached(i, p);
         if (int(row(i, 6).z) == 0) d = -d;
         else {
@@ -485,9 +488,7 @@ float map(vec3 p) {
         }
         if (d > t1) { t2 = t1; t1 = d; } else t2 = max(t2, d);
       }
-      D = -smin(-t1, -t2, kA);
-      // inside a blend the blended field itself is the better depth estimate
-      if (kb > 0.0) D = -smin(-D, fs, kA);
+      D = -smin(-t1, -t2, kS);
     }
     // Cuts are carved from the shape before it is hollowed, and a closed cut's
     // surface bounds the depth too (see scene.baseDepth). Where the bound shows a

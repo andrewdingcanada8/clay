@@ -157,21 +157,21 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 165124,
-   "vertices": 82495,
+   "triangles": 164812,
+   "vertices": 82338,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 65,
+   "nonManifoldEdges": 66,
    "cellSize": 0.24,
    "activeCells": 496128,
    "warnings": [],
    "timings": {
-    "cavity": 0.2,
-    "activate": 12.9,
-    "sample": 1021,
-    "vertices": 5255.7,
-    "faces": 20.7
+    "cavity": 0.5,
+    "activate": 15,
+    "sample": 1061.3,
+    "vertices": 5290.2,
+    "faces": 19.6
    },
-   "totalMs": 6353.3
+   "totalMs": 6423.3
   },
   "whiteFrac": [
    [
@@ -545,27 +545,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 206740,
-   "vertices": 103362,
+   "triangles": 206664,
+   "vertices": 103326,
    "boundaryEdges": 0,
-   "nonManifoldEdges": 10,
+   "nonManifoldEdges": 8,
    "cellSize": 0.21428571428571427,
-   "activeCells": 683520,
+   "activeCells": 684032,
    "warnings": [],
    "timings": {
-    "cavity": 0.2,
-    "activate": 374,
-    "sample": 1223.4,
-    "vertices": 5270.2,
-    "faces": 25.7
+    "cavity": 0.1,
+    "activate": 361.3,
+    "sample": 1235.2,
+    "vertices": 5433.3,
+    "faces": 25.3
    },
-   "totalMs": 6956.2
+   "totalMs": 7114.5
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.0171301775147929,
+    0.017100591715976332,
     0,
     0,
     0
@@ -1743,8 +1743,8 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 158708,
-   "vertices": 79352,
+   "triangles": 158648,
+   "vertices": 79322,
    "boundaryEdges": 0,
    "nonManifoldEdges": 4,
    "cellSize": 0.19579227496462578,
@@ -1752,18 +1752,18 @@
    "warnings": [],
    "timings": {
     "cavity": 0.1,
-    "activate": 15,
-    "sample": 728.7,
-    "vertices": 2143.3,
-    "faces": 20.5
+    "activate": 15.2,
+    "sample": 760.4,
+    "vertices": 2235.2,
+    "faces": 19.9
    },
-   "totalMs": 2938.8
+   "totalMs": 3063.7
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.017677514792899408,
+    0.018565088757396448,
     0,
     0,
     0
@@ -2250,27 +2250,27 @@
   "quality": "normal",
   "stats": {
    "kernel": "sdf",
-   "triangles": 220392,
-   "vertices": 110188,
+   "triangles": 220092,
+   "vertices": 110038,
    "boundaryEdges": 0,
    "nonManifoldEdges": 10,
    "cellSize": 0.15,
    "activeCells": 1088512,
    "warnings": [],
    "timings": {
-    "cavity": 0.5,
-    "activate": 273.5,
-    "sample": 2878.8,
-    "vertices": 5986.6,
-    "faces": 30.7
+    "cavity": 0.3,
+    "activate": 277.6,
+    "sample": 2790.5,
+    "vertices": 5900.1,
+    "faces": 29.3
    },
-   "totalMs": 9233.3
+   "totalMs": 9057.6
   },
   "whiteFrac": [
    [
     0,
     0,
-    0.3061686390532544,
+    0.3169526627218935,
     0,
     0,
     0

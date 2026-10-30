@@ -182,6 +182,7 @@ export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid 
   // 4. Signed depth. Outside texels near an opening keep a positive value, so the
   //    interpolated cavity never grows a skin across the opening.
   const rho = 0.75 * h;
+  const top = { i: -1, gap: 0 };
   const data = new Float32Array(N);
   for (let q = 0; q < N; q++) {
     const f = F[q];
@@ -220,7 +221,13 @@ export function buildCavityGrid(g: CompiledGroup, quality: Quality): CavityGrid 
     }
     const D = f <= 0 ? d : d > f + 0.5 * h ? d : -Math.min(f, clampV);
     // store the correction to the analytic depth (see scene.baseDepth)
-    data[q] = D - baseDepth(g, qx(q), qy(q), qz(q), clampV, h);
+    const A = baseDepth(g, qx(q), qy(q), qz(q), clampV, h, top);
+    // Where the nearest surface is the deepest object's own, clear of any other
+    // (beyond the smoothing radius), the analytic depth is exact: no correction.
+    // The seeds' small discs would only add noise there (they reach a little past
+    // the edge of an opening), which shows as a wavy rim where a shallow shoulder
+    // meets the opening.
+    data[q] = s >= 0 && sObj[s] === top.i && top.gap > Math.max(2 * h, g.k) + h ? 0 : D - A;
   }
   return { groupIndex: g.index, origin, h, dims, data, clampV, tMax };
 }

@@ -211,12 +211,12 @@ function cavityKey(r: SceneDoc, gi: number): string {
 }
 
 /** Whether group gi of the built document needs a cavity grid (scene.needsCavityGrid,
- *  from the document): more than one shell object, a blend, or rounded cut rims. */
+ *  from the document): more than one shell object, or rounded cut rims. */
 function needsGrid(r: SceneDoc, gi: number): boolean {
   const g = r.groups[gi];
   const members = r.objects.filter((o) => o.groupId === g.id && !o.hidden && o.type !== 'part');
   const shells = members.filter((o) => o.mode === 'shell').length;
-  return r.shell.enabled && shells > 0 && (shells > 1 || (g.blend ?? 0) > 0 || ((g.round ?? 0) > 0 && members.some((o) => isCut(o.mode))));
+  return r.shell.enabled && shells > 0 && (shells > 1 || ((g.round ?? 0) > 0 && members.some((o) => isCut(o.mode))));
 }
 
 function currentGrids(r: SceneDoc): (CavityGrid | null)[] {
