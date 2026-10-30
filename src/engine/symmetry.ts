@@ -14,18 +14,26 @@
 
 import { type PinHole, type SceneDoc, type SceneObject, type Symmetry, cloneDoc } from './document';
 import { type Vec3, eulerXYZ } from './math';
+import { flattenLayers } from './layers';
 import { PART_SEP, eulerFromMatrix, expandParts, placedId } from './parts';
 
-/** The document as built and drawn: parts expanded, symmetry copies added, and each
- *  object's edge rounding resolved (the larger of its own and its group's). */
-export function expandDoc(doc: SceneDoc): SceneDoc {
+/** The document as built and drawn: the layer tree flattened into units (engine/layers;
+ *  documents from before layers: parts expanded and symmetry copies added), and each
+ *  object's edge rounding resolved (the larger of its own and its unit's). `notes`
+ *  collects where the build approximates the layer tree. */
+export function expandDoc(doc: SceneDoc, notes?: string[]): SceneDoc {
+  if (Array.isArray(doc.root)) return resolveRound(flattenLayers(doc, notes));
   const parts = expandParts(doc);
   const hasSym = doc.objects.some((o) => o.sym && !o.hidden);
   const hasRound = parts.groups.some((g) => (g.round ?? 0) > 0);
   if (!hasSym && !hasRound) return parts;
   const out = parts === doc ? cloneDoc(doc) : parts;
   if (hasSym) addSymmetry(out, doc);
-  if (hasRound) {
+  return hasRound ? resolveRound(out) : out;
+}
+
+function resolveRound(out: SceneDoc): SceneDoc {
+  if (out.groups.some((g) => (g.round ?? 0) > 0)) {
     const gr = new Map(out.groups.map((g) => [g.id, g.round ?? 0]));
     out.objects = out.objects.map((o) => {
       const r = Math.max(o.params.round ?? 0, gr.get(o.groupId) ?? 0);
@@ -45,8 +53,13 @@ export function symFrame(doc: SceneDoc, sym: Symmetry): { c: Vec3; a: Vec3 } {
   return { c: [...ref.transform.position] as Vec3, a };
 }
 
+/** Reflection across the plane through the origin square to unit axis a (row-major). */
+export function reflection(a: Vec3): Float64Array {
+  return new Float64Array([1 - 2 * a[0] * a[0], -2 * a[0] * a[1], -2 * a[0] * a[2], -2 * a[1] * a[0], 1 - 2 * a[1] * a[1], -2 * a[1] * a[2], -2 * a[2] * a[0], -2 * a[2] * a[1], 1 - 2 * a[2] * a[2]]);
+}
+
 /** Rotation by `ang` radians about unit axis a (row-major). */
-function axisAngle(a: Vec3, ang: number): Float64Array {
+export function axisAngle(a: Vec3, ang: number): Float64Array {
   const c = Math.cos(ang), s = Math.sin(ang), t = 1 - c, [x, y, z] = a;
   return new Float64Array([
     t * x * x + c, t * x * y - s * z, t * x * z + s * y,
@@ -63,7 +76,7 @@ const mul = (A: Float64Array, B: Float64Array) => {
 const apply = (M: Float64Array, v: Vec3): Vec3 => [M[0] * v[0] + M[1] * v[1] + M[2] * v[2], M[3] * v[0] + M[4] * v[1] + M[5] * v[2], M[6] * v[0] + M[7] * v[1] + M[8] * v[2]];
 
 /** `o` moved by the linear map L about centre c; `flip` = L reflects (see the header). */
-function moved(o: SceneObject, L: Float64Array, c: Vec3, flip: boolean, id: string): SceneObject {
+export function moved(o: SceneObject, L: Float64Array, c: Vec3, flip: boolean, id: string): SceneObject {
   const t = o.transform;
   let R = mul(L, eulerXYZ(...t.rotation));
   if (flip) R = R.map((v, i) => (i % 3 === 2 ? -v : v)); // times diag(1, 1, -1)
@@ -103,7 +116,7 @@ function addSymmetry(out: SceneDoc, src: SceneDoc) {
     const { c, a } = symFrame(src, sym);
     const maps: { L: Float64Array; flip: boolean }[] = [];
     if (sym.kind === 'mirror') {
-      maps.push({ L: new Float64Array([1 - 2 * a[0] * a[0], -2 * a[0] * a[1], -2 * a[0] * a[2], -2 * a[1] * a[0], 1 - 2 * a[1] * a[1], -2 * a[1] * a[2], -2 * a[2] * a[0], -2 * a[2] * a[1], 1 - 2 * a[2] * a[2]]), flip: true });
+      maps.push({ L: reflection(a), flip: true });
     } else {
       const n = Math.max(2, Math.min(64, Math.round(sym.count)));
       for (let k = 1; k < n; k++) maps.push({ L: axisAngle(a, (2 * Math.PI * k) / n), flip: false });

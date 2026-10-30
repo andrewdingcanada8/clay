@@ -18,9 +18,31 @@ export type PrimitiveType = 'sphere' | 'box' | 'cylinder' | 'cone' | 'torus' | '
 export type ObjectMode = 'shell' | 'solid' | 'subtract' | 'cutout';
 export const isCut = (m: ObjectMode) => m === 'subtract' || m === 'cutout';
 
+/** How a layer joins the layers below it in its group (bottom to top, as in a
+ *  paint program's layers): added, carved out before its group is hollowed (the cut
+ *  gets a wall), or cut out of the finished group, walls and all. */
+export type LayerOp = 'add' | 'subtract' | 'cutout';
+
+/**
+ * A group of layers. In a document as authored, groups form the layer tree: each
+ * lists its children (object and group ids, bottom to top) and has its own op,
+ * transform, mirror and effects; `doc.root` lists the top level. In a document as
+ * built (see engine/layers), groups are flat units the kernels hollow one by one.
+ */
 export interface Group {
   id: string;
   name: string;
+  /** Child layer ids, bottom to top (authored documents). */
+  children?: string[];
+  op?: LayerOp;
+  /** Hollow this group as one body (authored documents; built units hollow if they have Shell objects). */
+  shell?: boolean;
+  /** Placement of the group's contents (uniform scale). */
+  transform?: Transform;
+  sym?: Symmetry;
+  hidden?: boolean;
+  /** Folded in the Layers list. */
+  collapsed?: boolean;
   /** Wall thickness (cm) for this group's shell. */
   thickness: number;
   /** Smooth-union radius (cm) between the group's shell and solid objects; 0 = sharp. SDF only. */
@@ -120,13 +142,15 @@ export interface SceneDoc {
   sdfExactDistance: boolean;
   /** Mesh kernel: 'offset' = exact per-primitive offsets, 'minkowski' = exact erosion of the union (slow). */
   meshMethod: 'offset' | 'minkowski';
-  /** Definitions of the parts placed in this piece (copied in, so a piece is self-contained). */
+  /** Definitions of the parts placed in this piece (documents before layers). */
   parts?: PartDef[];
+  /** The layer tree's top level, bottom to top (authored documents; built ones have none). */
+  root?: string[];
 }
 
 /**
- * A saved group, reusable like a primitive. Placed in a piece it is finished
- * geometry: its own hollow, subtractions and pins stay inside it.
+ * A saved group (before layers: a group placed whole, like a primitive). Saved
+ * parts are now `layers`: a group's subtree, inserted into a piece as an editable copy.
  */
 export interface PartDef {
   id: string;
@@ -141,6 +165,8 @@ export interface PartDef {
   /** Parts placed inside this part. */
   parts?: PartDef[];
   thumb?: string;
+  /** The saved group and everything in it: root = [that group's id]. */
+  layers?: { groups: Group[]; objects: SceneObject[]; pins: PinHole[]; root: string[] };
 }
 
 let idCounter = 0;
@@ -257,14 +283,20 @@ export const DEFAULT_WALL = 0.6;
 export function emptyDoc(): SceneDoc {
   return {
     version: 2,
-    groups: [{ id: DEFAULT_GROUP, name: 'Group 1', thickness: DEFAULT_WALL }],
+    groups: [newGroup(DEFAULT_GROUP, 'Group 1')],
     objects: [],
     pins: [],
     shell: { enabled: true },
     kernel: 'sdf',
     sdfExactDistance: true,
     meshMethod: 'offset',
+    root: [DEFAULT_GROUP],
   };
+}
+
+/** A new, empty layer group: hollowed, with the default wall. */
+export function newGroup(id: string, name: string, extra: Partial<Group> = {}): Group {
+  return { id, name, thickness: DEFAULT_WALL, children: [], op: 'add', shell: true, transform: identityTransform(), ...extra };
 }
 
 export function cloneDoc(d: SceneDoc): SceneDoc {
@@ -275,7 +307,8 @@ export function cloneDoc(d: SceneDoc): SceneDoc {
 export function normalizeDoc(d: Partial<SceneDoc> & { shell?: { enabled?: boolean; thickness?: number } }): SceneDoc {
   const base = emptyDoc();
   const legacyWall = d.shell?.thickness;
-  const groups = d.groups?.length ? d.groups : [{ ...base.groups[0], thickness: legacyWall ?? DEFAULT_WALL }];
+  const tree = Array.isArray(d.root);
+  const groups = tree ? d.groups ?? [] : d.groups?.length ? d.groups : [{ id: DEFAULT_GROUP, name: 'Group 1', thickness: legacyWall ?? DEFAULT_WALL }];
   const groupIds = new Set(groups.map((g) => g.id));
   const modeMap: Record<string, ObjectMode> = { join: 'shell', cut: 'subtract', solid: 'solid', shell: 'shell', subtract: 'subtract', cutout: 'cutout' };
   return {
@@ -289,9 +322,11 @@ export function normalizeDoc(d: Partial<SceneDoc> & { shell?: { enabled?: boolea
       ...o,
       // (an 'open cut' subtract was briefly a flag; it is the cutout role)
       mode: (o as { openCut?: boolean }).openCut ? 'cutout' : modeMap[o.mode as string] ?? 'shell',
-      groupId: o.groupId && groupIds.has(o.groupId) ? o.groupId : groups[0].id,
+      // (in the layer tree '' is the top level)
+      groupId: o.groupId && groupIds.has(o.groupId) ? o.groupId : tree ? '' : groups[0].id,
       holes: o.holes ?? [],
     })),
     pins: d.pins ?? [],
+    root: tree ? d.root : undefined,
   } as SceneDoc;
 }
