@@ -494,7 +494,12 @@ export class Viewport {
     fill.renderOrder = edges.renderOrder = 2;
     fill.visible = edges.visible = this.ghostOutline;
     this.ghost.add(fill, edges);
-    this.ghostShape = obj.type + obj.mode + JSON.stringify(obj.params);
+    this.ghostShape = this.shapeKey(obj);
+  }
+
+  private shapeKey(obj: SceneObject): string {
+    const def = obj.type === 'part' ? this.partDefs.find((d) => d.id === obj.params.part) : null;
+    return obj.type + obj.mode + JSON.stringify(obj.params) + (def ? JSON.stringify(def.objects) : '');
   }
 
   /** Show or hide the ghost's outline; the ghost itself stays as the gizmo's handle. */
@@ -506,7 +511,7 @@ export class Viewport {
   }
 
   syncGhost(obj: SceneObject) {
-    if (this.ghostShape && this.ghostShape !== obj.type + obj.mode + JSON.stringify(obj.params)) this.buildGhost(obj);
+    if (this.ghostShape && this.ghostShape !== this.shapeKey(obj)) this.buildGhost(obj);
     const t = obj.transform;
     this.ghost.position.set(...t.position);
     this.ghost.rotation.set(t.rotation[0] * DEG, t.rotation[1] * DEG, t.rotation[2] * DEG, 'XYZ');

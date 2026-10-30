@@ -1,8 +1,8 @@
 import './styles.css';
 import * as THREE from 'three';
 import {
-  type ObjectMode, type PrimitiveType, type Quality, type SceneDoc, type SceneObject,
-  TYPE_LABEL, cloneDoc, defaultCoil, emptyDoc, makeObject, newId, normalizeDoc,
+  type LayerOp, type ObjectMode, type PrimitiveType, type Quality, type SceneDoc, type SceneObject, type Symmetry, type Transform,
+  TYPE_LABEL, cloneDoc, defaultCoil, emptyDoc, makeObject, newGroup, newId, normalizeDoc,
 } from '../engine/document';
 import type { BuildResult } from '../engine/kernel';
 import type { CavityGrid } from '../engine/cavity';
@@ -17,15 +17,20 @@ import type { ProfilePoint } from '../engine/profile';
 import { buildSweepPath } from '../engine/sweep';
 import { HAND_LENGTH_CM } from './hand';
 import { type LibraryPart, PartStore, type Piece, type PieceFlag, PieceStore, type ViewState } from './pieces';
-import { expandParts, makePartDef, partScale, placedId } from '../engine/parts';
+import { partScale, placedId } from '../engine/parts';
+import {
+  type Layer, ancestors, attach, childIds, copyLayer, deleteLayer, flattenLayers, groupLayers, layerOf, layerOp, localTransform,
+  parentOf, repairTree, subtree, toLayers, ungroup, worldTransform,
+} from '../engine/layers';
 import { expandDoc } from '../engine/symmetry';
 import { type GizmoMode, Viewport } from './viewport';
 
-type Tab = 'add' | 'edit' | 'shell' | 'holes' | 'view';
+type Tab = 'add' | 'edit' | 'layers' | 'holes' | 'view';
 
 const ICON: Record<string, string> = {
   add: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
   edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12h18"/><path d="M12 3l-3 3M12 3l3 3M21 12l-3-3M21 12l-3 3"/></svg>',
+  layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5" opacity=".6"/></svg>',
   shell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 6h14l-1.5 13h-11z"/><path d="M8 9h8l-1 8H9z" opacity=".5"/></svg>',
   holes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/></svg>',
   view: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
@@ -83,10 +88,15 @@ const STORAGE_KEY = 'clay.doc.v2'; // v2: hand-scale defaults
 function loadSaved(): SceneDoc | null {
   try {
     const s = localStorage.getItem(STORAGE_KEY);
-    return s ? normalizeDoc(JSON.parse(s)) : null;
+    return s ? loadable(JSON.parse(s)) : null;
   } catch {
     return null;
   }
+}
+
+/** A saved or example document as edited here: normalized, in the layer tree. */
+function loadable(d: SceneDoc): SceneDoc {
+  return toLayers(normalizeDoc(d));
 }
 
 function save(doc: SceneDoc) {
@@ -99,7 +109,7 @@ const EXAMPLE_THUMBS: Record<string, string> = Object.fromEntries(Object.entries
   import.meta.glob('../assets/example-thumbs/*.jpg', { eager: true, query: '?inline', import: 'default' }) as Record<string, string>,
 ).map(([path, url]) => [path.split('/').pop()!.replace(/\.jpg$/, ''), url]));
 const restoredDoc = loadSaved();
-let doc: SceneDoc = restoredDoc ?? cloneDoc(exampleList.find((e) => e.id === 'vase-sticks')!.doc);
+let doc: SceneDoc = restoredDoc ?? loadable(cloneDoc(exampleList.find((e) => e.id === 'vase-sticks')!.doc));
 let committed = JSON.stringify(doc);
 const past: string[] = [];
 const future: string[] = [];
@@ -148,7 +158,7 @@ app.innerHTML = `
   <div class="sheet">
     <div class="sheet-body" id="panel"></div>
     <nav class="tabbar" role="tablist">
-      ${(['add', 'edit', 'shell', 'holes', 'view'] as Tab[]).map((t) => `<button class="tab" role="tab" data-tab="${t}">${ICON[t]}<span>${t[0].toUpperCase() + t.slice(1)}</span></button>`).join('')}
+      ${(['add', 'edit', 'layers', 'holes', 'view'] as Tab[]).map((t) => `<button class="tab" role="tab" data-tab="${t}">${ICON[t]}<span>${t[0].toUpperCase() + t.slice(1)}</span></button>`).join('')}
     </nav>
   </div>`;
 const viewportEl = document.getElementById('viewport')!;
@@ -189,14 +199,35 @@ function selected(): SceneObject | null {
   return doc.objects.find((o) => o.id === ui.selectedId) ?? null;
 }
 
+function selectedGroup(): Group | null {
+  return doc.groups.find((g) => g.id === ui.selectedId) ?? null;
+}
+
+/** The selected layer as the ghost draws it: placed in the world (a group: its contents, in its own frame). */
+function ghostOf(): SceneObject | null {
+  const o = selected();
+  if (o) return { ...o, transform: worldTransform(doc, o.id) };
+  const g = selectedGroup();
+  if (!g) return null;
+  // the group's contents as built, in the group's own frame
+  const sub: SceneDoc = { ...cloneDoc(doc), root: [g.id] };
+  const own = sub.groups.find((x) => x.id === g.id)!;
+  Object.assign(own, { transform: undefined, sym: undefined, hidden: false, op: 'add' });
+  const objects = flattenLayers(sub).objects;
+  view.partDefs = [{ id: g.id, name: g.name, thickness: g.thickness, hollow: false, pins: [], objects }];
+  const mode: ObjectMode = (g.op ?? 'add') === 'add' ? 'shell' : g.op as ObjectMode;
+  return { ...makeObject('part', { id: g.id, name: g.name, params: { part: g.id }, mode }), transform: worldTransform(doc, g.id) };
+}
+
 /** Apply a change. interactive = still dragging (draft build, no history entry). */
 function update(mut: (d: SceneDoc) => void, interactive = false) {
   const next = cloneDoc(doc);
   mut(next);
+  repairTree(next);
   doc = next;
   if (!interactive) commit();
-  const sel = selected();
-  if (sel) view.syncGhost(sel);
+  const ghost = ghostOf();
+  if (ghost) view.syncGhost(ghost);
   ghostOutline(interactive);
   sync(interactive);
 }
@@ -204,8 +235,8 @@ function update(mut: (d: SceneDoc) => void, interactive = false) {
 /** The outline of the selected object shows at rest only for Subtract and Cutout (the render already shows
  *  the rest), and for any object while it is being dragged or profiled, since builds wait for release. */
 function ghostOutline(live = false) {
-  const o = selected();
-  view.setGhostOutline(!!o && (isCut(o.mode) || live || ui.profileEditing === o.id));
+  const o = selected(), g = selectedGroup();
+  view.setGhostOutline(o ? isCut(o.mode) || live || ui.profileEditing === o.id : !!g && ((g.op ?? 'add') !== 'add' || live));
 }
 
 // ---------- display / builds
@@ -241,8 +272,8 @@ function applyGrids() {
 /** Bring the display in line with the document. While a drag is in progress
  *  (interactive) only cheap display updates run; worker builds wait for release. */
 function sync(interactive: boolean) {
-  const r = expandDoc(doc);
-  view.partDefs = doc.parts ?? [];
+  buildNotes = [];
+  const r = expandDoc(doc, buildNotes);
   if (doc.kernel === 'mesh') {
     view.setMode('mesh');
     if (!interactive) builder.request('mesh', r, ui.quality);
@@ -277,7 +308,7 @@ function commit() {
 }
 
 function restore(s: string) {
-  doc = normalizeDoc(JSON.parse(s));
+  doc = loadable(JSON.parse(s));
   committed = s;
   save(doc);
   scheduleAutosave();
@@ -289,8 +320,8 @@ function restore(s: string) {
 
 function refreshGhost() {
   ghostOutline();
-  view.setGhost(ui.tab === 'edit' || ui.tab === 'add' ? selected() : selected() && ui.tab === 'holes' ? selected() : null,
-    ui.tab === 'edit' ? ui.gizmo : 'off');
+  const show = ui.tab === 'edit' || ui.tab === 'add' || ui.tab === 'layers' || (ui.tab === 'holes' && !!selected());
+  view.setGhost(show ? ghostOf() : null, ui.tab === 'edit' || ui.tab === 'layers' ? ui.gizmo : 'off');
 }
 
 // ---------- rendering
@@ -300,13 +331,17 @@ function renderTopbar() {
   (document.getElementById('btn-redo') as HTMLButtonElement).disabled = !future.length;
 }
 
+/** Where the last build approximated the layer tree (see engine/layers). */
+let buildNotes: string[] = [];
+
 function renderStatus() {
   const chips: string[] = [];
   const s = doc.kernel === 'mesh' ? lastResult?.stats : undefined;
+  const r = expandDoc(doc);
   if (doc.kernel === 'sdf') {
-    const hollow = doc.groups.some((g) => doc.shell.enabled && doc.objects.some((o) => o.groupId === g.id && o.mode === 'shell'));
+    const hollow = r.shell.enabled && r.objects.some((o) => o.mode === 'shell');
     // exact once every group that needs a grid has one (the others are exact anyway)
-    const r = expandDoc(doc), grids = currentGrids(r);
+    const grids = currentGrids(r);
     const exact = !hollow || r.groups.every((_, i) => !needsGrid(r, i) || !!grids[i]);
     chips.push(`<span class="chip ${busy ? 'busy' : 'ok'}">SDF · live${hollow ? (exact && !busy ? ' · exact walls' : ' · refining walls') : ''}</span>`);
   } else {
@@ -318,7 +353,9 @@ function renderStatus() {
     const sz = bb.getSize(new THREE.Vector3());
     chips.push(`<span class="chip">${Math.round(Math.max(sz.x, sz.z))} × ${Math.round(sz.y)} cm</span>`);
   }
-  if (doc.shell.enabled && doc.groups.length === 1) chips.push(`<span class="chip">wall ${doc.groups[0].thickness.toFixed(2)} cm</span>`);
+  const hollowUnits = r.groups.filter((g) => r.shell.enabled && r.objects.some((o) => o.groupId === g.id && o.mode === 'shell'));
+  if (hollowUnits.length === 1) chips.push(`<span class="chip">wall ${hollowUnits[0].thickness.toFixed(2)} cm</span>`);
+  for (const n of buildNotes.slice(0, 1)) chips.push(`<span class="chip warn">${escapeHtml(n)}</span>`);
   if (s && !busy) {
     if (s.boundaryEdges) chips.push(`<span class="chip warn">${s.boundaryEdges} open edges</span>`);
     for (const w of s.warnings.slice(0, 2)) chips.push(`<span class="chip warn">${escapeHtml(w)}</span>`);
@@ -379,12 +416,12 @@ function renderPanel() {
   profileEditor = null;
   if (ui.showGallery) { panel.innerHTML = galleryPanel(); return; }
   if (ui.profileEditing) { renderProfilePanel(); return; }
-  panel.innerHTML = ({ add: addPanel, edit: editPanel, shell: shellPanel, holes: holesPanel, view: viewPanel } as Record<Tab, () => string>)[ui.tab]();
+  panel.innerHTML = ({ add: addPanel, edit: editPanel, layers: layersPanel, holes: holesPanel, view: viewPanel } as Record<Tab, () => string>)[ui.tab]();
 }
 
 function objectChips() {
   if (!doc.objects.length) return '<p class="hint">No objects yet. Add one from the Add tab.</p>';
-  return `<div class="chips">${doc.objects.map((o) => `<button class="obj-chip" data-select="${o.id}" aria-pressed="${o.id === ui.selectedId}"><span class="dot ${o.mode}"></span>${escapeHtml(o.name)}</button>`).join('')}</div>`;
+  return `<div class="chips">${doc.objects.map((o) => `<button class="obj-chip" data-select="${o.id}" aria-pressed="${o.id === ui.selectedId}"><span class="dot ${isCut(o.mode) ? 'cut' : o.mode}"></span>${escapeHtml(o.name)}</button>`).join('')}</div>`;
 }
 
 function addPanel() {
@@ -411,11 +448,11 @@ function partsLibrary() {
     return `<div class="piece">
       <button class="piece-open" data-add-part="${p.id}" aria-label="Add ${escapeHtml(p.name)}">${p.thumb ? `<img src="${p.thumb}" alt="">` : '<span class="piece-empty">No preview</span>'}</button>
       <div class="piece-meta"><div class="piece-title"><b>${escapeHtml(p.name)}</b><button class="piece-more" data-lib-menu="${p.id}" aria-label="More actions for ${escapeHtml(p.name)}" aria-expanded="${ui.libMenu === p.id}">⋯</button></div>
-      <small>${p.objects.length} object${p.objects.length === 1 ? '' : 's'}${p.hollow ? ` · ${p.thickness.toFixed(2)} cm wall` : ' · solid'}</small></div>${extra}</div>`;
+      <small>${partSummary(p)}</small></div>${extra}</div>`;
   };
   return `<div class="section"><h3>Your parts</h3>
-    ${list.length ? `<div class="pieces">${list.map(card).join('')}</div>` : '<p class="hint">No parts yet. In the Shell tab, use "Save as part" on a group to reuse it in any piece.</p>'}
-    ${list.length ? '<p class="hint">Tap a part to add it. A part is finished geometry: its own hollow, openings and subtractions stay inside it.</p>' : ''}</div>`;
+    ${list.length ? `<div class="pieces">${list.map(card).join('')}</div>` : '<p class="hint">No parts yet. In the Layers tab, select a group and use "Save as part" to reuse it in any piece.</p>'}
+    ${list.length ? '<p class="hint">Tap a part to add a copy of its group. Everything in it stays editable; changing the copy never changes the saved part.</p>' : ''}</div>`;
 }
 
 function sweepControls(o: SceneObject) {
@@ -443,9 +480,9 @@ function sweepControls(o: SceneObject) {
 /** Objects with edges to round (spheres, tori and capsules are round already). */
 const ROUNDABLE = new Set<SceneObject['type']>(['box', 'cylinder', 'cone', 'prism', 'revolve', 'sweep']);
 
-function symmetrySection(o: SceneObject) {
-  const sym = o.sym;
-  const others = doc.objects.filter((x) => x.id !== o.id);
+function symmetrySection(id: string, sym: Symmetry | undefined) {
+  const own = new Set(subtree(doc, id));
+  const others = doc.objects.filter((x) => !own.has(x.id));
   return `<div class="section"><h3>Mirror &amp; repeat</h3>
     ${seg<'off' | 'mirror' | 'radial'>('symkind', sym?.kind ?? 'off', [['off', 'Off'], ['mirror', 'Mirror'], ['radial', 'Radial']])}
     ${sym ? `<div class="sub">About</div>
@@ -453,82 +490,115 @@ function symmetrySection(o: SceneObject) {
     <div class="sub">${sym.kind === 'mirror' ? 'Across the plane square to its axis' : 'Round its axis'}</div>
     ${seg<'x' | 'y' | 'z'>('symaxis', sym.axis, [['x', 'X'], ['y', 'Y'], ['z', 'Z']])}
     ${sym.kind === 'radial' ? slider('sym.count', 'Copies in all', sym.count, 2, 24, 1) : ''}
-    <p class="hint">${sym.kind === 'mirror' ? 'A mirror image across the plane through the centre of the object chosen above, square to its axis.' : 'Copies spaced evenly round the axis through the centre of the object chosen above (a revolve\'s own axis is Y).'} The copies follow every change to this object.</p>` : '<p class="hint">Mirror this object across a plane, or repeat it round an axis, through another object (say the vase it sits on) or the world origin.</p>'}
+    <p class="hint">${sym.kind === 'mirror' ? 'A mirror image across the plane through the centre of the object chosen above, square to its axis.' : 'Copies spaced evenly round the axis through the centre of the object chosen above (a revolve\'s own axis is Y).'} The copies follow every change.</p>` : '<p class="hint">Mirror this layer across a plane, or repeat it round an axis, through another object (say the vase it sits on) or the world origin.</p>'}
   </div>`;
 }
 
-function partEditBody(o: SceneObject) {
-  const t = o.transform;
-  const def = (doc.parts ?? []).find((d) => d.id === o.params.part);
+function partSummary(p: LibraryPart): string {
+  const L = p.layers;
+  if (!L) return `${p.objects.length} object${p.objects.length === 1 ? '' : 's'}${p.hollow ? ` · ${p.thickness.toFixed(2)} cm wall` : ' · solid'}`;
+  const g = L.groups.find((x) => x.id === L.root[0]);
+  return `${L.objects.length} object${L.objects.length === 1 ? '' : 's'}${g?.shell ? ` · ${g.thickness.toFixed(2)} cm wall` : ''}`;
+}
+
+/** Where new layers go: the selected group, the selected object's group, else the top group. */
+function targetGroup(): string {
+  const g = selectedGroup();
+  if (g) return g.id;
+  const o = selected();
+  if (o) return o.groupId;
+  const top = [...(doc.root ?? [])].reverse().find((id) => doc.groups.some((x) => x.id === id));
+  return top ?? '';
+}
+
+/** The group whose body a layer joins when built: the nearest enclosing group with an effect. */
+function bodyGroup(id: string): Group | null {
+  for (const gid of ancestors(doc, id)) {
+    const g = doc.groups.find((x) => x.id === gid)!;
+    if (g.shell || (g.blend ?? 0) > 0 || (g.round ?? 0) > 0) return g;
+  }
+  return null;
+}
+
+function groupEditBody(g: Group) {
+  const t = g.transform ?? { position: [0, 0, 0] as Vec3, rotation: [0, 0, 0] as Vec3, scale: [1, 1, 1] as Vec3 };
   return `
-    <div class="section"><h3>Part · ${escapeHtml(def?.name ?? 'missing')}</h3>
-      ${seg<ObjectMode>('mode', isCut(o.mode) ? o.mode : 'solid', [['solid', 'Finished'], ['subtract', 'Subtract'], ['cutout', 'Cutout']])}
-      <p class="hint">${o.mode === 'subtract' ? 'Its outer shape is carved from the group it sits in before hollowing, so the cut gets a wall.' : o.mode === 'cutout' ? 'Its outer shape is cut out of the finished group, walls and all.' : 'Placed as finished geometry: its own hollow and subtractions stay inside it, and nothing else cuts it.'}</p>
-      ${doc.groups.length > 1 && isCut(o.mode) ? `<div class="row">${doc.groups.map((g) => `<button class="face-chip" data-move-group="${g.id}" aria-pressed="${g.id === o.groupId}">${escapeHtml(g.name)}</button>`).join('')}</div>` : ''}
-      <div class="row"><button class="btn" data-act="unpack-part">Unpack into a group</button></div>
-      <p class="hint">Unpacking turns it back into editable objects in a new group of this piece.</p>
-    </div>
-    ${symmetrySection(o)}
+    <div class="section"><h3>Group · ${escapeHtml(g.name)}</h3>
+      <p class="hint">${(g.children ?? []).length} layer${(g.children ?? []).length === 1 ? '' : 's'}. Its op, Shell, Blend and Round are in the Layers tab.</p></div>
+    ${symmetrySection(g.id, g.sym)}
     <div class="section"><h3>Transform</h3>
       ${seg<GizmoMode>('gizmo', ui.gizmo, [['translate', 'Move'], ['rotate', 'Rotate'], ['scale', 'Scale'], ['off', 'Hide']])}
       ${xyz('position', 'Position', t.position, 0.1)}
       ${xyz('rotation', 'Rotation°', t.rotation, 1)}
       ${slider('tf.uscale', 'Size ×', +partScale(t).toFixed(3), 0.1, Math.max(4, Math.ceil(partScale(t) * 1.5)), 0.01)}
-      <p class="hint">Parts scale evenly; the wall scales with them.</p>
+      <p class="hint">Moves, turns and scales everything in the group together. Groups scale evenly; walls keep their thickness.</p>
     </div>
     <div class="row"><button class="btn" data-act="duplicate">Duplicate</button><button class="btn danger" data-act="delete">Delete</button></div>`;
+}
+
+/** The layers of a saved part (parts saved before layers: converted). */
+function partLayers(p: LibraryPart): SceneDoc {
+  if (p.layers) return { ...emptyDoc(), ...cloneDoc(p.layers as SceneDoc) };
+  const old = emptyDoc();
+  old.root = undefined;
+  old.parts = [{ ...p, thumb: undefined }];
+  old.objects.push(makeObject('part', { id: 'placed', name: p.name, params: { part: p.id }, mode: 'solid', groupId: old.groups[0].id }));
+  const d = toLayers(old);
+  return { ...d, root: ['placed'] };
 }
 
 async function savePart(groupId: string) {
   const name = ((document.getElementById('part-name') as HTMLInputElement | null)?.value.trim()) || 'Part';
   ui.partNaming = null;
-  const r = expandDoc(doc);
-  const g = compileGroups(r).find((x) => x.id === groupId);
-  if (!g) { toast('This group has nothing to save yet'); renderPanel(); return; }
-  const def = makePartDef(doc, groupId, name, g.bounds);
-  def.thumb = view.snapshot();
+  const ids = new Set(subtree(doc, groupId));
+  const part: SceneDoc = {
+    ...cloneDoc(doc), root: [groupId],
+    groups: cloneDoc(doc).groups.filter((g) => ids.has(g.id)),
+    objects: cloneDoc(doc).objects.filter((o) => ids.has(o.id)),
+    pins: cloneDoc(doc).pins.filter((p) => ids.has(p.objectId)),
+  };
+  // the group sits in part space: centred on its footprint, standing on the ground
+  const g = part.groups.find((x) => x.id === groupId)!;
+  const w = worldTransform(doc, groupId);
+  g.transform = { ...w, scale: [partScale(w), partScale(w), partScale(w)] };
+  g.op = 'add';
+  g.hidden = false;
+  const built = compileGroups(flattenLayers(part));
+  if (!built.length) { toast('This group has nothing to save yet'); renderPanel(); return; }
+  const b = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+  for (const u of built) for (let a = 0; a < 3; a++) { b.min[a] = Math.min(b.min[a], u.bounds.min[a]); b.max[a] = Math.max(b.max[a], u.bounds.max[a]); }
+  g.transform.position = [w.position[0] - (b.min[0] + b.max[0]) / 2, w.position[1] - b.min[1], w.position[2] - (b.min[2] + b.max[2]) / 2];
   const now = Date.now();
-  try { await partStore.put({ ...def, createdAt: now, updatedAt: now }); toast(`Saved part "${name}". Add it from the Add tab.`); }
+  const lib: LibraryPart = {
+    id: newId('part'), name, thickness: g.thickness, blend: g.blend ?? 0, hollow: !!g.shell, objects: [], pins: [],
+    layers: { groups: part.groups, objects: part.objects, pins: part.pins, root: [groupId] }, thumb: view.snapshot(), createdAt: now, updatedAt: now,
+  };
+  try { await partStore.put(lib); toast(`Saved part "${name}". Add it from the Add tab.`); }
   catch (e) { toast(storeError(e)); }
   renderPanel();
 }
 
+/** Insert an editable copy of a saved part's group. */
 function addPart(id: string) {
   const lib = partStore.get(id);
   if (!lib) return;
-  const { createdAt: _c, updatedAt: _u, ...def } = lib;
-  const o = makeObject('part', { params: { part: def.id }, mode: 'solid', name: def.name, groupId: selected()?.groupId ?? doc.groups[0].id });
+  const src = partLayers(lib);
+  const target = targetGroup();
+  let gid = '';
   update((d) => {
-    d.parts = d.parts ?? [];
-    if (!d.parts.some((x) => x.id === def.id)) d.parts.push(JSON.parse(JSON.stringify({ ...def, thumb: undefined })));
-    d.objects.push(o);
+    gid = copyLayer(src, src.root![0], d);
+    const g = d.groups.find((x) => x.id === gid)!;
+    g.name = lib.name;
+    attach(d, gid, target);
+    // it stands at the world origin, as saved
+    const t = localTransform(d, target, g.transform ?? { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] });
+    g.transform = { ...t, scale: [partScale(t), partScale(t), partScale(t)] };
   });
-  ui.selectedId = o.id;
-  ui.tab = 'edit';
+  ui.selectedId = gid;
+  ui.tab = 'layers';
   refreshGhost();
   renderPanel();
-}
-
-/** Replace a placed part by its objects, as a new group of this piece. */
-function unpackPart(o: SceneObject) {
-  const x = expandParts({ ...doc, objects: [o], pins: [], groups: doc.groups.map((g) => ({ ...g })) });
-  const fresh = new Map<string, string>();
-  const idFor = (old: string) => { if (!fresh.has(old)) fresh.set(old, newId(old.endsWith('~g') ? 'g' : 'o')); return fresh.get(old)!; };
-  const newGroups = x.groups.filter((g) => !doc.groups.some((dg) => dg.id === g.id)).map((g) => ({ ...g, id: idFor(g.id) }));
-  const objs = x.objects.map((c) => ({ ...c, id: idFor(c.id), groupId: fresh.get(c.groupId) ?? c.groupId }));
-  const pins = x.pins.map((p) => ({ ...p, id: newId('p'), objectId: fresh.get(p.objectId) ?? p.objectId }));
-  update((d) => {
-    d.objects = d.objects.filter((y) => y.id !== o.id).concat(objs);
-    d.groups.push(...newGroups);
-    d.pins.push(...pins);
-    // drop definitions nothing uses any more
-    const used = new Set(d.objects.filter((y) => y.type === 'part').map((y) => y.params.part));
-    d.parts = (d.parts ?? []).filter((p) => used.has(p.id));
-  });
-  ui.selectedId = objs[0]?.id ?? null;
-  toast(newGroups.length ? `Unpacked into "${newGroups[0].name}"` : 'Unpacked');
-  refreshGhost();
-  renderAll();
+  toast(`Added "${lib.name}" as a group`);
 }
 
 function editPanel() {
@@ -536,21 +606,16 @@ function editPanel() {
   let body = '';
   if (o) {
     const t = o.transform;
-    if (o.type === 'part') body = partEditBody(o);
-    else body = `
-    <div class="section"><h3>${TYPE_LABEL[o.type]} · role in its group</h3>
-      ${seg<ObjectMode>('mode', o.mode, [['shell', 'Shell'], ['solid', 'Solid'], ['subtract', 'Subtract'], ['cutout', 'Cutout']])}
-      <p class="hint">${o.mode === 'shell' ? 'Forms the hollow body. The cavity grows inward from the outside of all Shell objects in the group.' : o.mode === 'solid' ? 'Never hollowed itself, but cut where the group\'s cavity passes through it.' : o.mode === 'subtract' ? 'Carved out of the group\'s shape before it is hollowed, so the cut surface gets a wall like any other.' : 'Cut out of the finished group at the very end, walls and all: it opens into the hollow.'}</p>
-      ${doc.groups.length > 1 ? `<div class="row">${doc.groups.map((g) => `<button class="face-chip" data-move-group="${g.id}" aria-pressed="${g.id === o.groupId}">${escapeHtml(g.name)}</button>`).join('')}</div>` : ''}
-    </div>
+    body = `
+    <div class="section"><h3>${TYPE_LABEL[o.type]}</h3>${opControls(o)}</div>
     <div class="section"><h3>Shape</h3>
       ${PARAMS[o.type].map(([k, l, mn, mx, st]) => slider(`p.${k}`, l, (o.params as Record<string, number>)[k] ?? (k === 'r2' ? o.params.r! : 0), mn, mx, st)).join('')}
       ${o.type === 'revolve' ? `<button class="btn primary" data-act="edit-profile">Edit profile (${o.params.points?.length ?? 0} points)</button>` : ''}
       ${o.type === 'sweep' ? sweepControls(o) : ''}
       ${ROUNDABLE.has(o.type) ? `${slider('p.round', 'Round edges cm', o.params.round ?? 0, 0, 5, 0.05)}
-      <p class="hint">Rounds every edge and corner of this object${(doc.groups.find((g) => g.id === o.groupId)?.round ?? 0) > 0 ? ' (its group rounds them too; the larger wins)' : ''}. The group's Round edges does every object at once and the rims of its cuts; Blend fillets where objects meet.</p>` : ''}
+      <p class="hint">Rounds every edge and corner of this object${(bodyGroup(o.id)?.round ?? 0) > 0 ? ' (its group rounds them too; the larger wins)' : ''}. A group's Round does every object in it at once and the rims of its cuts; Blend fillets where objects meet.</p>` : ''}
     </div>
-    ${symmetrySection(o)}
+    ${symmetrySection(o.id, o.sym)}
     <div class="section"><h3>Transform</h3>
       ${seg<GizmoMode>('gizmo', ui.gizmo, [['translate', 'Move'], ['rotate', 'Rotate'], ['scale', 'Scale'], ['off', 'Hide']])}
       ${xyz('position', 'Position', t.position, 0.1)}
@@ -559,37 +624,91 @@ function editPanel() {
       <p class="hint">Scale runs along the object's own axes. Turn on ⛓ uniform to scale all three together.</p>
     </div>
     <div class="row"><button class="btn" data-act="duplicate">Duplicate</button><button class="btn danger" data-act="delete">Delete</button></div>`;
-  } else body = '<p class="hint">Tap the model, or pick an object below, to edit it.</p>';
+  } else if (selectedGroup()) body = groupEditBody(selectedGroup()!);
+  else body = '<p class="hint">Tap the model, or pick an object below, to edit it. Groups are in the Layers tab.</p>';
   return `<div class="section"><h3>Objects</h3>${objectChips()}</div>${body}`;
 }
 
-function shellPanel() {
-  const holes = doc.objects.flatMap((o) => o.holes.map((h) => ({ o, h })));
-  const groupRows = doc.groups.map((g: Group, i) => {
-    const members = doc.objects.filter((o) => o.groupId === g.id);
-    const count = (m: ObjectMode) => members.filter((o) => o.mode === m).length;
-    return `<div class="section group-card">
-      <div class="row"><input class="group-name" id="gname-${g.id}" data-group-name="${g.id}" value="${escapeHtml(g.name)}" aria-label="Group name">
-        ${doc.groups.length > 1 ? `<button class="btn danger" data-del-group="${g.id}" aria-label="Delete group">Delete</button>` : ''}</div>
-      ${slider(`wall.${i}`, 'Wall cm', g.thickness, 0.05, 4, 0.01)}
-      ${slider(`blend.${i}`, 'Blend cm', g.blend ?? 0, 0, 10, 0.1)}
-      ${slider(`ground.${i}`, 'Round edges cm', g.round ?? 0, 0, 5, 0.05)}
-      <p class="hint">${count('shell')} shell · ${count('solid')} solid · ${count('subtract')} subtract · ${count('cutout')} cutout</p>
+/** An object's op in its group, and whether it is hollowed with its group's body. */
+function opControls(o: SceneObject) {
+  const body = bodyGroup(o.id);
+  const hollow = !!body?.shell;
+  const op: LayerOp = isCut(o.mode) ? o.mode as LayerOp : 'add';
+  return `${seg<LayerOp>('mode', op, [['add', 'Add'], ['subtract', 'Subtract'], ['cutout', 'Cutout']])}
+    ${op === 'add' && hollow ? `<label class="toggle"><input type="checkbox" data-act="keep-solid" ${o.mode === 'solid' ? 'checked' : ''}> Keep solid (not hollowed with "${escapeHtml(body!.name)}")</label>` : ''}
+    <p class="hint">${op === 'add' ? (hollow ? (o.mode === 'solid' ? 'Joins the body but is not hollowed itself; the cavity still cuts it where it passes through.' : `Joins "${escapeHtml(body!.name)}", which is hollowed as one body.`) : 'Joins the layers below it in its group.') : op === 'subtract' ? 'Carves the layers below it in its group. In a hollowed group the cut is made before hollowing, so it gets a wall.' : 'Cuts the finished group, walls and all: it opens into the hollow.'}</p>`;
+}
+
+// ---------- the Layers tab
+const EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4M6.6 6.6C3.7 8.4 2 12 2 12s3.5 7 10 7c1.8 0 3.4-.5 4.8-1.3"/></svg>';
+const OP_MARK: Record<LayerOp, string> = { add: '+', subtract: '−', cutout: '⊘' };
+
+function layerRows(gid: string, depth: number): string {
+  // children run bottom to top; the list shows the top first, as paint programs do
+  return [...childIds(doc, gid)].reverse().map((id) => {
+    const l = layerOf(doc, id);
+    if (!l) return '';
+    const op = layerOp(l);
+    const hidden = l.kind === 'object' ? l.o.hidden : l.g.hidden;
+    const name = l.kind === 'object' ? l.o.name : l.g.name;
+    const g = l.kind === 'group' ? l.g : null;
+    const badges = [
+      g?.shell ? `Shell ${g.thickness.toFixed(2)}` : '', (g?.blend ?? 0) > 0 ? 'Blend' : '', (g?.round ?? 0) > 0 ? 'Round' : '',
+      l.kind === 'object' && l.o.mode === 'solid' && bodyGroup(id)?.shell ? 'Solid' : '',
+      (l.kind === 'object' ? l.o.sym : g?.sym) ? ((l.kind === 'object' ? l.o.sym : g?.sym)!.kind === 'mirror' ? 'Mirror' : 'Radial') : '',
+    ].filter(Boolean);
+    const icon = l.kind === 'group' ? ICON.layers : ICON[l.o.type] ?? '';
+    const row = `<div class="layer-row${id === ui.selectedId ? ' on' : ''}${hidden ? ' off' : ''}" style="--depth:${depth}">
+      ${g ? `<button class="lr-fold" data-fold="${id}" aria-label="${g.collapsed ? 'Open' : 'Fold'} ${escapeHtml(name)}" aria-expanded="${!g.collapsed}">${g.collapsed ? '▸' : '▾'}</button>` : '<span class="lr-fold"></span>'}
+      <button class="lr-main" data-select="${id}" aria-pressed="${id === ui.selectedId}">
+        <span class="lr-op op-${op}" title="${op}">${OP_MARK[op]}</span><span class="lr-icon">${icon}</span>
+        <span class="lr-name">${escapeHtml(name)}</span>${badges.length ? `<span class="lr-badges">${badges.join(' · ')}</span>` : ''}</button>
+      <button class="lr-eye" data-eye="${id}" aria-label="${hidden ? 'Show' : 'Hide'} ${escapeHtml(name)}" aria-pressed="${!hidden}">${hidden ? EYE_OFF : EYE}</button></div>`;
+    return row + (g && !g.collapsed ? layerRows(id, depth + 1) : '');
+  }).join('');
+}
+
+function layersPanel() {
+  const id = ui.selectedId && layerOf(doc, ui.selectedId) ? ui.selectedId : null;
+  const l = id ? layerOf(doc, id) : null;
+  const tool = (act: string, label: string, title: string, on = true) => `<button class="btn" data-act="${act}" title="${title}" ${on ? '' : 'disabled'}>${label}</button>`;
+  const parent = id ? parentOf(doc, id) ?? '' : '';
+  const sibs = childIds(doc, parent), at = id ? sibs.indexOf(id) : -1;
+  const canIn = at >= 0 && (doc.groups.some((g) => g.id === sibs[at - 1]) || doc.groups.some((g) => g.id === sibs[at + 1]));
+  let settings = '';
+  if (l?.kind === 'group') {
+    const g = l.g;
+    settings = `<div class="section group-card">
+      <input class="group-name" data-layer-name="${g.id}" value="${escapeHtml(g.name)}" aria-label="Group name">
+      ${seg<LayerOp>('gop', g.op ?? 'add', [['add', 'Add'], ['subtract', 'Subtract'], ['cutout', 'Cutout']])}
+      <p class="hint">${(g.op ?? 'add') === 'add' ? 'The group joins the layers below it.' : g.op === 'subtract' ? 'The group\'s Add layers carve the layers below it (before hollowing, when that is hollowed).' : 'The group\'s Add layers cut the finished layers below it, walls and all.'}</p>
+      <label class="toggle"><input type="checkbox" data-act="gshell" ${g.shell ? 'checked' : ''}> Shell: hollow this group as one body</label>
+      ${g.shell ? slider('g.wall', 'Wall cm', g.thickness, 0.05, 4, 0.01) : ''}
+      ${slider('g.blend', 'Blend cm', g.blend ?? 0, 0, 10, 0.1)}
+      ${slider('g.round', 'Round cm', g.round ?? 0, 0, 5, 0.05)}
+      <p class="hint">Shell walls grow inward from the outside of the group's Add layers; Subtract layers inside it are cut before hollowing, Cutouts after. Blend fillets where its layers meet. Round rounds every edge of its objects and the rims of its cuts.</p>
       ${ui.partNaming === g.id
         ? `<div class="piece-form"><label class="field-col"><span>Part name</span><input id="part-name" value="${escapeHtml(g.name)}" maxlength="80"></label>
            <div class="row"><button class="btn primary" data-save-part="${g.id}">Save part</button><button class="btn" data-part-cancel="1">Cancel</button></div></div>`
-        : members.length ? `<div class="row"><button class="btn" data-name-part="${g.id}">Save as part</button></div>` : ''}
+        : `<div class="row"><button class="btn" data-name-part="${g.id}">Save as part</button></div>`}
     </div>`;
-  }).join('');
-  return `<div class="section"><h3>Hollowing</h3>
-      <label class="toggle"><input type="checkbox" id="shell-on" data-act="shell-toggle" ${doc.shell.enabled ? 'checked' : ''}> Hollow Shell objects</label>
-      <p class="hint">In each group, walls grow inward from the outside of the Shell objects. The cavity and any Subtract objects are carved from the whole group, Solid objects included. Groups never cut each other.</p>
+  } else if (l?.kind === 'object') {
+    settings = `<div class="section group-card">
+      <input class="group-name" data-layer-name="${l.o.id}" value="${escapeHtml(l.o.name)}" aria-label="Layer name">
+      ${opControls(l.o)}</div>`;
+  }
+  return `<div class="section"><div class="row"><h3 style="margin-right:auto">Layers</h3>
+      <label class="toggle"><input type="checkbox" id="shell-on" data-act="shell-toggle" ${doc.shell.enabled ? 'checked' : ''}> Hollow</label></div>
+    <div class="layers" role="tree">${layerRows('', 0) || '<p class="hint">No layers yet. Add a form from the Add tab.</p>'}</div>
+    <div class="layer-tools">
+      ${tool('layer-new', '+ Group', 'New empty group')}${tool('layer-wrap', 'Group', 'Put the selected layer in a new group', !!l)}${tool('layer-ungroup', 'Ungroup', 'Replace the group by its layers', l?.kind === 'group')}
+      ${tool('layer-up', '↑', 'Move up', at >= 0 && at < sibs.length - 1)}${tool('layer-down', '↓', 'Move down', at > 0)}
+      ${tool('layer-out', '⇤ Out', 'Move out of its group', !!parent)}${tool('layer-in', 'In ⇥', 'Move into the group next to it', canIn)}
+      ${tool('duplicate', 'Duplicate', 'Duplicate', !!l)}${tool('delete', 'Delete', 'Delete', !!l)}
     </div>
-    ${groupRows}
-    <div class="row"><button class="btn" data-act="add-group">Add group</button></div>
-    <div class="section"><h3>Openings</h3>
-      <p class="hint">${holes.length + doc.pins.length ? `${holes.length} face opening${holes.length === 1 ? '' : 's'}, ${doc.pins.length} pin hole${doc.pins.length === 1 ? '' : 's'}.` : 'No openings yet: the shell is fully closed.'} Add them in the Holes tab.</p>
-    </div>`;
+    <p class="hint">Layers build bottom to top: Add joins what is below it in its group, Subtract carves it, Cutout cuts it after hollowing. Tap a layer to select it; the Edit tab moves, shapes and mirrors it.</p></div>
+    ${settings}`;
 }
 
 function holesPanel() {
@@ -695,9 +814,9 @@ function renderProfilePanel() {
   const set = (params: SceneObject['params'], v: ProfilePoint[]) => ({ ...params, [f]: v });
   ed.onChange = (v, done) => {
     // While dragging only the wireframe ghost follows; the shape rebuilds on release.
-    if (!done) { view.setGhost({ ...o, params: set(o.params, v) }, 'off'); return; }
+    if (!done) { view.setGhost({ ...o, params: set(o.params, v), transform: worldTransform(doc, o.id) }, 'off'); return; }
     update((d) => { const t = d.objects.find((x) => x.id === o.id)!; t.params = set(t.params, v); });
-    view.setGhost(selected(), 'off');
+    view.setGhost(ghostOf(), 'off');
   };
   ed.onSelect = (i) => {
     ui.profilePoint = i;
@@ -724,20 +843,26 @@ function selectObject(id: string | null) {
 
 function setNum(key: string, v: number, interactive: boolean) {
   if (Number.isNaN(v)) return;
-  if (key.startsWith('wall.')) {
-    const gi = Number(key.slice(5));
-    return update((d) => { d.groups[gi].thickness = Math.max(0.02, v); }, interactive);
-  }
-  if (key.startsWith('blend.')) {
-    const gi = Number(key.slice(6));
-    return update((d) => { d.groups[gi].blend = Math.max(0, v); }, interactive);
-  }
-  if (key.startsWith('ground.')) {
-    const gi = Number(key.slice(7));
-    return update((d) => { d.groups[gi].round = Math.max(0, v); }, interactive);
+  const gid = selectedGroup()?.id;
+  if (key.startsWith('g.') && gid) {
+    return update((d) => {
+      const g = d.groups.find((x) => x.id === gid)!;
+      if (key === 'g.wall') g.thickness = Math.max(0.02, v);
+      if (key === 'g.blend') g.blend = Math.max(0, v);
+      if (key === 'g.round') g.round = Math.max(0, v);
+    }, interactive);
   }
   if (key === 'sym.count') {
-    return update((d) => { const o = d.objects.find((x) => x.id === ui.selectedId); if (o?.sym) o.sym.count = Math.round(v); }, interactive);
+    return update((d) => { const s = symOf(d); if (s) s.count = Math.round(v); }, interactive);
+  }
+  if (key.startsWith('tf.') && gid) {
+    return update((d) => {
+      const g = d.groups.find((x) => x.id === gid)!;
+      const t = g.transform ??= { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] };
+      if (key === 'tf.uscale') { const s = Math.max(0.05, v); t.scale = [s, s, s]; return; }
+      const [, field, idx] = key.split('.');
+      if (field === 'position' || field === 'rotation') t[field][Number(idx)] = v;
+    }, interactive);
   }
   if (key === 'pin') { ui.pinRadius = Math.max(0.02, v); return; }
   if (key === 'section') { ui.section.t = v; view.setSection(true, ui.section.axis, v); return; }
@@ -785,13 +910,16 @@ panel.addEventListener('change', (e) => {
     if (key.startsWith('tf.scale') && ui.lockScale) renderPanel();
     return;
   }
-  if (el.dataset.groupName) {
-    const gid = el.dataset.groupName;
-    update((d) => { d.groups.find((g) => g.id === gid)!.name = el.value.trim() || 'Group'; });
+  if (el.dataset.layerName) {
+    const lid = el.dataset.layerName;
+    update((d) => { const l = layerOf(d, lid); if (l) (l.kind === 'object' ? l.o : l.g).name = el.value.trim() || (l.kind === 'object' ? TYPE_LABEL[l.o.type] : 'Group'); });
+    renderPanel();
     return;
   }
   const act = el.dataset.act;
   if (act === 'shell-toggle') update((d) => { d.shell.enabled = el.checked; });
+  if (act === 'gshell') { update((d) => { const g = d.groups.find((x) => x.id === ui.selectedId); if (g) g.shell = el.checked; }); renderPanel(); }
+  if (act === 'keep-solid') { update((d) => { const o = d.objects.find((x) => x.id === ui.selectedId); if (o && !isCut(o.mode)) o.mode = el.checked ? 'solid' : 'shell'; }); renderPanel(); }
   if (act === 'sweep-closed') {
     update((d) => {
       const p = d.objects.find((x) => x.id === ui.selectedId)!.params;
@@ -849,52 +977,55 @@ panel.addEventListener('click', (e) => {
     return toggleHole(oid, fid);
   }
   if (d.symRef !== undefined) {
-    update((doc2) => { const o = doc2.objects.find((x) => x.id === ui.selectedId); if (o?.sym) o.sym.ref = d.symRef || null; });
+    update((doc2) => { const sym = symOf(doc2); if (sym) sym.ref = d.symRef || null; });
     renderPanel();
     return;
   }
-  if (d.moveGroup) {
-    update((doc2) => { doc2.objects.find((x) => x.id === ui.selectedId)!.groupId = d.moveGroup!; });
-    renderPanel();
+  if (d.fold) {
+    const g = doc.groups.find((x) => x.id === d.fold);
+    if (g) { g.collapsed = !g.collapsed; save(doc); renderPanel(); }
     return;
   }
-  if (d.delGroup) {
-    update((doc2) => {
-      const keepId = doc2.groups.find((g) => g.id !== d.delGroup)!.id;
-      doc2.groups = doc2.groups.filter((g) => g.id !== d.delGroup);
-      for (const o of doc2.objects) if (o.groupId === d.delGroup) o.groupId = keepId;
-    });
+  if (d.eye) {
+    update((doc2) => { const l = layerOf(doc2, d.eye!); if (l) { const h = l.kind === 'object' ? l.o : l.g; h.hidden = !h.hidden; } });
     renderPanel();
     return;
   }
   if (d.unpin) { update((doc2) => { doc2.pins = doc2.pins.filter((p) => p.id !== d.unpin); }); renderPanel(); return; }
   switch (d.act) {
     case 'lock': ui.lockScale = !ui.lockScale; btn.setAttribute('aria-pressed', String(ui.lockScale)); break;
-    case 'unpack-part': { const o = selected(); if (o?.type === 'part') unpackPart(o); break; }
     case 'duplicate': {
-      const o = selected();
-      if (!o) break;
-      const c: SceneObject = JSON.parse(JSON.stringify(o));
-      c.id = newId();
-      c.name = `${o.name} copy`;
-      c.transform.position = [o.transform.position[0] + 4, o.transform.position[1], o.transform.position[2]];
-      update((doc2) => { doc2.objects.push(c); });
-      selectObject(c.id);
+      const id = ui.selectedId;
+      if (!id || !layerOf(doc, id)) break;
+      let copy = '';
+      update((doc2) => {
+        const parent = parentOf(doc2, id) ?? '';
+        copy = copyLayer(doc2, id, doc2);
+        attach(doc2, copy, parent, childIds(doc2, parent).indexOf(id) + 1);
+        const l = layerOf(doc2, copy)!;
+        const h = l.kind === 'object' ? l.o : l.g;
+        h.name = `${h.name} copy`;
+        const t = h.transform ??= { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] };
+        t.position = [t.position[0] + 4, t.position[1], t.position[2]];
+      });
+      selectObject(copy);
       break;
     }
     case 'delete': {
-      const o = selected();
-      if (!o) break;
-      update((doc2) => {
-        doc2.objects = doc2.objects.filter((x) => x.id !== o.id);
-        doc2.pins = doc2.pins.filter((p) => p.objectId !== o.id);
-      });
-      selectObject(doc.objects[0]?.id ?? null);
+      const id = ui.selectedId;
+      if (!id || !layerOf(doc, id)) break;
+      const parent = parentOf(doc, id) ?? '';
+      update((doc2) => deleteLayer(doc2, id));
+      // select its neighbour, else its group
+      const sibs = childIds(doc, parent);
+      selectObject(sibs[sibs.length - 1] ?? (parent || null));
       break;
     }
+    case 'layer-new': case 'layer-wrap': case 'layer-ungroup': case 'layer-up': case 'layer-down': case 'layer-out': case 'layer-in':
+      layerTool(d.act); break;
     case 'edit-profile': case 'edit-path': case 'edit-shape': case 'edit-lift':
       ui.curveField = ({ 'edit-profile': 'points', 'edit-path': 'path', 'edit-shape': 'shape', 'edit-lift': 'lift' } as Record<string, CurveField>)[d.act!];
-      ui.profileEditing = ui.selectedId; ui.profilePoint = -1; ghostOutline(); view.setGhost(selected(), 'off'); renderPanel(); break;
+      ui.profileEditing = ui.selectedId; ui.profilePoint = -1; ghostOutline(); view.setGhost(ghostOf(), 'off'); renderPanel(); break;
     case 'profile-done': ui.profileEditing = null; refreshGhost(); renderPanel(); break;
     case 'profile-delete': profileEditor?.deleteSelected(); break;
     case 'profile-zoom-in': profileEditor?.zoomBy(1.4); break;
@@ -904,13 +1035,6 @@ panel.addEventListener('click', (e) => {
     case 'new-piece': newPiece(); break;
     case 'measure-fps': measureFps(); break;
     case 'save-piece': savePiece(); break;
-    case 'add-group': {
-      const id = newId('g');
-      update((doc2) => { doc2.groups.push({ id, name: `Group ${doc2.groups.length + 1}`, thickness: DEFAULT_WALL }); });
-      toast('Group added. Move objects into it from the Edit tab.');
-      renderPanel();
-      break;
-    }
     case 'new':
       update((doc2) => { Object.assign(doc2, emptyDoc(), { kernel: doc2.kernel }); });
       ui.selectedId = null; ui.tab = 'add'; refreshGhost(); renderPanel();
@@ -920,16 +1044,23 @@ panel.addEventListener('click', (e) => {
 
 function onSeg(name: string, value: string) {
   switch (name) {
-    case 'mode': update((d) => { d.objects.find((x) => x.id === ui.selectedId)!.mode = value as ObjectMode; }); refreshGhost(); break;
+    case 'mode': update((d) => {
+      const o = d.objects.find((x) => x.id === ui.selectedId)!;
+      o.mode = value === 'add' ? (o.mode === 'solid' ? 'solid' : 'shell') : value as ObjectMode;
+    }); refreshGhost(); break;
+    case 'gop': update((d) => { d.groups.find((x) => x.id === ui.selectedId)!.op = value as LayerOp; }); refreshGhost(); break;
     case 'gizmo': ui.gizmo = value as GizmoMode; refreshGhost(); break;
     case 'symkind': update((d) => {
-      const o = d.objects.find((x) => x.id === ui.selectedId)!;
-      if (value === 'off') { delete o.sym; return; }
-      // about the first revolve (a vase's axis), else the world origin
-      const ref = o.sym?.ref ?? d.objects.find((x) => x.id !== o.id && x.type === 'revolve')?.id ?? null;
-      o.sym = { kind: value as 'mirror' | 'radial', ref, axis: o.sym?.axis ?? (value === 'radial' ? 'y' : 'x'), count: value === 'radial' ? Math.max(o.sym?.count ?? 0, 4) : 2 };
+      const l = layerOf(d, ui.selectedId ?? '');
+      if (!l) return;
+      const host = l.kind === 'object' ? l.o : l.g;
+      if (value === 'off') { delete host.sym; return; }
+      // about the first revolve outside it (a vase's axis), else the world origin
+      const own = new Set(subtree(d, host.id));
+      const ref = host.sym?.ref ?? d.objects.find((x) => !own.has(x.id) && x.type === 'revolve')?.id ?? null;
+      host.sym = { kind: value as 'mirror' | 'radial', ref, axis: host.sym?.axis ?? (value === 'radial' ? 'y' : 'x'), count: value === 'radial' ? Math.max(host.sym?.count ?? 0, 4) : 2 };
     }); break;
-    case 'symaxis': update((d) => { const o = d.objects.find((x) => x.id === ui.selectedId)!; if (o.sym) o.sym.axis = value as 'x' | 'y' | 'z'; }); break;
+    case 'symaxis': update((d) => { const s = symOf(d); if (s) s.axis = value as 'x' | 'y' | 'z'; }); break;
     case 'holeMode': ui.holeMode = value as 'face' | 'pin'; break;
     case 'kernel': update((d) => { d.kernel = value as SceneDoc['kernel']; }); break;
     case 'meshMethod': update((d) => { d.meshMethod = value as SceneDoc['meshMethod']; }); break;
@@ -945,6 +1076,57 @@ function onSeg(name: string, value: string) {
   renderStatus();
 }
 
+/** The selected layer's symmetry, in document d. */
+function symOf(d: SceneDoc): Symmetry | undefined {
+  const l = layerOf(d, ui.selectedId ?? '');
+  return l ? (l.kind === 'object' ? l.o.sym : l.g.sym) : undefined;
+}
+
+/** Put a layer into group gid at index, keeping it where it is in the world. */
+function moveLayer(d: SceneDoc, id: string, gid: string, index?: number) {
+  const w = worldTransform(d, id);
+  attach(d, id, gid, index);
+  const t = localTransform(d, gid, w);
+  const l = layerOf(d, id)!;
+  if (l.kind === 'object') l.o.transform = t;
+  else l.g.transform = { ...t, scale: [partScale(t), partScale(t), partScale(t)] };
+}
+
+function layerTool(act: string) {
+  const id = ui.selectedId && layerOf(doc, ui.selectedId) ? ui.selectedId : null;
+  const parent = id ? parentOf(doc, id) ?? '' : '';
+  let select: string | null = id;
+  update((d) => {
+    const sibs = childIds(d, parent), at = id ? sibs.indexOf(id) : -1;
+    switch (act) {
+      case 'layer-new': {
+        const g = newGroup(newId('g'), `Group ${d.groups.length + 1}`, { shell: false });
+        d.groups.push(g);
+        const into = id && layerOf(d, id)?.kind === 'group' ? id : parent;
+        attach(d, g.id, into, into === parent && at >= 0 ? at + 1 : undefined);
+        select = g.id;
+        break;
+      }
+      case 'layer-wrap': if (id) select = groupLayers(d, [id], `Group ${d.groups.length + 1}`); break;
+      case 'layer-ungroup': if (id) { select = d.groups.find((g) => g.id === id)?.children?.slice(-1)[0] ?? null; ungroup(d, id); } break;
+      case 'layer-up': if (id && at < sibs.length - 1) attach(d, id, parent, at + 1); break;
+      case 'layer-down': if (id && at > 0) attach(d, id, parent, at - 1); break;
+      case 'layer-out': if (id && parent) { const pp = parentOf(d, parent) ?? ''; moveLayer(d, id, pp, childIds(d, pp).indexOf(parent) + 1); } break;
+      case 'layer-in': {
+        if (!id) break;
+        // into the group just below it (at its top), else the one just above (at its bottom)
+        const below = d.groups.find((g) => g.id === sibs[at - 1]), above = d.groups.find((g) => g.id === sibs[at + 1]);
+        if (below) { moveLayer(d, id, below.id); below.collapsed = false; }
+        else if (above) { moveLayer(d, id, above.id, 0); above.collapsed = false; }
+        break;
+      }
+    }
+  });
+  ui.selectedId = select;
+  refreshGhost();
+  renderPanel();
+}
+
 function toggleHole(oid: string, fid: string) {
   update((d) => {
     const o = d.objects.find((x) => x.id === oid)!;
@@ -954,16 +1136,19 @@ function toggleHole(oid: string, fid: string) {
 }
 
 function addObject(type: PrimitiveType, extra: Partial<SceneObject> = {}) {
-  const o = makeObject(type, { groupId: selected()?.groupId ?? doc.groups[0].id, ...extra });
+  const target = targetGroup();
+  const o = makeObject(type, { groupId: target, ...extra });
   const n = doc.objects.filter((x) => x.type === type && (x.name.startsWith(o.name))).length;
   if (n) o.name = `${o.name} ${n + 1}`;
-  update((d) => { d.objects.push(o); });
+  // it appears at the world origin, whatever its group's placement
+  if (target) o.transform = localTransform(doc, target, o.transform);
+  update((d) => { d.objects.push(o); attach(d, o.id, target); });
   ui.selectedId = o.id;
   ui.tab = 'edit';
   if (type === 'revolve') { ui.profileEditing = o.id; ui.curveField = 'points'; ui.profilePoint = -1; }
   if (type === 'sweep' && !extra.params) { ui.profileEditing = o.id; ui.curveField = 'path'; ui.profilePoint = -1; }
   refreshGhost();
-  if (type === 'revolve' || ui.profileEditing === o.id) view.setGhost(o, 'off');
+  if (type === 'revolve' || ui.profileEditing === o.id) view.setGhost(ghostOf(), 'off');
   renderPanel();
 }
 
@@ -1013,12 +1198,14 @@ window.addEventListener('keydown', (e) => {
 
 // gizmo -> document
 view.onGizmoChange = (t, done) => {
-  const o = selected();
-  if (!o) return;
+  const id = ui.selectedId;
+  if (!id || !layerOf(doc, id)) return;
   update((d) => {
-    const tr = d.objects.find((x) => x.id === o.id)!.transform;
-    Object.assign(tr, t);
-    if (o.type === 'part') { const s = partScale(tr); tr.scale = [s, s, s]; }
+    // the gizmo works in the world; layers keep transforms within their group
+    const local = localTransform(d, parentOf(d, id) ?? '', t);
+    const l = layerOf(d, id)!;
+    if (l.kind === 'object') l.o.transform = local;
+    else { const s = partScale(local); l.g.transform = { ...local, scale: [s, s, s] }; }
   }, !done);
   if (done && ui.tab === 'edit') renderPanel();
 };
@@ -1034,7 +1221,6 @@ view.onTap = (hit) => {
   const c = classifyPoint(objs, p.x, p.y, p.z, ['shell', 'solid', 'subtract', 'cutout']);
   if (!c) return;
   const oid = placedId(c.obj.obj.id);
-  if (oid !== c.obj.obj.id && ui.tab === 'holes') { toast('A part is finished geometry: its openings are set inside the part'); return; }
   if (ui.tab === 'holes' && ui.holeMode === 'face') {
     if (c.obj.obj.mode !== 'shell') { toast('Openings go on Shell objects'); return; }
     ui.selectedId = oid;
@@ -1067,8 +1253,10 @@ view.onTap = (hit) => {
     toast(`Pin hole ⌀ ${(ui.pinRadius * 2).toFixed(2)} cm`);
     return;
   }
-  if (ui.tab !== 'edit') ui.tab = 'edit';
+  if (ui.tab !== 'edit' && ui.tab !== 'layers') ui.tab = 'edit';
   ui.sheetOpen = true;
+  // unfold its groups so the Layers list shows it
+  for (const gid of ancestors(doc, oid)) { const g = doc.groups.find((x) => x.id === gid); if (g) g.collapsed = false; }
   selectObject(oid);
 };
 
@@ -1162,7 +1350,7 @@ async function newPiece() {
 
 /** Replace the document wholesale (no undo across pieces) and restore its view. */
 function loadDoc(d: SceneDoc, who: { id: string | null; name: string }, v: ViewState | null) {
-  doc = normalizeDoc(cloneDoc(d));
+  doc = loadable(cloneDoc(d));
   committed = JSON.stringify(doc);
   past.length = 0; future.length = 0;
   save(doc);
@@ -1362,7 +1550,7 @@ sync(false);
   get doc() { return doc; },
   /** for scripts/example-thumbs.mjs */
   loadExample,
-  openDoc: (d: SceneDoc, v: ViewState | null = null) => loadDoc(normalizeDoc(d), { id: null, name: 'test' }, v),
+  openDoc: (d: SceneDoc, v: ViewState | null = null) => loadDoc(d, { id: null, name: 'test' }, v),
   exampleIds: () => exampleList.map((e) => e.id),
   setKernel: (k: SceneDoc['kernel']) => { if (doc.kernel !== k) update((d) => { d.kernel = k; }); },
   busy: () => busy || !!document.querySelector('.chip.busy'),

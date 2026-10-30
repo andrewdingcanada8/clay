@@ -258,6 +258,8 @@ export function flattenLayers(src: SceneDoc, notes: string[] = []): SceneDoc {
   };
 
   const units: Unit[] = [];
+  /** units inside units: a note only if the outer one has a body of its own */
+  const nested: [Unit, string][] = [];
   const baseUnits = new Map<string, Unit>();
   const newUnit = (g: Group, hollow: boolean): Unit => {
     const u: Unit = { g, hollow, objects: [], cutIds: new Set(), hasAdd: false, noted: false };
@@ -342,7 +344,7 @@ export function flattenLayers(src: SceneDoc, notes: string[] = []): SceneDoc {
         || (g.shell === undefined && childIds(doc, g.id).some((c) => objs.get(c)?.mode === 'shell'));
       forCopies(g, ctx, (c) => {
         if (!effects) { walk(g.children ?? [], { ...c, cuts: [...ctx.cuts, ...above] }); return; }
-        if (ctx.unit) note(`"${g.name}" is built as a body of its own inside "${ctx.unit.g.name}"`);
+        if (ctx.unit) nested.push([ctx.unit, `"${g.name}" is built as a body of its own inside "${ctx.unit.g.name}"`]);
         const hollow = g.shell ?? childIds(doc, g.id).some((x) => objs.get(x)?.mode === 'shell');
         const u = newUnit({ id: g.id + c.suffix, name: g.name, thickness: g.thickness, blend: g.blend, round: g.round }, hollow);
         const inherited = [...ctx.cuts, ...above];
@@ -353,6 +355,7 @@ export function flattenLayers(src: SceneDoc, notes: string[] = []): SceneDoc {
   };
 
   walk(doc.root ?? [], { xf: identityTransform(), maps: [], suffix: '', unit: null, cuts: [] });
+  for (const [u, s] of nested) if (u.hasAdd) note(s);
   // (the walk runs top to bottom; units go out bottom first, in layer order)
   for (const u of [...units].reverse()) {
     if (!u.hasAdd) continue;
