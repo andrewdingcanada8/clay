@@ -32,6 +32,9 @@ export class Viewport {
   gizmo: TransformControls;
   private result: THREE.Group = new THREE.Group();
   private ghost: THREE.Group = new THREE.Group();
+  /** what the ghost's geometry was built from, so a parameter change rebuilds it */
+  private ghostShape = '';
+  private ghostOutline = true;
   private grid: THREE.GridHelper;
   private hand = new HandReference();
   private showHand = true;
@@ -470,13 +473,9 @@ export class Viewport {
       (c as THREE.Mesh).geometry?.dispose();
     }
     this.ghost.clear();
+    this.ghostShape = '';
     if (!obj) { this.invalidate(); return; }
-    const geo = ghostGeometry(obj, this.partDefs);
-    const color = obj.mode === 'subtract' ? 0xd04040 : obj.mode === 'cutout' ? 0x9b3fb5 : obj.mode === 'solid' ? 0x3a7bd5 : 0xff8a1f;
-    const fill = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.12, depthWrite: false }));
-    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 }));
-    fill.renderOrder = edges.renderOrder = 2;
-    this.ghost.add(fill, edges);
+    this.buildGhost(obj);
     this.syncGhost(obj);
     if (mode !== 'off') {
       this.gizmo.attach(this.ghost);
@@ -485,7 +484,29 @@ export class Viewport {
     this.invalidate();
   }
 
+  private buildGhost(obj: SceneObject) {
+    for (const c of this.ghost.children) (c as THREE.Mesh).geometry?.dispose();
+    this.ghost.clear();
+    const geo = ghostGeometry(obj, this.partDefs);
+    const color = obj.mode === 'subtract' ? 0xd04040 : obj.mode === 'cutout' ? 0x9b3fb5 : obj.mode === 'solid' ? 0x3a7bd5 : 0xff8a1f;
+    const fill = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.12, depthWrite: false }));
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 25), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 }));
+    fill.renderOrder = edges.renderOrder = 2;
+    fill.visible = edges.visible = this.ghostOutline;
+    this.ghost.add(fill, edges);
+    this.ghostShape = obj.type + obj.mode + JSON.stringify(obj.params);
+  }
+
+  /** Show or hide the ghost's outline; the ghost itself stays as the gizmo's handle. */
+  setGhostOutline(on: boolean) {
+    if (on === this.ghostOutline) return;
+    this.ghostOutline = on;
+    for (const c of this.ghost.children) c.visible = on;
+    this.invalidate();
+  }
+
   syncGhost(obj: SceneObject) {
+    if (this.ghostShape && this.ghostShape !== obj.type + obj.mode + JSON.stringify(obj.params)) this.buildGhost(obj);
     const t = obj.transform;
     this.ghost.position.set(...t.position);
     this.ghost.rotation.set(t.rotation[0] * DEG, t.rotation[1] * DEG, t.rotation[2] * DEG, 'XYZ');

@@ -197,7 +197,15 @@ function update(mut: (d: SceneDoc) => void, interactive = false) {
   if (!interactive) commit();
   const sel = selected();
   if (sel) view.syncGhost(sel);
+  ghostOutline(interactive);
   sync(interactive);
+}
+
+/** The outline of the selected object shows at rest only for Subtract and Cutout (the render already shows
+ *  the rest), and for any object while it is being dragged or profiled, since builds wait for release. */
+function ghostOutline(live = false) {
+  const o = selected();
+  view.setGhostOutline(!!o && (isCut(o.mode) || live || ui.profileEditing === o.id));
 }
 
 // ---------- display / builds
@@ -280,6 +288,7 @@ function restore(s: string) {
 }
 
 function refreshGhost() {
+  ghostOutline();
   view.setGhost(ui.tab === 'edit' || ui.tab === 'add' ? selected() : selected() && ui.tab === 'holes' ? selected() : null,
     ui.tab === 'edit' ? ui.gizmo : 'off');
 }
@@ -885,7 +894,7 @@ panel.addEventListener('click', (e) => {
     }
     case 'edit-profile': case 'edit-path': case 'edit-shape': case 'edit-lift':
       ui.curveField = ({ 'edit-profile': 'points', 'edit-path': 'path', 'edit-shape': 'shape', 'edit-lift': 'lift' } as Record<string, CurveField>)[d.act!];
-      ui.profileEditing = ui.selectedId; ui.profilePoint = -1; view.setGhost(selected(), 'off'); renderPanel(); break;
+      ui.profileEditing = ui.selectedId; ui.profilePoint = -1; ghostOutline(); view.setGhost(selected(), 'off'); renderPanel(); break;
     case 'profile-done': ui.profileEditing = null; refreshGhost(); renderPanel(); break;
     case 'profile-delete': profileEditor?.deleteSelected(); break;
     case 'profile-zoom-in': profileEditor?.zoomBy(1.4); break;
