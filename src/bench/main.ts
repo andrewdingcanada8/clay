@@ -8,7 +8,7 @@ import { buildMesh } from '../engine/build';
 import type { KernelName, Quality } from '../engine/document';
 import { buildCavityGrid, type CavityGrid, cavityDepth } from '../engine/cavity';
 import { buildSDF } from '../engine/sdfKernel';
-import { approxDepth, compileGroups, traceScene } from '../engine/scene';
+import { approxDepth, compileGroups, needsCavityGrid, traceScene } from '../engine/scene';
 import type { Vec3 } from '../engine/math';
 import { SdfRenderer } from '../app/raymarch';
 import type { BuildResult } from '../engine/kernel';
@@ -47,7 +47,7 @@ async function main() {
     const t0 = performance.now();
     const groups = compileGroups(doc);
     gridArr = [];
-    for (const g of groups) gridArr[g.index] = g.hollow && !params.get('nogrid') ? buildCavityGrid(g, quality) : null;
+    for (const g of groups) gridArr[g.index] = needsCavityGrid(g) && !params.get('nogrid') ? buildCavityGrid(g, quality) : null;
     cavityMs = performance.now() - t0;
     sdfR = new SdfRenderer();
     sdfR.setDoc(doc);

@@ -13,7 +13,7 @@ import type { Quality, SceneDoc } from './document';
 import { type BuildResult, Timer } from './kernel';
 import type { Vec3 } from './math';
 import { edgeStats } from './meshCheck';
-import { type CompiledGroup, compileGroups, evalScene, sceneBounds } from './scene';
+import { type CompiledGroup, approxDepth, compileGroups, evalScene, needsCavityGrid, sceneBounds } from './scene';
 
 const B = 8;
 const B1 = B + 1;
@@ -25,13 +25,14 @@ const QUALITY_BUDGET: Record<Quality, number> = { draft: 800_000, normal: 4_000_
 interface Block { bi: number; bj: number; bk: number; values: Float32Array; vidx: Int32Array }
 
 export function cavityGrids(groups: CompiledGroup[], quality: Quality): (CavityGrid | null)[] {
-  return groups.map((g) => (g.hollow ? buildCavityGrid(g, quality) : null));
+  return groups.map((g) => (needsCavityGrid(g) ? buildCavityGrid(g, quality) : null));
 }
 
 export function depthFromGrids(grids: (CavityGrid | null)[]) {
   return (g: CompiledGroup, x: number, y: number, z: number) => {
     const c = grids[g.index];
-    return c ? cavityDepth(c, g, x, y, z) : -Infinity;
+    // no grid: the analytic depth is exact for this group (see needsCavityGrid)
+    return c ? cavityDepth(c, g, x, y, z) : g.hollow ? approxDepth(g, x, y, z) : -Infinity;
   };
 }
 

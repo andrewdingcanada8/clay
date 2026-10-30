@@ -210,6 +210,15 @@ function cavityKey(r: SceneDoc, gi: number): string {
   return JSON.stringify([ui.quality, g.blend ?? 0, shells.map((o) => [o.type, o.mode, o.params, o.transform, o.holes])]);
 }
 
+/** Whether group gi of the built document needs a cavity grid (scene.needsCavityGrid,
+ *  from the document): more than one shell object, a blend, or rounded cut rims. */
+function needsGrid(r: SceneDoc, gi: number): boolean {
+  const g = r.groups[gi];
+  const members = r.objects.filter((o) => o.groupId === g.id && !o.hidden && o.type !== 'part');
+  const shells = members.filter((o) => o.mode === 'shell').length;
+  return r.shell.enabled && shells > 0 && (shells > 1 || (g.blend ?? 0) > 0 || ((g.round ?? 0) > 0 && members.some((o) => isCut(o.mode))));
+}
+
 function currentGrids(r: SceneDoc): (CavityGrid | null)[] {
   return r.groups.map((g, i) => {
     const c = gridCache[i];
@@ -240,7 +249,7 @@ function sync(interactive: boolean) {
   const keys: Record<number, string> = {};
   r.groups.forEach((g, i) => {
     const hollow = r.shell.enabled && r.objects.some((o) => o.groupId === g.id && o.mode === 'shell' && !o.hidden);
-    if (hollow && !grids[i]) { missing.push(i); keys[i] = cavityKey(r, i); }
+    if (hollow && !grids[i] && needsGrid(r, i)) { missing.push(i); keys[i] = cavityKey(r, i); }
   });
   if (missing.length && !interactive) builder.request('cavity', r, ui.quality, { groups: missing, tag: keys });
   if (frameOnNext) { view.frame(); frameOnNext = false; }
@@ -285,7 +294,9 @@ function renderStatus() {
   const s = doc.kernel === 'mesh' ? lastResult?.stats : undefined;
   if (doc.kernel === 'sdf') {
     const hollow = doc.groups.some((g) => doc.shell.enabled && doc.objects.some((o) => o.groupId === g.id && o.mode === 'shell'));
-    const exact = currentGrids(expandDoc(doc)).some(Boolean) || !hollow;
+    // exact once every group that needs a grid has one (the others are exact anyway)
+    const r = expandDoc(doc), grids = currentGrids(r);
+    const exact = !hollow || r.groups.every((_, i) => !needsGrid(r, i) || !!grids[i]);
     chips.push(`<span class="chip ${busy ? 'busy' : 'ok'}">SDF · live${hollow ? (exact && !busy ? ' · exact walls' : ' · refining walls') : ''}</span>`);
   } else {
     const kernelName = doc.meshMethod === 'minkowski' ? 'Mesh · Minkowski' : 'Mesh';

@@ -220,6 +220,18 @@ export function approxDepth(g: CompiledGroup, x: number, y: number, z: number): 
   return d;
 }
 
+/**
+ * Whether a hollow group needs a cavity grid. The analytic depth A is exact
+ * wherever one object's surface is nearest, so a group with a single shell object,
+ * no blend and no rounded cut rims has it exact everywhere (cuts bound it exactly
+ * too: see baseDepth). There the grid would only add its small interpolation noise,
+ * which shows where the cavity meets an opening at a grazing angle (a wide pot's
+ * shallow shoulder running into its open top).
+ */
+export function needsCavityGrid(g: CompiledGroup): boolean {
+  return g.hollow && (g.shells.length > 1 || g.k > 0 || (g.round > 0 && g.subs.length > 0));
+}
+
 /** Bounding sphere of an object (centre, radius); the shader uses the same one. */
 export function boundSphere(o: CompiledObject): [number, number, number, number] {
   const b = o.worldBounds;

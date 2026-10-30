@@ -1,0 +1,165 @@
+{
+ "createdAt": 1793340997820,
+ "doc": {
+  "groups": [
+   {
+    "blend": 0,
+    "id": "g1",
+    "name": "Group 1",
+    "round": 0,
+    "thickness": 1
+   }
+  ],
+  "kernel": "sdf",
+  "meshMethod": "offset",
+  "objects": [
+   {
+    "groupId": "g1",
+    "holes": [
+     "top"
+    ],
+    "id": "omvukopfs5d5nr",
+    "mode": "shell",
+    "name": "Revolve",
+    "params": {
+     "points": [
+      {
+       "corner": true,
+       "r": 13.4,
+       "y": -13.9
+      },
+      {
+       "r": 35,
+       "y": -12.15
+      },
+      {
+       "r": 38.8,
+       "y": -9.45
+      },
+      {
+       "r": 38.6,
+       "y": -5.85
+      },
+      {
+       "corner": true,
+       "r": 16.8,
+       "y": -2.55
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "type": "revolve"
+   },
+   {
+    "groupId": "g1",
+    "holes": [],
+    "id": "omvukvpsv6s1s6",
+    "mode": "solid",
+    "name": "Sphere",
+    "params": {
+     "r": 4.5
+    },
+    "sym": {
+     "axis": "y",
+     "count": 5,
+     "kind": "radial",
+     "ref": "omvukopfs5d5nr"
+    },
+    "transform": {
+     "position": [
+      27.408,
+      -11.007,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "type": "sphere"
+   }
+  ],
+  "pins": [],
+  "sdfExactDistance": true,
+  "shell": {
+   "enabled": true
+  },
+  "version": 2
+ },
+ "flag": {
+  "at": 1793343817877,
+  "kernels": [
+   "sdf"
+  ],
+  "note": "",
+  "view": {
+   "camera": {
+    "pos": [
+     158.54132842067398,
+     109.5830750689531,
+     197.6859584482552
+    ],
+    "target": [
+     8.3,
+     -9.028500000000001,
+     0
+    ]
+   },
+   "kernel": "sdf",
+   "meshMethod": "offset",
+   "quality": "normal",
+   "section": {
+    "axis": "z",
+    "on": false,
+    "t": 0.5
+   }
+  }
+ },
+ "name": "Piece 6",
+ "updatedAt": 1793342819296,
+ "view": {
+  "camera": {
+   "pos": [
+    -15.288960376684955,
+    -17.04709994134607,
+    11.914160101560668
+   ],
+   "target": [
+    -14.00546110055312,
+    -1.600798277798575,
+    -6.787517393094002
+   ]
+  },
+  "kernel": "sdf",
+  "meshMethod": "offset",
+  "quality": "fine",
+  "section": {
+   "axis": "z",
+   "on": true,
+   "t": 0.5
+  }
+ },
+ "id": "pmvukxdx85e5m"
+}
