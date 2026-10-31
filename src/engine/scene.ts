@@ -370,7 +370,9 @@ export function approxDepth(g: CompiledGroup, x: number, y: number, z: number): 
  * shallow shoulder running into its open top).
  */
 export function needsCavityGrid(g: CompiledGroup): boolean {
-  return g.hollow && (g.shells.length > 1 || g.complex || (g.rim > 0 && g.subs.length > 0) || g.compound);
+  // (a stretched object's own distance is only a bound, not exact: its walls need the grid)
+  const stretched = g.shells.some((o) => Math.max(...o.scale) - Math.min(...o.scale) > 1e-6 * Math.max(...o.scale));
+  return g.hollow && (g.shells.length > 1 || g.complex || stretched || (g.rim > 0 && g.subs.length > 0) || g.compound);
 }
 
 /** Whether a group's grid also carries a compound rounding (engine/round). */

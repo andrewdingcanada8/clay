@@ -507,13 +507,23 @@ float map(vec3 p) {
   gMapN++;
   sweepAll(p);
   cId = ivec4(-1);
+  // the open group's values in registers (g, f, kd); its parents' on the stack
   float G[${MAX_DEPTH}], F[${MAX_DEPTH}];
   int K[${MAX_DEPTH}];
   int sp = 0;
-  G[0] = 1e5; F[0] = 1e5; K[0] = -1;
-  for (int pc = 0; pc < ${MAX_PROG}; pc++) {
+  float g = 1e5, f = 1e5;
+  int kd = -1;
+  // The depth below a hollow body is computed outside the step loop, once per body
+  // the point is near: the loop stops at that body's end, the depth is found, and
+  // the loop picks up again there. (With it inside, the loop compiles far slower.)
+  int pc = 0, ready = -1;
+  float cavD = 0.0;
+  for (int pass = 0; pass <= ${MAX_GROUPS}; pass++) {
+  int needU = -1;
+  for (int n = 0; n < ${MAX_PROG}; n++) {
     if (pc >= uProgLen) break;
     vec4 ins = texelFetch(uData, ivec2(pc % ${ROWS}, uProgRow + pc / ${ROWS}), 0);
+    pc++;
     int op = int(ins.x + 0.5);
     if (op == 0) {
       int i = int(ins.y + 0.5), fl = int(ins.z + 0.5);
@@ -522,42 +532,46 @@ float map(vec3 p) {
       bool sub = (fl & 1) == 1, solid = (fl & 2) == 2;
       float b = bound(i, p);
       // (the shell surface is never below the body, so the body's test covers it for cuts)
-      bool need = sub ? b < 0.5 + k - G[sp] : b < max(solid ? G[sp] : F[sp], 0.0) + 0.5 + k;
+      bool need = sub ? b < 0.5 + k - g : b < max(solid ? g : f, 0.0) + 0.5 + k;
       float d = need ? sdShell(i, p) : b;
       if (sub) {
-        if (-d > G[sp]) K[sp] = -1;
-        G[sp] = -smin(-G[sp], d, k); F[sp] = -smin(-F[sp], d, k);
+        if (-d > g) kd = -1;
+        g = -smin(-g, d, k); f = -smin(-f, d, k);
       } else {
-        if (d < G[sp]) K[sp] = -1;
-        G[sp] = smin(G[sp], d, k);
-        if (!solid) F[sp] = smin(F[sp], d, k);
+        if (d < g) kd = -1;
+        g = smin(g, d, k);
+        if (!solid) f = smin(f, d, k);
       }
     } else if (op == 1) {
-      sp = min(sp + 1, ${MAX_DEPTH - 1});
-      G[sp] = 1e5; F[sp] = 1e5; K[sp] = -1;
+      if (sp < ${MAX_DEPTH}) { G[sp] = g; F[sp] = f; K[sp] = kd; sp++; }
+      g = 1e5; f = 1e5; kd = -1;
     } else {
-      int fl = int(ins.y + 0.5), g = int(ins.z + 0.5) - 1;
+      int fl = int(ins.y + 0.5), u = int(ins.z + 0.5) - 1;
       float k = ins.w;
-      float gv = G[sp], fv = F[sp];
-      int kind = K[sp];
-      if (g >= 0 && uHollow[g] == 1 && fv < ${OPENING_EPS.toFixed(3)}) {
-        float cav = max(fv - ${OPENING_EPS.toFixed(3)}, uT[g] - unitDepth(g, p, fv));
-        if (-cav > gv) { gv = -cav; kind = g; }
+      float gv = g;
+      int kind = kd;
+      if (u >= 0 && uHollow[u] == 1 && f < ${OPENING_EPS.toFixed(3)}) {
+        if (ready != pc) { needU = u; pc--; break; } // back for the depth
+        float cav = max(f - ${OPENING_EPS.toFixed(3)}, uT[u] - cavD);
+        if (-cav > gv) { gv = -cav; kind = u; }
       }
-      sp = max(sp - 1, 0);
+      if (sp > 0) { sp--; g = G[sp]; f = F[sp]; kd = K[sp]; }
       if ((fl & 1) == 1) {
-        if (-gv > G[sp]) K[sp] = -1;
-        G[sp] = -smin(-G[sp], gv, k); F[sp] = -smin(-F[sp], gv, k);
+        if (-gv > g) kd = -1;
+        g = -smin(-g, gv, k); f = -smin(-f, gv, k);
       } else {
-        if (gv < G[sp]) K[sp] = kind;
-        G[sp] = smin(G[sp], gv, k); F[sp] = smin(F[sp], gv, k);
+        if (gv < g) kd = kind;
+        g = smin(g, gv, k); f = smin(f, gv, k);
       }
     }
   }
-  float s = G[0];
-  int kk = K[0];
-  gKind = kk >= 0 ? 2 : 0;
-  gCavH = kk >= 0 && kk < ${MAX_GRIDS} ? uCavH[min(kk, ${MAX_GRIDS - 1})] : 0.0;
+  if (needU < 0) break;
+  cavD = unitDepth(needU, p, f);
+  ready = pc + 1;
+  }
+  float s = g;
+  gKind = kd >= 0 ? 2 : 0;
+  gCavH = kd >= 0 && kd < ${MAX_GRIDS} ? uCavH[min(kd, ${MAX_GRIDS - 1})] : 0.0;
   if (uClipOn == 1 && !gNoClip) { float c = -(dot(p, uClip.xyz) + uClip.w); if (c > s) { s = c; gKind = 1; } }
   return s;
 }

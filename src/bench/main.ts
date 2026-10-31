@@ -201,7 +201,9 @@ async function main() {
   // the first probe hit the wall (+X side, top, bottom).
   const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
   const rc = new THREE.Raycaster();
-  const zoomR = Number(params.get('zoom') ?? 0) || Math.min(bs.radius * 0.3, Math.max(4 * doc.groups[0].thickness, 1.2));
+  // the first hollow body (the built document's first group is the one outside them all)
+  const wallGroup = doc.groups.find((g) => doc.objects.some((o) => o.groupId === g.id && o.mode === 'shell')) ?? doc.groups[0];
+  const zoomR = Number(params.get('zoom') ?? 0) || Math.min(bs.radius * 0.3, Math.max(4 * wallGroup.thickness, 1.2));
   const hits: [string, THREE.Vector3, THREE.Vector3][] = [];
   for (const [name, d] of [['+X', new THREE.Vector3(1, 0, 0)], ['+Y', new THREE.Vector3(0, 1, 0)], ['-Y', new THREE.Vector3(0, -1, 0)]] as [string, THREE.Vector3][]) {
     if (sdf) {
@@ -277,7 +279,7 @@ async function main() {
   info.textContent = [
     `${ex.title}  [${stats.kernel} / ${quality}]`,
     ex.notes,
-    `wall ${doc.groups[0].thickness} cm   tris ${stats.triangles}   cell ${stats.cellSize?.toFixed(3) ?? '-'}`,
+    `wall ${wallGroup.thickness} cm   tris ${stats.triangles}   cell ${stats.cellSize?.toFixed(3) ?? '-'}`,
     `boundary edges ${stats.boundaryEdges}   non-manifold ${stats.nonManifoldEdges}`,
     sdf ? `display: GPU raymarch · cavity grids ${cavityMs.toFixed(0)} ms ${gridArr.filter(Boolean).map((c) => `${c!.dims.join('x')} @${c!.h.toFixed(2)}cm`).join(', ')}` : '',
     sdf ? `mesher (stats only) ${stats.totalMs.toFixed(0)} ms` : `total ${stats.totalMs.toFixed(0)} ms`,
