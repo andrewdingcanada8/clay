@@ -23,6 +23,9 @@ const MAX_PINS = 32;
 const ROWS = 10; // texels per object in the data texture
 const TYPE_CODE: Record<string, number> = { sphere: 0, box: 1, cylinder: 2, cone: 3, torus: 4, capsule: 5, prism: 6, revolve: 7, sweep: 8 };
 const MAX_SWEEPS = 6;
+/** Layer program: most steps, and deepest group nesting. */
+const MAX_PROG = 512;
+const MAX_DEPTH = 12;
 // sweep texture rows per slot (indexed by path vertex / segment unless noted):
 // 0 point + length so far, 1 segment direction + length, 2/4 section normal square
 // to the segment at its start/end + flags of the vertex there (1 miter, 2 round
@@ -59,6 +62,8 @@ uniform float uPixelAngle;
 uniform float uPixelSize; // orthographic cameras: world size of a pixel
 uniform int uGroupCount;
 uniform int uObjCount;
+uniform int uProgLen; // the layer program (scene.CompiledIns), in uData from row uProgRow
+uniform int uProgRow;
 uniform int uSweepCount;
 uniform int uSweepObj[${MAX_SWEEPS}]; // object index of each sweep slot
 uniform float uSweepGate;
@@ -451,96 +456,108 @@ void sweepAll(vec3 p) {
   }
 }
 
+// Depth below hollow body g's shell surface (fs: that surface's field here): the
+// deepest single-object depth A, exact wherever one object's surface is nearest,
+// bounded by the closed cuts' surfaces, plus the cavity grid's correction where
+// the body has one (joins, blends, layers above cuts).
+float unitDepth(int g, vec3 p, float fs) {
+  ivec4 R = uGroupRange[g];
+  float kb = uK[g];
+  bool useGrid = g < ${MAX_GRIDS} && uUseGrid[min(g, ${MAX_GRIDS - 1})] == 1;
+  // (smooth max over two texels where the deepest object switches; see scene.baseDepth)
+  float kA = useGrid ? 2.0 * uCavH[min(g, ${MAX_GRIDS - 1})] : 0.0;
+  // The smooth max takes the two deepest terms only, so it doesn't depend on object
+  // order and terms far below the deepest can be skipped exactly. -fs (less the
+  // blend bulge: up to k/4 per sequential smooth min) is a lower bound on the
+  // deepest term; an object without openings can't be deeper than -bound.
+  float tau = useGrid ? 0.5 * uCavH[min(g, ${MAX_GRIDS - 1})] : 0.02;
+  float t1 = -1e5, t2 = -1e5, lb = -fs - 0.25 * kb * float(R.y - R.x - 1);
+  float kS = max(kA, kb);
+  for (int i = R.x; i < R.y; i++) {
+    if (!objOn(i)) continue;
+    if (int(row(i, 6).z) == 0 && -bound(i, p) < max(lb, t1) - kS) continue;
+    float d = sdCached(i, p);
+    if (int(row(i, 6).z) == 0) d = -d;
+    else {
+      // Through an opening the depth carries on as if the face weren't there (as the
+      // grid stores it): no jump at the face, so the rim stays clean and the cavity
+      // passes the face instead of leaving a skin.
+      float hd = holeDepth(i, p);
+      d = d <= 0.0 || hd > d + tau ? hd : -d;
+    }
+    if (d > t1) { t2 = t1; t1 = d; } else t2 = max(t2, d);
+  }
+  float D = -smin(-t1, -t2, kS);
+  // a closed cut's surface bounds the depth too (see scene.baseDepth)
+  for (int i = R.z; i < R.w; i++) {
+    if (!objOn(i) || int(row(i, 6).z) != 0) continue;
+    float b = bound(i, p);
+    D = min(D, b < D + 0.5 ? sdObj(i, p) : b);
+  }
+  if (useGrid) D = gridDepth(g, p, uT[g], D);
+  return D;
+}
+
+// The scene field: the layer program (scene.runProgram) run with a stack of (body,
+// shell surface, active piece) per open group. An object step folds one object in
+// (smoothly by its group's blend); a group's end hollows it if it is a hollow body
+// and folds it into its parent. Objects whose bound shows they can't change the
+// fold aren't evaluated, and objects off this ray (gMask) not at all.
 float map(vec3 p) {
   gMapN++;
   sweepAll(p);
-  float s = 1e5;
-  int kind = 0;
-  gCavH = 0.0;
-  for (int g = 0; g < ${MAX_GROUPS}; g++) {
-    if (g >= uGroupCount) break;
-    if (sdBox(p - uGroupC[g].xyz, uGroupE[g].xyz) >= s) continue;
-    ivec4 R = uGroupRange[g];
-    float fs = 1e5, fo = 1e5, cut = 1e5, cav = 1e5, kb = uK[g];
-    cId = ivec4(-1);
-    for (int i = R.x; i < R.y; i++) {
+  cId = ivec4(-1);
+  float G[${MAX_DEPTH}], F[${MAX_DEPTH}];
+  int K[${MAX_DEPTH}];
+  int sp = 0;
+  G[0] = 1e5; F[0] = 1e5; K[0] = -1;
+  for (int pc = 0; pc < ${MAX_PROG}; pc++) {
+    if (pc >= uProgLen) break;
+    vec4 ins = texelFetch(uData, ivec2(pc % ${ROWS}, uProgRow + pc / ${ROWS}), 0);
+    int op = int(ins.x + 0.5);
+    if (op == 0) {
+      int i = int(ins.y + 0.5), fl = int(ins.z + 0.5);
+      float k = ins.w;
       if (!objOn(i)) continue;
+      bool sub = (fl & 1) == 1, solid = (fl & 2) == 2;
       float b = bound(i, p);
-      fs = smin(fs, b < max(fs, 0.0) + 0.5 + kb ? sdShell(i, p) : b, kb);
-    }
-    for (int i = R.y; i < R.z; i++) {
-      if (!objOn(i)) continue;
-      float b = bound(i, p);
-      fo = smin(fo, b < max(min(fs, fo), 0.0) + 0.5 + kb ? sdObj(i, p) : b, kb);
-    }
-    float G = smin(fs, fo, kb), D = -1e5;
-    bool deep = uHollow[g] == 1 && fs < ${OPENING_EPS.toFixed(3)};
-    bool useGrid = g < ${MAX_GRIDS} && uUseGrid[min(g, ${MAX_GRIDS - 1})] == 1;
-    if (deep) {
-      // Depth below the shell surface. A: the deepest single-object depth, exact
-      // wherever one object's surface is nearest. The cavity grid stores the
-      // correction to A, which only matters near joins, blends and shared openings.
-      // (smooth max over two texels where the deepest object switches; see scene.baseDepth)
-      float kA = useGrid ? 2.0 * uCavH[min(g, ${MAX_GRIDS - 1})] : 0.0;
-      // The smooth max takes the two deepest terms only, so it doesn't depend on
-      // object order and terms far below the deepest can be skipped exactly. -fs
-      // (less the blend bulge: up to k/4 per sequential smooth min) is a lower bound
-      // on the deepest term; an object
-      // without openings can't be deeper than -bound.
-      float tau = useGrid ? 0.5 * uCavH[min(g, ${MAX_GRIDS - 1})] : 0.02;
-      float t1 = -1e5, t2 = -1e5, lb = -fs - 0.25 * kb * float(R.y - R.x - 1);
-      // smoothing radius of the top two: two texels, or the blend's (as scene.baseDepth:
-      // the smooth max of the depths is exactly the blended surface's depth)
-      float kS = max(kA, kb);
-      for (int i = R.x; i < R.y; i++) {
-        if (!objOn(i)) continue;
-        if (int(row(i, 6).z) == 0 && -bound(i, p) < max(lb, t1) - kS) continue;
-        float d = sdCached(i, p);
-        if (int(row(i, 6).z) == 0) d = -d;
-        else {
-          // Through an opening the depth carries on as if the face weren't there
-          // (as the grid stores it): no jump at the face, so the rim stays clean
-          // and the cavity passes the face instead of leaving a skin.
-          float hd = holeDepth(i, p);
-          d = d <= 0.0 || hd > d + tau ? hd : -d;
-        }
-        if (d > t1) { t2 = t1; t1 = d; } else t2 = max(t2, d);
+      // (the shell surface is never below the body, so the body's test covers it for cuts)
+      bool need = sub ? b < 0.5 + k - G[sp] : b < max(solid ? G[sp] : F[sp], 0.0) + 0.5 + k;
+      float d = need ? sdShell(i, p) : b;
+      if (sub) {
+        if (-d > G[sp]) K[sp] = -1;
+        G[sp] = -smin(-G[sp], d, k); F[sp] = -smin(-F[sp], d, k);
+      } else {
+        if (d < G[sp]) K[sp] = -1;
+        G[sp] = smin(G[sp], d, k);
+        if (!solid) F[sp] = smin(F[sp], d, k);
       }
-      D = -smin(-t1, -t2, kS);
-    }
-    // Cuts are carved from the shape before it is hollowed, and a closed cut's
-    // surface bounds the depth too (see scene.baseDepth). Where the bound shows a
-    // cut can't change either, its bound stands in for it.
-    // (a cutout is 'open': it gets no wall, and it cuts after any compound rounding)
-    float subS = 1e5, subC = 1e5;
-    for (int i = R.z; i < R.w; i++) {
-      if (!objOn(i)) continue;
-      bool open = int(row(i, 6).z) != 0;
-      float b = bound(i, p);
-      float d = b < max(-G, open ? -1e5 : D) + 0.5 ? sdObj(i, p) : b;
-      if (open) subC = min(subC, d); else { subS = min(subS, d); D = min(D, d); }
-    }
-    // (smooth maxes: the cuts' rims rounded by the group's rounding, as scene.evalScene;
-    // a compound rounding comes from the grid instead)
-    float Gs = -smin(-G, subS, uRound[g]);
-    float rc = g < ${MAX_GRIDS} && uUseRound[min(g, ${MAX_GRIDS - 1})] == 1 ? roundCorr(g, p, Gs) : 0.0;
-    G = -smin(-(Gs + rc), subC, uRound[g]);
-    float F = -smin(-(-smin(-fs, subS, uRound[g]) + rc), subC, uRound[g]);
-    if (deep && F < ${OPENING_EPS.toFixed(3)}) {
-      if (useGrid) D = gridDepth(g, p, uT[g], D);
-      cav = max(F - ${OPENING_EPS.toFixed(3)}, uT[g] - D);
-      cut = cav;
-    }
-    ivec2 PR = uPinRange[g];
-    for (int k = PR.x; k < PR.y; k++) cut = min(cut, sdPin(p, uPins[2 * k].xyz, uPins[2 * k + 1].xyz, uPins[2 * k].w));
-    float sg = max(G, -cut);
-    if (sg < s) {
-      s = sg;
-      kind = (-cut > G && cut == cav) ? 2 : 0;
-      gCavH = g < ${MAX_GRIDS} ? uCavH[min(g, ${MAX_GRIDS - 1})] : 0.0;
+    } else if (op == 1) {
+      sp = min(sp + 1, ${MAX_DEPTH - 1});
+      G[sp] = 1e5; F[sp] = 1e5; K[sp] = -1;
+    } else {
+      int fl = int(ins.y + 0.5), g = int(ins.z + 0.5) - 1;
+      float k = ins.w;
+      float gv = G[sp], fv = F[sp];
+      int kind = K[sp];
+      if (g >= 0 && uHollow[g] == 1 && fv < ${OPENING_EPS.toFixed(3)}) {
+        float cav = max(fv - ${OPENING_EPS.toFixed(3)}, uT[g] - unitDepth(g, p, fv));
+        if (-cav > gv) { gv = -cav; kind = g; }
+      }
+      sp = max(sp - 1, 0);
+      if ((fl & 1) == 1) {
+        if (-gv > G[sp]) K[sp] = -1;
+        G[sp] = -smin(-G[sp], gv, k); F[sp] = -smin(-F[sp], gv, k);
+      } else {
+        if (gv < G[sp]) K[sp] = kind;
+        G[sp] = smin(G[sp], gv, k); F[sp] = smin(F[sp], gv, k);
+      }
     }
   }
-  gKind = kind;
+  float s = G[0];
+  int kk = K[0];
+  gKind = kk >= 0 ? 2 : 0;
+  gCavH = kk >= 0 && kk < ${MAX_GRIDS} ? uCavH[min(kk, ${MAX_GRIDS - 1})] : 0.0;
   if (uClipOn == 1 && !gNoClip) { float c = -(dot(p, uClip.xyz) + uClip.w); if (c > s) { s = c; gKind = 1; } }
   return s;
 }
@@ -667,6 +684,8 @@ export class SdfRenderer {
       uPixelSize: { value: 0 },
       uGroupCount: { value: 0 },
       uObjCount: { value: 0 },
+      uProgLen: { value: 0 },
+      uProgRow: { value: 0 },
       uSweepCount: { value: 0 },
       uSweepObj: { value: range(MAX_SWEEPS).map(() => 0) },
       uSweepGate: { value: 4 },
@@ -785,7 +804,24 @@ export class SdfRenderer {
     // beyond this, a sweep's bounding sphere stands in for it: farther than any
     // caller needs it exactly (blends, occlusion samples, cut walls)
     u.uSweepGate.value = 4 + Math.max(0, ...groups.map((g) => g.k)) + 2 * Math.max(0, ...groups.map((g) => g.t));
-    this.writeData(objs, groups, slots);
+    // the layer program, by object and body index; each body's widest blend (culling reach)
+    const prog: number[] = [];
+    const ks = groups.map(() => 0);
+    const bodyOf = (o: CompiledObject) => groups.findIndex((g) => g.shells.includes(o) || g.solids.includes(o) || g.subs.includes(o));
+    for (const n of groups[0]?.prog ?? []) {
+      if (n.op === 0) {
+        const i = objs.indexOf(n.o!);
+        if (i < 0) continue;
+        prog.push(0, i, (n.sub ? 1 : 0) | (n.solid ? 2 : 0), n.k);
+        const b = bodyOf(n.o!);
+        if (b >= 0) ks[b] = Math.max(ks[b], n.k);
+      } else if (n.op === 1) prog.push(1, 0, 0, 0);
+      else prog.push(2, n.sub ? 1 : 0, n.g ? groups.indexOf(n.g) + 1 : 0, n.k);
+    }
+    ks.forEach((k, i) => { (u.uK.value as number[])[i] = Math.max(k, groups[i].k); });
+    u.uProgLen.value = Math.min(MAX_PROG, prog.length / 4);
+    u.uProgRow.value = objs.length;
+    this.writeData(objs, groups, slots, prog);
     this.bounds.makeEmpty();
     for (const g of groups) {
       this.bounds.expandByPoint(new THREE.Vector3(...g.bounds.min));
@@ -854,9 +890,11 @@ export class SdfRenderer {
     return this.groups;
   }
 
-  private writeData(objs: CompiledObject[], groups: CompiledGroup[], slots: Map<CompiledObject, number>) {
-    const n = Math.max(1, objs.length);
+  private writeData(objs: CompiledObject[], groups: CompiledGroup[], slots: Map<CompiledObject, number>, prog: number[]) {
+    // the objects' rows, then the program's (ROWS steps a row)
+    const n = Math.max(1, objs.length + Math.ceil(prog.length / 4 / ROWS));
     const data = new Float32Array(ROWS * 4 * n);
+    data.set(prog, ROWS * 4 * objs.length);
     objs.forEach((o, i) => {
       const r = o.rot, s = o.scale, p = o.pos;
       for (let a = 0; a < 3; a++) { // world -> param: S^-1 R^T (x - p)

@@ -22,7 +22,7 @@
 // precomputed grid (cavity.ts) gives D. hybridDepth uses A wherever the grid agrees
 // with it, so walls away from joins are as exact as the outer surface.
 
-import type { SceneDoc } from './document';
+import { type ProgIns, type SceneDoc, isCut } from './document';
 import { type AABB, type Vec3, emptyAABB, growAABB } from './math';
 import { buildProfileTable, tableDepth, tableProfile } from './profileTable';
 import { sweepEval } from './sweep';
@@ -60,6 +60,14 @@ export interface CompiledGroup {
   rim: number;
   /** Compound rounding, once built: the correction to the sharp body's field. */
   roundGrid?: RoundGrid;
+  /** The document's program (shared by its groups), and where this body's group
+   *  starts and ends in it (its '(' and ')'; -1: not hollowed there). */
+  prog: CompiledIns[];
+  open: number;
+  close: number;
+  /** Its layers don't simply add up less their cuts (nested groups, a layer above a
+   *  cut, smooth cuts): the analytic depth needs the grid's correction. */
+  complex: boolean;
   /** Shelling applies (global switch on and the group has shell objects). */
   hollow: boolean;
   shells: CompiledObject[];
@@ -72,6 +80,26 @@ export interface CompiledGroup {
   shellBounds: AABB;
 }
 
+/** A program step with its objects and bodies resolved (see document.ProgIns). */
+export interface CompiledIns { op: 0 | 1 | 2; o: CompiledObject | null; sub: boolean; solid: boolean; k: number; g: CompiledGroup | null }
+
+/** The program of a document from before layers: each group a hollowed body of
+ *  its objects, cutouts and pins cut after hollowing. */
+export function legacyProgram(doc: SceneDoc): ProgIns[] {
+  const p: ProgIns[] = [];
+  for (const g of doc.groups) {
+    const m = doc.objects.filter((o) => o.groupId === g.id && !o.hidden && o.type !== 'part');
+    const k = Math.max(0, g.blend ?? 0);
+    p.push(['('], ['(']);
+    for (const o of m) if (!isCut(o.mode)) p.push(['o', o.id, o.mode === 'solid' ? 2 : 0, k]);
+    for (const o of m) if (o.mode === 'subtract') p.push(['o', o.id, 1, g.round ?? 0]);
+    p.push([')', 0, g.id, 0]);
+    for (const o of m) if (o.mode === 'cutout') p.push(['o', o.id, 1, g.round ?? 0]);
+    p.push([')', 0, '', 0]);
+  }
+  return p;
+}
+
 export function compileGroups(doc: SceneDoc): CompiledGroup[] {
   const objs = doc.objects.filter((o) => !o.hidden && o.type !== 'part').map(compileObject);
   const byId = new Map(objs.map((o) => [o.obj.id, o]));
@@ -79,6 +107,7 @@ export function compileGroups(doc: SceneDoc): CompiledGroup[] {
     index, id: g.id, name: g.name, t: Math.max(0.01, g.thickness), k: Math.max(0, g.blend ?? 0), round: Math.max(0, g.round ?? 0), hollow: false,
     compound: !!g.compound && (g.round ?? 0) > 0, rim: g.compound ? 0 : Math.max(0, g.round ?? 0),
     shells: [], solids: [], subs: [], pins: [], holes: new Set(), bounds: emptyAABB(), shellBounds: emptyAABB(),
+    prog: [], open: -1, close: -1, complex: false,
   }));
   const gById = new Map(groups.map((g) => [g.id, g]));
   for (const o of objs) {
@@ -113,7 +142,34 @@ export function compileGroups(doc: SceneDoc): CompiledGroup[] {
       r: pin.radius,
     });
   }
-  return groups.filter((g) => g.shells.length + g.solids.length > 0);
+  const kept = groups.filter((g) => g.shells.length + g.solids.length > 0);
+  // the program, with its objects and bodies resolved
+  const prog: CompiledIns[] = [];
+  const opens: number[] = [];
+  for (const ins of doc.program ?? legacyProgram(doc)) {
+    if (ins[0] === 'o') {
+      const o = byId.get(ins[1]);
+      if (o) prog.push({ op: 0, o, sub: (ins[2] & 1) === 1, solid: (ins[2] & 2) === 2, k: ins[3], g: null });
+    } else if (ins[0] === '(') { opens.push(prog.length); prog.push({ op: 1, o: null, sub: false, solid: false, k: 0, g: null }); }
+    else {
+      const g = gById.get(ins[2]) ?? null;
+      const open = opens.pop() ?? 0;
+      const live = g && kept.includes(g) ? g : null;
+      if (live) { live.open = open; live.close = prog.length; }
+      prog.push({ op: 2, o: null, sub: (ins[1] & 1) === 1, solid: false, k: ins[3], g: live });
+    }
+  }
+  for (const g of kept) {
+    g.prog = prog;
+    if (g.open < 0) continue;
+    let cut = false;
+    for (let i = g.open + 1; i < g.close; i++) {
+      const n = prog[i];
+      if (n.op !== 0) { g.complex = true; break; }
+      if (n.sub) { cut = true; if (n.k > 0) g.complex = true; } else if (cut) g.complex = true;
+    }
+  }
+  return kept;
 }
 
 /**
@@ -157,15 +213,54 @@ export function smax(a: number, b: number, k: number): number {
   return -smin(-a, -b, k);
 }
 
-/** The shell shape: the shell union with the cuts carved out (rounded, Subtract
- *  objects before the rounding and Cutouts after it). */
+/** The shell shape: the body's layers folded, less its Solid ones (the surface its
+ *  hollow grows in from). */
 export function shapeSDF(g: CompiledGroup, x: number, y: number, z: number): number {
-  let subS = Infinity, subC = Infinity;
-  for (const o of g.subs) {
-    const d = sdfWorld(o, x, y, z);
-    if (o.obj.mode === 'cutout') subC = Math.min(subC, d); else subS = Math.min(subS, d);
+  if (g.open < 0) return shellSDF(g, x, y, z);
+  runProgram(g.prog, g.open + 1, g.close, null, x, y, z);
+  return stF[0] + roundCorrection(g, x, y, z);
+}
+
+// the program's stack: per open group, the body so far, its shell surface, which
+// piece of the field is active (0 material, 1 cavity, 2 pin) and in which body
+const stG = new Float64Array(64), stF = new Float64Array(64), stK = new Int32Array(64), stU = new Int32Array(64);
+
+/**
+ * Run program steps [start, end) at a point: the fold ends in stG[0] (the field)
+ * and stF[0] (its shell surface). A group that ends naming a hollow body is
+ * hollowed there: its depth below that surface (depth()) carves everything deeper
+ * than the wall, Solid layers included; and its pins drill through.
+ */
+function runProgram(prog: CompiledIns[], start: number, end: number, depth: DepthFn | null, x: number, y: number, z: number): void {
+  let sp = 0;
+  stG[0] = Infinity; stF[0] = Infinity; stK[0] = 0; stU[0] = -1;
+  for (let i = start; i < end; i++) {
+    const n = prog[i];
+    if (n.op === 0) {
+      const d = sdfWorld(n.o!, x, y, z);
+      if (n.sub) { stG[sp] = smax(stG[sp], -d, n.k); stF[sp] = smax(stF[sp], -d, n.k); }
+      else { stG[sp] = smin(stG[sp], d, n.k); if (!n.solid) stF[sp] = smin(stF[sp], d, n.k); }
+    } else if (n.op === 1) {
+      sp++;
+      stG[sp] = Infinity; stF[sp] = Infinity; stK[sp] = 0; stU[sp] = -1;
+    } else {
+      let gv = stG[sp], kind = stK[sp], unit = stU[sp];
+      const fv = stF[sp], g = n.g;
+      if (g && depth) {
+        let cut = Infinity, ck = 0;
+        if (g.hollow && fv < OPENING_EPS) { cut = Math.max(fv - OPENING_EPS, g.t - depth(g, x, y, z)); ck = 1; }
+        for (const p of g.pins) { const d = pinSDF(p, x, y, z); if (d < cut) { cut = d; ck = 2; } }
+        if (-cut > gv) { gv = -cut; kind = ck; unit = g.index; } else if (kind === 0) unit = g.index;
+      }
+      sp--;
+      if (n.sub) { stG[sp] = smax(stG[sp], -gv, n.k); stF[sp] = smax(stF[sp], -gv, n.k); }
+      else {
+        if (gv < stG[sp]) { stK[sp] = kind; stU[sp] = unit; }
+        stG[sp] = smin(stG[sp], gv, n.k);
+        stF[sp] = smin(stF[sp], gv, n.k);
+      }
+    }
   }
-  return smax(smax(shellSDF(g, x, y, z), -subS, g.rim) + roundCorrection(g, x, y, z), -subC, g.rim);
 }
 
 /** The sharp body a compound rounding rounds: Shell and Solid objects less the Subtract ones. */
@@ -275,7 +370,7 @@ export function approxDepth(g: CompiledGroup, x: number, y: number, z: number): 
  * shallow shoulder running into its open top).
  */
 export function needsCavityGrid(g: CompiledGroup): boolean {
-  return g.hollow && (g.shells.length > 1 || (g.rim > 0 && g.subs.length > 0) || g.compound);
+  return g.hollow && (g.shells.length > 1 || g.complex || (g.rim > 0 && g.subs.length > 0) || g.compound);
 }
 
 /** Whether a group's grid also carries a compound rounding (engine/round). */
@@ -340,38 +435,13 @@ export type DepthFn = (g: CompiledGroup, x: number, y: number, z: number) => num
 export const last = { group: -1, kind: 'none' as 'material' | 'cavity' | 'sub' | 'pin' | 'none' };
 
 /** Scene field S(p) (negative = clay). */
-export function evalScene(groups: CompiledGroup[], depth: DepthFn, x: number, y: number, z: number, cull = Infinity): number {
-  let s = Infinity;
-  for (const g of groups) {
-    const b = g.bounds;
-    // cheap reject: farther from the group's box than the current best
-    const dx = Math.max(b.min[0] - x, 0, x - b.max[0]), dy = Math.max(b.min[1] - y, 0, y - b.max[1]), dz = Math.max(b.min[2] - z, 0, z - b.max[2]);
-    const boxD = Math.hypot(dx, dy, dz);
-    if (boxD > Math.min(s, cull)) continue;
-    let fs = Infinity, fo = Infinity, subS = Infinity, subC = Infinity;
-    for (const o of g.shells) fs = smin(fs, sdfWorld(o, x, y, z), g.k);
-    for (const o of g.solids) fo = smin(fo, sdfWorld(o, x, y, z), g.k);
-    for (const o of g.subs) {
-      const d = sdfWorld(o, x, y, z);
-      if (o.obj.mode === 'cutout') subC = Math.min(subC, d); else subS = Math.min(subS, d);
-    }
-    const sub = Math.min(subS, subC);
-    const U = smin(fs, fo, g.k);
-    // Subtract objects, then the compound rounding, then Cutouts (see shapeSDF)
-    const rc = roundCorrection(g, x, y, z);
-    const G = smax(smax(U, -subS, g.rim) + rc, -subC, g.rim), F = smax(smax(fs, -subS, g.rim) + rc, -subC, g.rim);
-    let cut = Infinity, kind: typeof last.kind = 'material';
-    if (g.hollow && F < OPENING_EPS) {
-      const c = Math.max(F - OPENING_EPS, g.t - depth(g, x, y, z));
-      if (c < cut) { cut = c; kind = 'cavity'; }
-    }
-    for (const p of g.pins) { const d = pinSDF(p, x, y, z); if (d < cut) { cut = d; kind = 'pin'; } }
-    let sg = G;
-    if (-cut > G) sg = -cut;
-    else kind = -sub > U ? 'sub' : 'material';
-    if (sg < s) { s = sg; last.group = g.index; last.kind = kind; }
-  }
-  return s;
+export function evalScene(groups: CompiledGroup[], depth: DepthFn, x: number, y: number, z: number, _cull = Infinity): number {
+  const prog = groups[0]?.prog;
+  if (!prog) return Infinity;
+  runProgram(prog, 0, prog.length, depth, x, y, z);
+  last.group = stU[0];
+  last.kind = stK[0] === 1 ? 'cavity' : stK[0] === 2 ? 'pin' : 'material';
+  return stG[0];
 }
 
 export function sceneBounds(groups: CompiledGroup[]): AABB {

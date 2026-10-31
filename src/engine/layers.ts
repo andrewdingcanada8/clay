@@ -3,29 +3,24 @@
 // A piece is a tree of layers, like a paint program's: objects, and groups of
 // layers. Each group lists its children bottom to top (`doc.root` lists the top
 // level), and every layer has an op that says how it joins the layers below it in
-// its group: Add, Subtract (carved before its group is hollowed, so the cut gets a
-// wall) or Cutout (cut from the finished group, walls and all). A group can move,
-// turn and scale its contents (uniformly), mirror or repeat them, and carry effects:
-// Shell (hollow it as one body), Blend and Round.
+// its group: Add or Subtract (with the group's Blend, smoothly). A group can move,
+// turn and scale its contents (uniformly), mirror or repeat them, and be hollowed
+// (Shell): once its layers are folded, it is hollowed inward to its wall, with
+// openings where its objects' faces are marked open. A Solid layer in a hollowed
+// group shapes its outside but is carved by the hollow rather than hollowed.
 //
-// The kernels build flat units (engine/scene CompiledGroup): one body of Add
-// objects, less its cuts, hollowed or not. flattenLayers turns the tree into those:
-//  - a group with an effect (Shell, Blend or Round) is a unit of its own; the
-//    groups and objects inside it join it, and so do the cuts above it in its
-//    parents, as cutouts of the finished unit when it is hollow;
-//  - elsewhere a group only places its contents. A cut takes everything below it in
-//    its group, so each Add object gets the cuts above it, and Add objects with the
-//    same cuts make one unit (a union of cut bodies is the cut union: exact);
-//  - inside a unit the cuts take the whole unit (the kernels hollow a body less its
-//    cuts), so an Add above a cut there is cut too; and a unit inside a unit is
-//    built as a body of its own. Both are reported as notes.
-// Symmetry copies (an object's or a group's) are made here too; their ids are the
-// original's plus `~s${k}`, which picking maps back (parts.placedId).
+// flattenLayers places every object in the world and writes the tree as a small
+// program the kernels run exactly (scene.ProgIns): push a group, fold an object in,
+// pop the group (hollowing it) and fold it into its parent. Symmetry copies (an
+// object's or a group's) are made here; their ids are the original's plus `~s${k}`,
+// which picking maps back (parts.placedId).
 
 import {
   DEFAULT_WALL, type Group, type LayerOp, type PartDef, type PinHole, type SceneDoc, type SceneObject, type Symmetry,
-  type Transform, cloneDoc, identityTransform, isCut, newGroup, newId,
+  type Transform, cloneDoc, identityTransform, isCut, makeObject, newGroup, newId,
 } from './document';
+import { compileObject, normalToWorld, toWorld } from './primitives';
+import { pinDepth } from './scene';
 import { type Vec3, eulerXYZ } from './math';
 import { PART_SEP, composeTransform, eulerFromMatrix, partScale } from './parts';
 import { axisAngle, moved, reflection } from './symmetry';
@@ -108,7 +103,7 @@ export function repairTree(doc: SceneDoc): void {
  * editable group with the part's contents.
  */
 export function toLayers(doc: SceneDoc): SceneDoc {
-  if (isTree(doc)) { repairTree(doc); return doc; }
+  if (isTree(doc)) { repairTree(doc); modernize(doc); return doc; }
   const out = cloneDoc(doc);
   const defs = new Map<string, PartDef>();
   const addDefs = (list?: PartDef[]) => { for (const d of list ?? []) { if (!defs.has(d.id)) defs.set(d.id, d); addDefs(d.parts); } };
@@ -164,7 +159,98 @@ export function toLayers(doc: SceneDoc): SceneDoc {
   keepPins(doc.pins, new Map(out.objects.map((o) => [o.id, o.id])));
   delete out.parts;
   repairTree(out);
+  modernize(out);
   return out;
+}
+
+/**
+ * What the layer tree made redundant, rewritten in it. A Cutout (cut from a hollow
+ * group after hollowing) is a Subtract just above that group; elsewhere, a Subtract
+ * on top of its group. A pin hole is a Hole layer: a cylinder Subtract above its
+ * hollow group.
+ */
+function modernize(doc: SceneDoc): void {
+  for (const gid of ['', ...doc.groups.map((g) => g.id)]) {
+    const g = gid ? doc.groups.find((x) => x.id === gid)! : null;
+    const cut = childIds(doc, gid).filter((id) => doc.objects.find((o) => o.id === id)?.mode === 'cutout');
+    if (!cut.length) continue;
+    for (const id of cut) doc.objects.find((o) => o.id === id)!.mode = 'subtract';
+    if (g?.shell) cutAbove(doc, g.id, cut);
+    else for (const id of cut) attach(doc, id, gid);
+  }
+  for (const pin of doc.pins) {
+    const o = doc.objects.find((x) => x.id === pin.objectId);
+    if (!o) continue;
+    const c = compileObject({ ...o, transform: worldTransform(doc, o.id) });
+    const p: Vec3 = [0, 0, 0];
+    toWorld(c, pin.point[0], pin.point[1], pin.point[2], p);
+    addHole(doc, o.id, p, normalToWorld(c, pin.normal[0], pin.normal[1], pin.normal[2]), pin.radius);
+  }
+  doc.pins = [];
+}
+
+/** The nearest hollowed group a layer is in (null: none). */
+export function shellOf(doc: SceneDoc, id: string): Group | null {
+  for (const gid of ancestors(doc, id)) { const g = doc.groups.find((x) => x.id === gid); if (g?.shell) return g; }
+  return null;
+}
+
+/**
+ * Put layers just above group gid in its parent, where they take only that group
+ * (and what is above it). Below it there may be other layers: then the group and
+ * these go in a group of their own first. The layers keep their place in the world.
+ */
+export function cutAbove(doc: SceneDoc, gid: string, ids: string[]): void {
+  let parent = parentOf(doc, gid) ?? '';
+  const at = childIds(doc, parent).indexOf(gid);
+  if (at > 0) {
+    const g = doc.groups.find((x) => x.id === gid)!;
+    const w = newGroup(newId('g'), `${g.name} + cuts`, { shell: false });
+    doc.groups.push(w);
+    attach(doc, w.id, parent, at);
+    attach(doc, gid, w.id);
+    parent = w.id;
+  }
+  let index = childIds(doc, parent).indexOf(gid) + 1;
+  for (const id of ids) {
+    const wt = worldTransform(doc, id);
+    attach(doc, id, parent, index++);
+    const l = layerOf(doc, id)!;
+    const t = localTransform(doc, parent, wt);
+    if (l.kind === 'object') l.o.transform = t;
+    else l.g.transform = { ...t, scale: [partScale(t), partScale(t), partScale(t)] };
+  }
+}
+
+/**
+ * A Hole layer drilled into object `objId` at world point p along its outward
+ * world normal n: a cylinder Subtract that reaches out of the surface and in
+ * through the wall of the object's hollow group, just above that group (or, with
+ * no hollow group, just above the object). Returns its id.
+ */
+export function addHole(doc: SceneDoc, objId: string, p: Vec3, n: Vec3, radius: number): string {
+  const g = shellOf(doc, objId);
+  const out = Math.max(0.5, radius), depth = pinDepth(g ? g.thickness : null, radius);
+  const a: Vec3 = [p[0] + n[0] * out, p[1] + n[1] * out, p[2] + n[2] * out];
+  const b: Vec3 = [p[0] - n[0] * depth, p[1] - n[1] * depth, p[2] - n[2] * depth];
+  // local Y along n: columns x, y = n, z of a rotation
+  const ref: Vec3 = Math.abs(n[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+  const cx = [n[1] * ref[2] - n[2] * ref[1], n[2] * ref[0] - n[0] * ref[2], n[0] * ref[1] - n[1] * ref[0]];
+  const lx = Math.hypot(cx[0], cx[1], cx[2]);
+  const x = cx.map((v) => v / lx), z = [x[1] * n[2] - x[2] * n[1], x[2] * n[0] - x[0] * n[2], x[0] * n[1] - x[1] * n[0]];
+  const R = new Float64Array([x[0], n[0], z[0], x[1], n[1], z[1], x[2], n[2], z[2]]);
+  const hole = makeObject('cylinder', {
+    id: newId('o'), name: 'Hole', mode: 'subtract', params: { r: radius, h: out + depth },
+    transform: { position: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2], rotation: eulerFromMatrix(R), scale: [1, 1, 1] },
+  });
+  doc.objects.push(hole);
+  if (g) cutAbove(doc, g.id, [hole.id]);
+  else {
+    const parent = parentOf(doc, objId) ?? '';
+    attach(doc, hole.id, parent, childIds(doc, parent).indexOf(objId) + 1);
+    hole.transform = localTransform(doc, parent, hole.transform);
+  }
+  return hole.id;
 }
 
 // ---------- world placement
@@ -195,16 +281,16 @@ export function localTransform(doc: SceneDoc, gid: string, w: Transform): Transf
   return { position: pos, rotation: eulerFromMatrix(M), scale: [w.scale[0] / s, w.scale[1] / s, w.scale[2] / s] };
 }
 
-// ---------- building: the tree as flat units
+// ---------- building: the tree as a program over placed objects
 
 interface SymMap { L: Float64Array; c: Vec3; flip: boolean }
 interface Placed { obj: SceneObject; flips: number }
-interface Cut { obj: SceneObject; kind: 'subtract' | 'cutout' }
-interface Unit { g: Group; hollow: boolean; objects: SceneObject[]; cutIds: Set<string>; hasAdd: boolean; noted: boolean }
-/** xf: the enclosing groups' placement; maps: the enclosing group copies' moves, innermost first. */
-interface Ctx { xf: Transform; maps: SymMap[]; suffix: string; unit: Unit | null; cuts: Cut[] }
+/** xf: the enclosing groups' placement; maps: the enclosing group copies' moves,
+ *  innermost first; unit: the hollowed group whose body the layers join; k: the
+ *  blend of the group being folded. */
+interface Ctx { xf: Transform; maps: SymMap[]; suffix: string; unit: Group | null; k: number }
 
-/** The copies a symmetry makes (none for the original), about its frame in `frames`. */
+/** The copies a symmetry makes (none for the original), about its frame. */
 function symMaps(sym: Symmetry | undefined, frame: (sym: Symmetry) => { c: Vec3; a: Vec3 }): SymMap[] {
   if (!sym) return [];
   const { c, a } = frame(sym);
@@ -215,22 +301,26 @@ function symMaps(sym: Symmetry | undefined, frame: (sym: Symmetry) => { c: Vec3;
   return out;
 }
 
+/** The body the layers outside every hollowed group join. */
+export const BASE_UNIT = 'base';
+
 /**
- * The document as the kernels build it: flat units (groups) of world-placed
- * objects, with symmetry copies made and cuts given to the units they cut.
- * `notes` collects where the build approximates the tree (see the header).
+ * The document as the kernels build it. Objects are placed in the world (symmetry
+ * copies made) and listed once each; `program` folds them exactly as the layer
+ * tree says (see scene.ProgIns). Groups are the hollowed bodies, plus the 'base'
+ * body for everything outside them: each object belongs to the innermost hollowed
+ * group it is in, as Shell (hollowed with it), Solid or Subtract. The kernels use
+ * them for what depends on a body as a whole: its wall, cavity grid and openings.
  */
 export function flattenLayers(src: SceneDoc, notes: string[] = []): SceneDoc {
   const doc = cloneDoc(src);
   repairTree(doc);
-  const out: SceneDoc = { ...doc, groups: [], objects: [], pins: [], root: undefined, parts: undefined };
+  const out: SceneDoc = { ...doc, groups: [], objects: [], pins: [], root: undefined, parts: undefined, shell: { enabled: true }, program: [] };
   const objs = new Map(doc.objects.map((o) => [o.id, o]));
   const groups = new Map(doc.groups.map((g) => [g.id, g]));
-  const pinsOf = new Map<string, PinHole[]>();
-  for (const p of doc.pins) pinsOf.set(p.objectId, [...pinsOf.get(p.objectId) ?? [], p]);
-  const note = (s: string) => { if (!notes.includes(s)) notes.push(s); };
+  const prog = out.program!;
 
-  // a symmetry's frame: its reference object's world centre and axis (before copies), or the world's
+  // a symmetry's frame: its reference layer's world centre and axis (before copies), or the world's
   const frame = (sym: Symmetry) => {
     const e: Vec3 = sym.axis === 'x' ? [1, 0, 0] : sym.axis === 'y' ? [0, 1, 0] : [0, 0, 1];
     if (!sym.ref || !layerOf(doc, sym.ref)) return { c: [0, 0, 0] as Vec3, a: e };
@@ -247,129 +337,54 @@ export function flattenLayers(src: SceneDoc, notes: string[] = []): SceneDoc {
     return list.map((p) => ctx.maps.reduce((q, m) => ({ obj: moved(q.obj, m.L, m.c, m.flip, q.obj.id), flips: q.flips + (m.flip ? 1 : 0) }), p));
   };
 
-  const addPins = (o: SceneObject, placed: Placed[]) => {
-    for (const p of placed) {
-      for (const pin of pinsOf.get(o.id) ?? []) {
-        const f = p.flips % 2 ? -1 : 1;
-        out.pins.push({ ...pin, id: pin.id + p.obj.id.slice(o.id.length), objectId: p.obj.id,
-          point: [pin.point[0], pin.point[1], pin.point[2] * f], normal: [pin.normal[0], pin.normal[1], pin.normal[2] * f] });
-      }
-    }
-  };
-
-  const units: Unit[] = [];
-  /** units inside units: a note only if the outer one has a body of its own */
-  const nested: [Unit, string][] = [];
-  const baseUnits = new Map<string, Unit>();
-  const newUnit = (g: Group, hollow: boolean): Unit => {
-    const u: Unit = { g, hollow, objects: [], cutIds: new Set(), hasAdd: false, noted: false };
-    units.push(u);
-    return u;
-  };
-  /** Give unit u these cuts (once each). */
-  const cutUnit = (u: Unit, cuts: Cut[], kind?: 'subtract' | 'cutout') => {
-    for (const c of cuts) {
-      if (u.cutIds.has(c.obj.id)) continue;
-      u.cutIds.add(c.obj.id);
-      u.objects.push({ ...c.obj, id: `${c.obj.id}${PART_SEP}u${units.indexOf(u)}`, mode: kind ?? c.kind, groupId: u.g.id, holes: kind === 'cutout' ? [] : c.obj.holes });
-    }
-  };
-  /** The top-level unit for Add objects with exactly these cuts. */
-  const baseUnit = (cuts: Cut[]): Unit => {
-    const key = cuts.map((c) => c.obj.id).sort().join(',');
-    let u = baseUnits.get(key);
-    if (!u) {
-      u = newUnit({ id: key ? `base${PART_SEP}${baseUnits.size}` : 'base', name: 'Ungrouped', thickness: DEFAULT_WALL }, false);
-      baseUnits.set(key, u);
-      cutUnit(u, cuts, 'subtract');
-    }
-    return u;
-  };
-
-  /** The Add objects inside a group, placed (a cut group's outline). */
-  const outline = (ids: string[], ctx: Ctx, acc: Placed[]) => {
-    for (const id of ids) {
-      const o = objs.get(id), g = groups.get(id);
-      if (o && !o.hidden) { if (isCut(o.mode)) note('A cut group cuts with its Add layers only'); else acc.push(...place(o, ctx)); }
-      if (g && !g.hidden) forCopies(g, ctx, (c) => outline(g.children ?? [], c, acc));
-    }
-  };
+  const base: Group = { id: BASE_UNIT, name: 'Ungrouped', thickness: DEFAULT_WALL };
+  const units: Group[] = [base];
 
   /** Run `f` once per symmetry copy of group g, with g's placement. */
-  const forCopies = (g: Group, ctx: Ctx, f: (c: Ctx, k: number) => void) => {
+  const forCopies = (g: Group, ctx: Ctx, f: (c: Ctx) => void) => {
     const xf = g.transform ? composeTransform(ctx.xf, g.transform) : ctx.xf;
-    const maps = symMaps(g.sym, frame);
-    f({ ...ctx, xf }, 0);
+    f({ ...ctx, xf });
     // a copy: placed the same, then moved by its map (before the enclosing group copies' moves)
-    maps.forEach((m, k) => f({ ...ctx, xf, maps: [m, ...ctx.maps], suffix: `${ctx.suffix}${PART_SEP}s${k + 1}` }, k + 1));
+    symMaps(g.sym, frame).forEach((m, k) => f({ ...ctx, xf, maps: [m, ...ctx.maps], suffix: `${ctx.suffix}${PART_SEP}s${k + 1}` }));
   };
 
+  // children bottom to top: each one joins what is below it in its group
   const walk = (ids: string[], ctx: Ctx) => {
-    const above: Cut[] = [];
-    for (let i = ids.length - 1; i >= 0; i--) {
-      const id = ids[i];
+    for (const id of ids) {
       const o = objs.get(id);
       if (o) {
         if (o.hidden || o.type === 'part') continue;
-        const placed = place(o, ctx);
-        if (isCut(o.mode)) {
-          const cuts = placed.map((p) => ({ obj: p.obj, kind: o.mode as 'subtract' | 'cutout' }));
-          if (ctx.unit) {
-            cutUnit(ctx.unit, cuts);
-            if (ctx.unit.hasAdd && !ctx.unit.noted) { ctx.unit.noted = true; note(`In "${ctx.unit.g.name}", a cut also takes the layers above it`); }
-          }
-          above.push(...cuts);
-        } else {
-          const u = ctx.unit ?? baseUnit([...ctx.cuts, ...above]);
-          u.hasAdd = true;
-          for (const p of [...placed].reverse()) u.objects.push({ ...p.obj, groupId: u.g.id, mode: u.hollow && o.mode === 'shell' ? 'shell' : 'solid' });
-          addPins(o, placed);
+        const sub = isCut(o.mode);
+        const unit = ctx.unit ?? base;
+        const solid = !sub && o.mode === 'solid';
+        for (const p of place(o, ctx)) {
+          out.objects.push({ ...p.obj, groupId: unit.id, mode: sub ? 'subtract' : ctx.unit && !solid ? 'shell' : 'solid' });
+          prog.push(['o', p.obj.id, (sub ? 1 : 0) | (solid ? 2 : 0), ctx.k]);
         }
         continue;
       }
       const g = groups.get(id);
       if (!g || g.hidden) continue;
-      const op = g.op ?? 'add';
-      if (op !== 'add') {
-        forCopies(g, ctx, (c) => {
-          const acc: Placed[] = [];
-          outline(g.children ?? [], c, acc);
-          const cuts = acc.map((p) => ({ obj: p.obj, kind: op }));
-          if (ctx.unit) cutUnit(ctx.unit, cuts);
-          above.push(...cuts);
-        });
-        continue;
-      }
-      const effects = !!g.shell || (g.blend ?? 0) > 0 || (g.round ?? 0) > 0
-        || (g.shell === undefined && childIds(doc, g.id).some((c) => objs.get(c)?.mode === 'shell'));
       forCopies(g, ctx, (c) => {
-        if (!effects) { walk(g.children ?? [], { ...c, cuts: [...ctx.cuts, ...above] }); return; }
-        if (ctx.unit) nested.push([ctx.unit, `"${g.name}" is built as a body of its own inside "${ctx.unit.g.name}"`]);
-        const hollow = g.shell ?? childIds(doc, g.id).some((x) => objs.get(x)?.mode === 'shell');
-        const u = newUnit({ id: g.id + c.suffix, name: g.name, thickness: g.thickness, blend: g.blend, round: g.round, compound: (g.round ?? 0) > 0 || undefined }, hollow);
-        const inherited = [...ctx.cuts, ...above];
-        cutUnit(u, inherited, hollow ? 'cutout' : 'subtract');
-        walk(g.children ?? [], { ...c, unit: u, cuts: inherited.map((x) => ({ ...x, kind: hollow ? 'cutout' : x.kind })) });
+        let unit = ctx.unit;
+        if (g.shell) {
+          unit = { id: g.id + c.suffix, name: g.name, thickness: g.thickness, blend: g.blend };
+          units.push(unit);
+        }
+        prog.push(['(']);
+        walk(g.children ?? [], { ...c, unit, k: Math.max(0, g.blend ?? 0) });
+        prog.push([')', (g.op ?? 'add') === 'add' ? 0 : 1, g.shell ? unit!.id : '', ctx.k]);
       });
     }
   };
 
-  walk(doc.root ?? [], { xf: identityTransform(), maps: [], suffix: '', unit: null, cuts: [] });
-  for (const [u, s] of nested) if (u.hasAdd) note(s);
-  // (the walk runs top to bottom; units go out bottom first, in layer order)
-  for (const u of [...units].reverse()) {
-    if (!u.hasAdd) continue;
-    out.groups.push(u.g);
-    out.objects.push(...[...u.objects].reverse());
-  }
-  // a unit's id names its objects' group: keep only units that have a body
-  const kept = new Set(out.groups.map((g) => g.id));
-  out.objects = out.objects.filter((o) => kept.has(o.groupId));
-  const objIds = new Set(out.objects.map((o) => o.id));
-  out.pins = out.pins.filter((p) => objIds.has(p.objectId));
-  if (out.groups.length > 8) note('More than 8 bodies: the SDF view draws the first 8');
+  walk(doc.root ?? [], { xf: identityTransform(), maps: [], suffix: '', unit: null, k: 0 });
+  out.groups = units;
+  if (units.filter((u) => out.objects.some((o) => o.groupId === u.id)).length > 8) note(notes, 'More than 8 hollow bodies: the SDF view draws the first 8');
   return out;
 }
+
+const note = (notes: string[], s: string) => { if (!notes.includes(s)) notes.push(s); };
 
 // ---------- editing the tree
 

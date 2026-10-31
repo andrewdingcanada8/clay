@@ -51,7 +51,7 @@ describe('layer tree', () => {
     expect(evalScene(g, approxDepth, 1.5, 0, 0)).toBeLessThan(0);
   });
 
-  it('a hollow group inside a cut group gets the cut as a cutout', () => {
+  it('a cut above a hollow group cuts its walls too (no wall round the cut)', () => {
     const d = emptyDoc();
     const body = makeObject('box', box(0, 0, 0, 8));
     d.objects.push(body);
@@ -59,9 +59,11 @@ describe('layer tree', () => {
     const cut = makeObject('box', { ...box(4, 0, 0, 4), mode: 'subtract', groupId: '' });
     d.objects.push(cut);
     d.root!.push(cut.id);
-    const x = flattenLayers(d);
-    expect(x.groups.length).toBe(1);
-    expect(x.objects.filter((o) => o.mode === 'cutout').length).toBe(1);
+    const g = compileGroups(expandDoc(d));
+    const f = (x: number) => evalScene(g, approxDepth, x, 0, 0);
+    expect(f(2.3)).toBeGreaterThan(0); // just inside the cut: empty, no wall
+    expect(f(-3.8)).toBeLessThan(0); // the far wall
+    expect(f(0)).toBeGreaterThan(0); // the hollow
   });
 
   it('mirrors inside groups (and of whole groups) are built', () => {
@@ -111,54 +113,70 @@ describe('layer tree', () => {
   });
 });
 
-describe('compound rounding', () => {
-  it('rounds the finished body: no groove where boxes meet flush, round outer edges and cut rims', async () => {
-    const { buildUnitGrid, attachGrid } = await import('../src/engine/cavity');
+describe('exact layer order', () => {
+  // the user's goop: a box, a sphere carved from it, a smaller sphere added back on top, blended
+  const goop = (blend: number) => {
     const d = emptyDoc();
     const g = d.groups[0];
     g.shell = false;
-    g.round = 0.6;
-    const a = makeObject('box', { params: { x: 4, y: 4, z: 4 }, transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } });
-    const b = makeObject('box', { params: { x: 4, y: 4, z: 4 }, transform: { position: [3, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } });
-    const c = makeObject('box', { mode: 'subtract', params: { x: 2, y: 2, z: 8 }, transform: { position: [-2, 2, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } });
-    d.objects.push(a, b, c);
-    g.children = [a.id, b.id, c.id];
+    g.blend = blend;
+    const b = makeObject('box', { params: { x: 16, y: 16, z: 16 } });
+    const s1 = makeObject('sphere', { mode: 'subtract', params: { r: 10.4 } });
+    const s2 = makeObject('sphere', { params: { r: 6 }, transform: { position: [0, 0, 1.5], rotation: [0, 0, 0], scale: [1, 1, 1] } });
+    d.objects.push(b, s1, s2);
+    g.children = [b.id, s1.id, s2.id];
+    return compileGroups(expandDoc(d));
+  };
+  it('an Add above a Subtract is not cut by it', () => {
+    const g = goop(0);
+    const f = (x: number, y: number, z: number) => evalScene(g, approxDepth, x, y, z);
+    expect(f(0, 0, 1.5)).toBeCloseTo(-6, 3); // the top sphere, whole
+    expect(f(0, 0, -8)).toBeGreaterThan(0); // between it and the box: carved
+    expect(f(7.9, 7.9, 7.9)).toBeLessThan(0); // the box's corner survives
+  });
+  it('Blend makes the cut smooth too', () => {
+    const sharp = goop(0), soft = goop(3);
+    // on the cut's rim, where the sphere leaves the box's face: a fillet takes material off
+    const p: [number, number, number] = [0, 6.4, 8];
+    expect(evalScene(soft, approxDepth, ...p)).toBeGreaterThan(evalScene(sharp, approxDepth, ...p));
+  });
+  it('inside a hollow group order holds, and the hollow follows the result', async () => {
+    const d = emptyDoc();
+    const g = d.groups[0];
+    const b = makeObject('box', { params: { x: 10, y: 10, z: 10 } });
+    const cut = makeObject('box', { mode: 'subtract', params: { x: 4, y: 20, z: 4 } });
+    const plug = makeObject('cylinder', { params: { r: 1, h: 10 } });
+    d.objects.push(b, cut, plug);
+    g.children = [b.id, cut.id, plug.id];
     const groups = compileGroups(expandDoc(d));
-    expect(groups.length).toBe(1);
-    const u = groups[0];
-    expect(u.compound).toBe(true);
-    const grid = buildUnitGrid(u, 'normal');
-    attachGrid(u, grid);
+    expect(groups[0].complex).toBe(true);
+    const { cavityGrids, depthFromGrids } = await import('../src/engine/sdfKernel');
+    const grids: ReturnType<typeof cavityGrids> = [];
+    cavityGrids(groups, 'normal').forEach((c, i) => { grids[groups[i].index] = c; });
+    const depth = depthFromGrids(grids);
+    const f = (x: number, y: number, z: number) => evalScene(groups, depth, x, y, z);
+    expect(f(0, 0, 0)).toBeGreaterThan(0); // the plug is hollow too
+    expect(f(0.8, 0, 0)).toBeLessThan(0); // its wall
+    expect(f(1.6, 0, 0)).toBeGreaterThan(0); // the cut around it
+  });
+  it('cutouts and pins migrate to cuts and Hole layers', () => {
+    const old = emptyDoc();
+    old.root = undefined;
+    const body = makeObject('sphere', { id: 'body', params: { r: 5 }, groupId: old.groups[0].id });
+    const co = makeObject('box', { id: 'co', mode: 'cutout', params: { x: 2, y: 2, z: 2 }, transform: { position: [0, 5, 0], rotation: [0, 0, 0], scale: [1, 1, 1] }, groupId: old.groups[0].id });
+    old.objects.push(body, co);
+    old.pins.push({ id: 'p1', objectId: 'body', point: [5, 0, 0], normal: [1, 0, 0], radius: 0.5 });
+    const t = toLayers(old);
+    expect(t.objects.find((o) => o.id === 'co')!.mode).toBe('subtract');
+    expect(t.pins.length).toBe(0);
+    const hole = t.objects.find((o) => o.name === 'Hole')!;
+    expect(hole.mode).toBe('subtract');
+    // both sit above the hollow group, not inside it
+    expect(t.groups.find((g) => g.id === old.groups[0].id)!.children).toEqual(['body']);
+    const groups = compileGroups(expandDoc(t));
     const f = (x: number, y: number, z: number) => evalScene(groups, approxDepth, x, y, z);
-    // flat faces stay put
-    expect(Math.abs(f(0.5, 2, 0))).toBeLessThan(0.05);
-    expect(Math.abs(f(1.5, 2, 1))).toBeLessThan(0.05); // over the seam: no groove
-    expect(f(1, 1.9, 1)).toBeLessThan(0); // just under the top at the seam: clay
-    // the outer corner is rounded off: the sharp corner point is now outside
-    expect(f(4.95, 1.95, 1.95)).toBeGreaterThan(0.1);
-    // the cut's rim (convex) is rounded too, and its inner corner (concave) filled
-    expect(f(-0.95, 1.95, 0)).toBeGreaterThan(0.05);
-    expect(f(-1.05, 1.05, 0)).toBeLessThan(0);
-  }, 60000);
-});
-
-describe('compound rounding, mesh kernel', () => {
-  it('meshes a rounded group from its field: closed, corners rounded', async () => {
-    const { buildMeshKernel } = await import('../src/engine/meshKernel');
-    const d = emptyDoc();
-    const g = d.groups[0];
-    g.shell = false;
-    g.round = 0.6;
-    const a = makeObject('box', { params: { x: 4, y: 4, z: 4 } });
-    const b = makeObject('box', { params: { x: 4, y: 4, z: 4 }, transform: { position: [3, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } });
-    d.objects.push(a, b);
-    g.children = [a.id, b.id];
-    const r = await buildMeshKernel(expandDoc(d), 'draft');
-    expect(r.stats.triangles).toBeGreaterThan(100);
-    expect(r.stats.boundaryEdges).toBe(0);
-    // no vertex at the sharp corner (5, 2, 2)
-    let near = Infinity;
-    for (let i = 0; i < r.positions.length; i += 3) near = Math.min(near, Math.hypot(r.positions[i] - 5, r.positions[i + 1] - 2, r.positions[i + 2] - 2));
-    expect(near).toBeGreaterThan(0.15);
-  }, 120000);
+    expect(f(4.8, 0, 0)).toBeGreaterThan(0); // the hole goes through the wall
+    expect(f(0, 4.8, 0)).toBeGreaterThan(0); // so does the cut
+    expect(f(0, -4.8, 0)).toBeLessThan(0); // the wall elsewhere
+  });
 });

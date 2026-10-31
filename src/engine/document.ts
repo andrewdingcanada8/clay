@@ -149,7 +149,18 @@ export interface SceneDoc {
   parts?: PartDef[];
   /** The layer tree's top level, bottom to top (authored documents; built ones have none). */
   root?: string[];
+  /** Built documents: the layer tree as a program over the objects (engine/scene ProgIns). */
+  program?: ProgIns[];
 }
+
+/**
+ * One step of a built document's program, run with a stack of (body, shell
+ * surface) pairs: ['o', object id, flags (1 subtract, 2 solid), blend] folds an
+ * object into the group on top; ['('] starts a group; [')', flags (1 subtract),
+ * hollowed body's group id or '', blend] ends one, hollowing it if it names a body,
+ * and folds it into its parent.
+ */
+export type ProgIns = ['o', string, number, number] | ['('] | [')', number, string, number];
 
 /**
  * A saved group (before layers: a group placed whole, like a primitive). Saved

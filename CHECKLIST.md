@@ -8,7 +8,7 @@ Last updated: 2026-10-27. Benchmark numbers come from `bench/REPORT.md`, which `
 
 | | Item | Notes |
 |---|---|---|
-| ✅ | Groups, each object has a role: Shell / Solid / Subtract | Per group: (shell ∪ solid) − (cavity ∪ subtract ∪ pins). The cavity grows inward from the Shell objects' outer surface. Groups never cut each other. Wall thickness is per group. |
+| ✅ | Groups, each object has a role: Shell / Solid / Subtract | Superseded by layers (below): a hollowed group's layers are its body; a Solid layer shapes its outside and is carved by the hollow but not hollowed. |
 | ✅ | SDF kernel drawn by GPU raymarching (no triangles) | Exact outer surfaces and joins at any zoom. The inner wall comes from a cavity-depth texture: a smooth distance field, so walls thinner than a texel stay clean. Fixed data-driven shader, so edits never recompile. |
 | ✅ | Real-time edits | Moving, resizing and wall thickness are uniform/data updates. Only the cavity texture rebuilds (in a worker, ~0.3–1 s) after shell geometry changes, with an analytic approximation in the meantime. Resolution drops while the camera moves. |
 | 🟡 | Cavity approximation while dragging | It's a union of per-object depths, so walls look thicker at joins for a moment until the exact texture arrives. |
@@ -23,7 +23,7 @@ Last updated: 2026-10-27. Benchmark numbers come from `bench/REPORT.md`, which `
 | ✅ | Only the exposed part of a face opens | Sphere+cube benchmark: the cube face buried in the sphere stays closed. |
 | ✅ | Cavity too small for the wall → stays solid | Thick-wall benchmark: the capsule arm stays solid. |
 | ✅ | Openings on curved faces (SDF kernel) | e.g. a sphere's whole surface. The mesh kernel only supports planar faces (it warns). |
-| ✅ | Pin holes on flat or curved surfaces | Tap to drill. The pin is stored in the object's own frame, so it moves with the object. |
+| ✅ | Holes on flat or curved surfaces | Holes tab → Drill: a Hole layer (cylinder Subtract) just above the hollowed group, through the wall; an ordinary layer you can move, resize, mirror or delete. Pins from older pieces migrate to Hole layers. |
 | ⬜ | Openings smaller than a face, drawn freely | Next step after pins: closed curves drawn on a surface, then oval or slot cutters. |
 | ✅ | Hand-scale defaults and examples (pieces ~19–30 cm), hand silhouette on the ground for scale | Toggle under View; status chip shows the piece's size in cm. |
 | ✅ | Walls down to 0.2 cm | Cell size is forced to ≤ wall/2.5. Thin vase and thin chain benchmarks are leak-free. |
@@ -56,8 +56,8 @@ Last updated: 2026-10-27. Benchmark numbers come from `bench/REPORT.md`, which `
 | ✅ | Saves: save, new, gallery, open, rename, duplicate, delete | Stored in the artifact's database (`pieces`), browser storage as fallback; thumbnails and the view (camera, quality, section) saved with each piece. |
 | ✅ | Flag a saved piece as a problem (SDF / Mesh, note) | Claude reads flagged rows and copies them to `bench/flagged/` as bench cases `flagged-<id>`. |
 | ✅ | Parts: save a group as a reusable part (Layers tab → Save as part), add from the Add tab | A part is a saved group: adding it inserts an editable copy (nested groups, mirrors and pins included). Parts saved before layers convert on insert. Library stored with the artifact (`parts`). |
-| ✅ | Layers: nested groups like a paint program's (Layers tab) | Every layer has an op (Add / Subtract / Cutout) applied bottom to top in its group; groups move, turn and scale (uniformly) their contents, mirror or repeat them, and carry effects: Shell (hollow as one body), Blend, Round. Old pieces migrate (`engine/layers.toLayers`). Built by flattening into units (`flattenLayers`); approximations noted in the status bar: inside an effect group a cut also takes the layers above it, and an effect group inside another is built as a body of its own. |
-| ✅ | Compound Round: a group rounded as a whole | `engine/round`: an opening then a closing of the finished body (Add less Subtract) on a grid, with the radius limited locally to the clay's (or the gap's) half-thickness so nothing thin is erased or filled. Built on release in the worker (with the cavity grid, which then follows the rounded surface); SDF draws it as a correction in the grid's second channel; Mesh meshes the group from the same field (`Manifold.levelSet`). |
+| ✅ | Layers: nested groups like a paint program's (Layers tab) | Every layer is Add or Subtract, applied exactly bottom to top in its group (with the group's Blend, smoothly, cuts included); a group joins its parent as it comes out, hollowed first if Shell is on. Groups move, turn and scale (uniformly) their contents and mirror or repeat them. Built as a small program (`flattenLayers` → `scene.ProgIns`) that the CPU field, the GPU shader and the mesh kernel all run. A cut above a hollowed group goes through its walls, so Cutout is gone (old ones migrate). Old pieces migrate (`toLayers`). |
+| ⬜ | Compound Round: a group rounded as a whole | Removed from the app for now (teardrops where rounding met thick walls); `engine/round` kept for a later try. An object's own Round (exact, per primitive) stays. |
 | ⬜ | Extrude an arbitrary 2D outline | |
 | ✅ | Smooth blends between joined shapes (per-group Blend cm) | SDF only (smooth min); the Mesh kernel shows a sharp union and warns. |
 | ✅ | SDF inner wall exact away from joins | Cavity grid stores only the correction to the analytic per-object depth (D = A + C), so rims and openings on large pieces stay round; the grid matters only at joins/blends. |
@@ -69,7 +69,7 @@ Last updated: 2026-10-27. Benchmark numbers come from `bench/REPORT.md`, which `
 | ✅ | Parametric: edit any object's parameters or profile later | Whole doc rebuilds; no undo needed. |
 | ✅ | Undo / redo | JSON snapshots; Ctrl/Cmd+Z. |
 | ✅ | Autosave in browser storage | |
-| ⬜ | Multi-select; drag to reorder layers; exact nested effects (Shell or Round of a group inside another effect group, cuts strictly bottom to top inside effect groups) | Grouping and mirror/repeat are done. |
+| ⬜ | Multi-select; drag to reorder layers | Grouping, ordering and mirror/repeat are done. |
 | ⬜ | Import meshes (STL/OBJ) and shell them | Possible in the SDF kernel via mesh → distance field. |
 | ⬜ | Export (STL/OBJ) | Not needed yet. |
 

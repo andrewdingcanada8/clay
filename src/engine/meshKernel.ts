@@ -20,8 +20,7 @@ import type { Vec3 } from './math';
 import { edgeStats } from './meshCheck';
 import { type CompiledObject, compileScene, normalToWorld, revolveOutline, toWorld } from './primitives';
 import { type SweepSpin, sectionRing, sweepParts } from './sweep';
-import { approxDepth, compileGroups, evalScene, pinDepth } from './scene';
-import { attachGrid, buildUnitGrid, cavityDepth } from './cavity';
+import { legacyProgram, pinDepth } from './scene';
 
 let wasmPromise: Promise<ManifoldToplevel> | null = null;
 let wasmUrl: string | undefined;
@@ -52,8 +51,6 @@ export function getManifold(): Promise<ManifoldToplevel> {
 }
 
 const SEGMENTS: Record<Quality, number> = { draft: 32, normal: 72, fine: 128 };
-/** Cells across a compound-rounded group (meshed from its field). */
-const LEVEL_CELLS: Record<Quality, number> = { draft: 60, normal: 110, fine: 170 };
 
 function signedArea(pts: [number, number][]): number {
   let a = 0;
@@ -348,40 +345,16 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
     return keep(cyl.transform([...xv, 0, ...yv, 0, ...z, 0, ...start, 1] as never));
   };
 
-  // Each group: (shell ∪ solid) − (cavity ∪ subtract ∪ pins), the cavity hollowed from
-  // (shell − closed cuts). Groups never cut each other.
-  const groupResults: Manifold[] = [];
-  let compiled: ReturnType<typeof compileGroups> | null = null;
-  for (const g of doc.groups) {
-    if (g.compound && (g.round ?? 0) > 0) {
-      // Rounded as a whole: there is no exact mesh operation for that, so this group
-      // is meshed from the same field the SDF kernel draws (engine/round).
-      compiled ??= compileGroups(doc);
-      const cg = compiled.find((x) => x.id === g.id);
-      if (!cg) continue;
-      const grid = buildUnitGrid(cg, quality);
-      attachGrid(cg, grid);
-      const depth = (gg: typeof cg, x: number, y: number, z: number) => (!grid.noCavity ? cavityDepth(grid, gg, x, y, z) : gg.hollow ? approxDepth(gg, x, y, z) : -Infinity);
-      const b = cg.bounds, pad = 0.5;
-      const size = Math.max(...[0, 1, 2].map((a) => b.max[a] - b.min[a]));
-      const edge = Math.min(size / LEVEL_CELLS[quality], cg.hollow ? cg.t / 2.2 : Infinity);
-      const m = keep(Manifold.levelSet((p: Vec3) => -evalScene([cg], depth, p[0], p[1], p[2]),
-        { min: [b.min[0] - pad, b.min[1] - pad, b.min[2] - pad], max: [b.max[0] + pad, b.max[1] + pad, b.max[2] + pad] }, Math.max(edge, size / 400)));
-      if (!m.isEmpty()) groupResults.push(m);
-      warnings.push(`${g.name}: rounded as a whole, meshed from its distance field`);
-      continue;
-    }
+  // A hollow body's cavity: the hollow grown in from its Shell objects (each
+  // form's own; see Built), carved clear of its closed cuts by the wall, opened
+  // through its open faces, and its pin holes.
+  const unitCavity = (g: SceneDoc['groups'][number]): Manifold | null => {
     const members = objs.filter((c) => c.obj.groupId === g.id);
     const shells = members.filter((c) => c.obj.mode === 'shell');
-    const solids = members.filter((c) => c.obj.mode === 'solid');
     const subs = members.filter((c) => isCut(c.obj.mode));
     const t = Math.max(0.01, g.thickness);
-    if ((g.blend ?? 0) > 0) warnings.push(`${g.name}: smooth blend needs the SDF kernel; shown as a sharp union`);
-    if ((g.round ?? 0) > 0 && subs.length) warnings.push(`${g.name}: rounded cut rims need the SDF kernel; shown sharp`);
     const shellU = union(shells.map((c) => built.get(c.obj.id)!.solid));
-    const material = union([shellU, ...solids.map((c) => built.get(c.obj.id)!.solid)]);
-    if (!material) continue;
-    const cuts: (Manifold | null)[] = subs.map((c) => built.get(c.obj.id)!.solid);
+    const cuts: (Manifold | null)[] = [];
     // objects whose openings are all flat faces, on a shape that can open them exactly
     const exactOpenings = (c: CompiledObject) => c.obj.holes.length > 0 && !c.sweep && !!built.get(c.obj.id)!.opened
       && c.obj.holes.every((f) => !!c.faces.find((x) => x.id === f)?.plane);
@@ -450,11 +423,28 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
     }
     const memberIds = new Set(members.map((c) => c.obj.id));
     for (const pin of doc.pins) if (memberIds.has(pin.objectId)) cuts.push(pinCylinder(pin, t, hollow));
-    const cutU = union(cuts);
-    groupResults.push(cutU ? keep(material.subtract(cutU)) : material);
+    return union(cuts);
+  };
+
+  // The layer program (scene ProgIns), run with Manifold booleans: objects fold in
+  // bottom to top, and a hollow body's group ends less its cavity.
+  if (doc.groups.some((g) => (g.blend ?? 0) > 0)) warnings.push('Smooth blends need the SDF kernel; shown as sharp joins and cuts');
+  const units = new Map(doc.groups.map((g) => [g.id, g]));
+  const stack: (Manifold | null)[] = [];
+  let cur: Manifold | null = null;
+  const fold = (acc: Manifold | null, m: Manifold | null, sub: boolean) => (sub ? (acc && m ? keep(acc.subtract(m)) : acc) : union([acc, m]));
+  for (const ins of doc.program ?? legacyProgram(doc)) {
+    if (ins[0] === 'o') cur = fold(cur, built.get(ins[1])?.solid ?? null, (ins[2] & 1) === 1);
+    else if (ins[0] === '(') { stack.push(cur); cur = null; }
+    else {
+      let body = cur;
+      const u = ins[2] ? units.get(ins[2]) : undefined;
+      if (u && body) { const cav = unitCavity(u); if (cav) body = keep(body.subtract(cav)); }
+      cur = fold(stack.pop() ?? null, body, (ins[1] & 1) === 1);
+    }
   }
   timer.lap('groups');
-  const result = union(groupResults);
+  const result = cur;
   timer.lap('finish');
 
   let positions = new Float32Array(0);

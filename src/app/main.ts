@@ -6,10 +6,10 @@ import {
 } from '../engine/document';
 import type { BuildResult } from '../engine/kernel';
 import type { CavityGrid } from '../engine/cavity';
-import { DEFAULT_WALL, type Group, isCut } from '../engine/document';
+import { type Group, isCut } from '../engine/document';
 import type { Vec3 } from '../engine/math';
-import { classifyPoint, compileScene, sdfWorld, toLocal } from '../engine/primitives';
-import { compileGroups } from '../engine/scene';
+import { classifyPoint, compileScene, sdfWorld } from '../engine/primitives';
+import { compileGroups, needsUnitGrid } from '../engine/scene';
 import { examples } from '../examples';
 import { Builder } from './builder';
 import { type CurveMode, ProfileEditor } from './profileEditor';
@@ -20,7 +20,7 @@ import { type LibraryPart, PartStore, type Piece, type PieceFlag, PieceStore, ty
 import { partScale, placedId } from '../engine/parts';
 import {
   type Layer, ancestors, attach, childIds, copyLayer, deleteLayer, flattenLayers, groupLayers, layerOf, layerOp, localTransform,
-  parentOf, repairTree, subtree, toLayers, ungroup, worldTransform,
+  addHole, parentOf, repairTree, shellOf, subtree, toLayers, ungroup, worldTransform,
 } from '../engine/layers';
 import { expandDoc } from '../engine/symmetry';
 import { type GizmoMode, Viewport } from './viewport';
@@ -244,20 +244,24 @@ function ghostOutline(live = false) {
 // becomes its own group (see engine/parts). Group indices below refer to it.
 function cavityKey(r: SceneDoc, gi: number): string {
   const g = r.groups[gi];
-  // the cavity follows the shell objects and the cuts carved before hollowing; a
-  // compound rounding follows the whole body
-  const shells = r.objects.filter((o) => o.groupId === g.id && (g.compound || o.mode !== 'solid') && !o.hidden);
-  return JSON.stringify([ui.quality, g.blend ?? 0, g.compound ? g.round : 0, r.shell.enabled, shells.map((o) => [o.type, o.mode, o.params, o.transform, o.holes])]);
+  // the cavity follows the body's group in the program: its steps, and the objects in them
+  const prog = r.program ?? [];
+  const close = prog.findIndex((n) => n[0] === ')' && n[2] === g.id);
+  let open = close, depth = 0;
+  for (; open > 0; open--) { const n = prog[open - 1]; if (n[0] === ')') depth++; else if (n[0] === '(') { if (!depth) break; depth--; } }
+  const steps = close < 0 ? [] : prog.slice(open, close);
+  const ids = new Set(steps.filter((n) => n[0] === 'o').map((n) => n[1]));
+  const objs = r.objects.filter((o) => ids.has(o.id));
+  return JSON.stringify([ui.quality, g.blend ?? 0, steps, objs.map((o) => [o.type, o.mode, o.params, o.transform, o.holes])]);
 }
 
 /** Whether group gi of the built document needs a cavity grid (scene.needsCavityGrid,
  *  from the document): more than one shell object, or rounded cut rims. */
+const compiledFor = new WeakMap<SceneDoc, Map<number, boolean>>();
 function needsGrid(r: SceneDoc, gi: number): boolean {
-  const g = r.groups[gi];
-  const members = r.objects.filter((o) => o.groupId === g.id && !o.hidden && o.type !== 'part');
-  const shells = members.filter((o) => o.mode === 'shell').length;
-  if (g.compound && (g.round ?? 0) > 0 && members.length) return true; // the rounding (engine/round)
-  return r.shell.enabled && shells > 0 && (shells > 1 || ((g.round ?? 0) > 0 && members.some((o) => isCut(o.mode))));
+  let m = compiledFor.get(r);
+  if (!m) { m = new Map(compileGroups(r).map((g) => [g.index, needsUnitGrid(g)])); compiledFor.set(r, m); }
+  return m.get(gi) ?? false;
 }
 
 function currentGrids(r: SceneDoc): (CavityGrid | null)[] {
@@ -514,13 +518,9 @@ function targetGroup(): string {
   return top ?? '';
 }
 
-/** The group whose body a layer joins when built: the nearest enclosing group with an effect. */
+/** The hollowed group whose body a layer joins (null: none). */
 function bodyGroup(id: string): Group | null {
-  for (const gid of ancestors(doc, id)) {
-    const g = doc.groups.find((x) => x.id === gid)!;
-    if (g.shell || (g.blend ?? 0) > 0 || (g.round ?? 0) > 0) return g;
-  }
-  return null;
+  return shellOf(doc, id);
 }
 
 function groupEditBody(g: Group) {
@@ -637,9 +637,9 @@ function opControls(o: SceneObject) {
   const body = bodyGroup(o.id);
   const hollow = !!body?.shell;
   const op: LayerOp = isCut(o.mode) ? o.mode as LayerOp : 'add';
-  return `${seg<LayerOp>('mode', op, [['add', 'Add'], ['subtract', 'Subtract'], ['cutout', 'Cutout']])}
+  return `${seg<LayerOp>('mode', op, [['add', 'Add'], ['subtract', 'Subtract']])}
     ${op === 'add' && hollow ? `<label class="toggle"><input type="checkbox" data-act="keep-solid" ${o.mode === 'solid' ? 'checked' : ''}> Keep solid (not hollowed with "${escapeHtml(body!.name)}")</label>` : ''}
-    <p class="hint">${op === 'add' ? (hollow ? (o.mode === 'solid' ? 'Joins the body but is not hollowed itself; the cavity still cuts it where it passes through.' : `Joins "${escapeHtml(body!.name)}", which is hollowed as one body.`) : 'Joins the layers below it in its group.') : op === 'subtract' ? 'Carves the layers below it in its group. In a hollowed group the cut is made before hollowing, so it gets a wall.' : 'Cuts the finished group, walls and all: it opens into the hollow.'}</p>`;
+    <p class="hint">${op === 'add' ? (hollow ? (o.mode === 'solid' ? 'Joins the body but is not hollowed itself; the hollow still carves it where it passes through.' : `Joins "${escapeHtml(body!.name)}", which is hollowed as one body.`) : 'Joins the layers below it in its group.') : hollow ? `Carves the layers below it before "${escapeHtml(body!.name)}" is hollowed, so the cut gets a wall. To cut the finished walls instead, put it above that group.` : 'Carves the layers below it in its group.'}</p>`;
 }
 
 // ---------- the Layers tab
@@ -684,13 +684,12 @@ function layersPanel() {
     const g = l.g;
     settings = `<div class="section group-card">
       <input class="group-name" data-layer-name="${g.id}" value="${escapeHtml(g.name)}" aria-label="Group name">
-      ${seg<LayerOp>('gop', g.op ?? 'add', [['add', 'Add'], ['subtract', 'Subtract'], ['cutout', 'Cutout']])}
-      <p class="hint">${(g.op ?? 'add') === 'add' ? 'The group joins the layers below it.' : g.op === 'subtract' ? 'The group\'s Add layers carve the layers below it (before hollowing, when that is hollowed).' : 'The group\'s Add layers cut the finished layers below it, walls and all.'}</p>
+      ${seg<LayerOp>('gop', (g.op ?? 'add') === 'add' ? 'add' : 'subtract', [['add', 'Add'], ['subtract', 'Subtract']])}
+      <p class="hint">${(g.op ?? 'add') === 'add' ? 'The group, as it comes out, joins the layers below it.' : 'The group, as it comes out, carves the layers below it.'}</p>
       <label class="toggle"><input type="checkbox" data-act="gshell" ${g.shell ? 'checked' : ''}> Shell: hollow this group as one body</label>
       ${g.shell ? slider('g.wall', 'Wall cm', g.thickness, 0.05, 4, 0.01) : ''}
       ${slider('g.blend', 'Blend cm', g.blend ?? 0, 0, 10, 0.1)}
-      ${slider('g.round', 'Round cm', g.round ?? 0, 0, 5, 0.05)}
-      <p class="hint">Shell walls grow inward from the outside of the group's Add layers; Subtract layers inside it are cut before hollowing, Cutouts after. Blend fillets where its layers meet. Round rounds every edge of its objects and the rims of its cuts.</p>
+      <p class="hint">Shell hollows what the group's layers make, inward from its outside; a cut inside the group gets a wall, a cut above it goes through the walls. Blend smooths where its layers join and where its cuts carve.</p>
       ${ui.partNaming === g.id
         ? `<div class="piece-form"><label class="field-col"><span>Part name</span><input id="part-name" value="${escapeHtml(g.name)}" maxlength="80"></label>
            <div class="row"><button class="btn primary" data-save-part="${g.id}">Save part</button><button class="btn" data-part-cancel="1">Cancel</button></div></div>`
@@ -701,8 +700,7 @@ function layersPanel() {
       <input class="group-name" data-layer-name="${l.o.id}" value="${escapeHtml(l.o.name)}" aria-label="Layer name">
       ${opControls(l.o)}</div>`;
   }
-  return `<div class="section"><div class="row"><h3 style="margin-right:auto">Layers</h3>
-      <label class="toggle"><input type="checkbox" id="shell-on" data-act="shell-toggle" ${doc.shell.enabled ? 'checked' : ''}> Hollow</label></div>
+  return `<div class="section"><div class="row"><h3 style="margin-right:auto">Layers</h3></div>
     <div class="layers" role="tree">${layerRows('', 0) || '<p class="hint">No layers yet. Add a form from the Add tab.</p>'}</div>
     <div class="layer-tools">
       ${tool('layer-new', '+ Group', 'New empty group')}${tool('layer-wrap', 'Group', 'Put the selected layer in a new group', !!l)}${tool('layer-ungroup', 'Ungroup', 'Replace the group by its layers', l?.kind === 'group')}
@@ -710,7 +708,7 @@ function layersPanel() {
       ${tool('layer-out', '⇤ Out', 'Move out of its group', !!parent)}${tool('layer-in', 'In ⇥', 'Move into the group next to it', canIn)}
       ${tool('duplicate', 'Duplicate', 'Duplicate', !!l)}${tool('delete', 'Delete', 'Delete', !!l)}
     </div>
-    <p class="hint">Layers build bottom to top: Add joins what is below it in its group, Subtract carves it, Cutout cuts it after hollowing. Tap a layer to select it; the Edit tab moves, shapes and mirrors it.</p></div>
+    <p class="hint">Layers build bottom to top: Add joins what is below it in its group, Subtract carves it. A group joins its parent as it comes out (hollowed, if Shell is on). Tap a layer to select it; the Edit tab moves, shapes and mirrors it.</p></div>
     ${settings}`;
 }
 
@@ -718,17 +716,13 @@ function holesPanel() {
   const o = selected();
   const faces = o ? compileScene([o])[0]?.faces ?? [] : [];
   const holeRows = doc.objects.flatMap((ob) => ob.holes.map((h) => `<div class="list-item"><span>${escapeHtml(ob.name)} · ${escapeHtml(faceLabel(ob, h))}</span><button data-unhole="${ob.id}|${h}" aria-label="Remove opening">×</button></div>`));
-  const pinRows = doc.pins.map((p, i) => {
-    const ob = doc.objects.find((x) => x.id === p.objectId);
-    return `<div class="list-item"><span>Pin ${i + 1} on ${escapeHtml(ob?.name ?? '?')} · ⌀ ${(p.radius * 2).toFixed(2)} cm</span><button data-unpin="${p.id}" aria-label="Remove pin hole">×</button></div>`;
-  });
   return `<div class="section"><h3>Tap the model to</h3>
-      ${seg('holeMode', ui.holeMode, [['face', 'Open a face'], ['pin', 'Drill a pin hole']])}
+      ${seg('holeMode', ui.holeMode, [['face', 'Open a face'], ['pin', 'Drill a hole']])}
       ${ui.holeMode === 'pin' ? slider('pin', 'Radius cm', ui.pinRadius, 0.1, 4, 0.05) : ''}
-      <p class="hint">${ui.holeMode === 'face' ? 'Tapping a face removes it from the shell. Only the part of the face that is on the outside opens.' : 'Tapping places a round hole through the wall, on flat or curved surfaces.'}</p>
+      <p class="hint">${ui.holeMode === 'face' ? 'Tapping a face of an object in a hollowed group opens it: that part of the shell is left open. Only the part of the face that is on the outside opens.' : 'Tapping drills a round hole through the wall, on flat or curved surfaces: a Hole layer (a cylinder Subtract) just above the hollowed group, which you can move, resize or delete like any layer.'}</p>
     </div>
     ${o ? `<div class="section"><h3>Faces of ${escapeHtml(o.name)}</h3><div class="row">${faces.map((f) => `<button class="face-chip" data-face="${f.id}" aria-pressed="${o.holes.includes(f.id)}">${escapeHtml(f.label)}</button>`).join('')}</div></div>` : ''}
-    <div class="section"><h3>Openings</h3>${holeRows.length + pinRows.length ? `<div class="list">${[...holeRows, ...pinRows].join('')}</div>` : '<p class="hint">None yet.</p>'}</div>
+    <div class="section"><h3>Open faces</h3>${holeRows.length ? `<div class="list">${holeRows.join('')}</div>` : '<p class="hint">None yet.</p>'}</div>
     <div class="section"><h3>Objects</h3>${objectChips()}</div>`;
 }
 
@@ -994,7 +988,6 @@ panel.addEventListener('click', (e) => {
     renderPanel();
     return;
   }
-  if (d.unpin) { update((doc2) => { doc2.pins = doc2.pins.filter((p) => p.id !== d.unpin); }); renderPanel(); return; }
   switch (d.act) {
     case 'lock': ui.lockScale = !ui.lockScale; btn.setAttribute('aria-pressed', String(ui.lockScale)); break;
     case 'duplicate': {
@@ -1242,18 +1235,9 @@ view.onTap = (hit) => {
     ).normalize();
     const d = sdfWorld(c.obj, p.x, p.y, p.z);
     const q = p.clone().addScaledVector(g, -d);
-    const lp: Vec3 = [0, 0, 0];
-    toLocal(c.obj, q.x, q.y, q.z, lp);
-    // param-space normal = S * R^T * n_world
-    const r = c.obj.rot, s = c.obj.scale;
-    const nl = new THREE.Vector3(
-      (r[0] * g.x + r[3] * g.y + r[6] * g.z) * s[0],
-      (r[1] * g.x + r[4] * g.y + r[7] * g.z) * s[1],
-      (r[2] * g.x + r[5] * g.y + r[8] * g.z) * s[2],
-    ).normalize();
-    update((doc2) => { doc2.pins.push({ id: newId('p'), objectId: oid, point: lp, normal: [nl.x, nl.y, nl.z], radius: ui.pinRadius }); });
+    update((doc2) => { addHole(doc2, oid, [q.x, q.y, q.z], [g.x, g.y, g.z], ui.pinRadius); });
     renderPanel();
-    toast(`Pin hole ⌀ ${(ui.pinRadius * 2).toFixed(2)} cm`);
+    toast(`Hole ⌀ ${(ui.pinRadius * 2).toFixed(2)} cm added to the layers`);
     return;
   }
   if (ui.tab !== 'edit' && ui.tab !== 'layers') ui.tab = 'edit';
