@@ -180,3 +180,34 @@ describe('exact layer order', () => {
     expect(f(0, -4.8, 0)).toBeLessThan(0); // the wall elsewhere
   });
 });
+
+describe('blended nested group in a hollow body', () => {
+  it('a thin wall stays whole where a blended neck joins the body', async () => {
+    const d = emptyDoc();
+    const g1 = d.groups[0];
+    g1.thickness = 0.13;
+    const sphere = makeObject('sphere', { params: { r: 9 } });
+    const neck = makeObject('cylinder', { params: { r: 2, h: 5.2 }, holes: ['top'], transform: { position: [0, 10.13, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } });
+    const g2 = newGroup('g2', 'Group 2', { shell: false, blend: 1.6, children: [sphere.id, neck.id] });
+    sphere.groupId = neck.groupId = 'g2';
+    d.objects.push(sphere, neck);
+    d.groups.push(g2);
+    g1.children = ['g2'];
+    const groups = compileGroups(expandDoc(d));
+    const body = groups.find((g) => g.hollow)!;
+    expect(body.k).toBeCloseTo(1.6, 6);
+    const { cavityGrids, depthFromGrids } = await import('../src/engine/sdfKernel');
+    const grids: ReturnType<typeof cavityGrids> = [];
+    cavityGrids(groups, 'normal').forEach((c, i) => { grids[groups[i].index] = c; });
+    const depth = depthFromGrids(grids);
+    const f = (x: number, y: number, z: number) => evalScene(groups, depth, x, y, z);
+    // walk the outer surface across the joint; just inside it must be clay
+    for (let y = 7.5; y <= 10; y += 0.1) {
+      let x = 6;
+      for (let it = 0; it < 60; it++) { const v = f(x, y, 0); if (Math.abs(v) < 1e-3) break; x -= v; }
+      // x is on the outer surface (or on the cut through it); step 0.05 inward along -x
+      const inside = f(x - 0.05, y, 0);
+      expect(inside, `y ${y.toFixed(1)}`).toBeLessThan(0);
+    }
+  }, 60000);
+});

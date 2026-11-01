@@ -163,6 +163,12 @@ export function compileGroups(doc: SceneDoc): CompiledGroup[] {
     g.prog = prog;
     if (g.open < 0) continue;
     let cut = false;
+    // its objects join with the blends of the folds they're in (nested groups'
+    // included): the analytic depth smooths with the widest, as the shader does
+    for (let i = g.open + 1; i < g.close; i++) {
+      const n = prog[i];
+      if (n.op === 0 && (g.shells.includes(n.o!) || g.solids.includes(n.o!))) g.k = Math.max(g.k, n.k);
+    }
     for (let i = g.open + 1; i < g.close; i++) {
       const n = prog[i];
       if (n.op !== 0) { g.complex = true; break; }
