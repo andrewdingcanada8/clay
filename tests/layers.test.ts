@@ -211,3 +211,34 @@ describe('blended nested group in a hollow body', () => {
     }
   }, 60000);
 });
+
+describe('holes', () => {
+  it('a hole goes through the wall it is drilled into and nothing behind it', async () => {
+    const { addHole } = await import('../src/engine/layers');
+    const { wallReach } = await import('../src/engine/scene');
+    const { cavityGrids, depthFromGrids } = await import('../src/engine/sdfKernel');
+    // a thin flat vessel: 1 cm deep, 0.2 cm walls, so the far wall is close behind
+    const d = emptyDoc();
+    d.groups[0].thickness = 0.2;
+    const slab = makeObject('box', { params: { x: 10, y: 10, z: 1 } });
+    d.objects.push(slab);
+    d.groups[0].children = [slab.id];
+    const build = () => {
+      const groups = compileGroups(expandDoc(d));
+      const grids: ReturnType<typeof cavityGrids> = [];
+      cavityGrids(groups, 'normal').forEach((c, i) => { grids[groups[i].index] = c; });
+      return { groups, depth: depthFromGrids(grids) };
+    };
+    let { groups, depth } = build();
+    const reach = wallReach(groups, depth, [0, 0, 0.5], [0, 0, 1], 1, 3 * 0.2 + 2 + 1)!;
+    expect(reach).toBeGreaterThan(0.15);
+    expect(reach).toBeLessThan(0.4); // stops at the hollow, short of the far wall (0.8 in)
+    addHole(d, slab.id, [0, 0, 0.5], [0, 0, 1], 1, reach + 0.07);
+    ({ groups, depth } = build());
+    const f = (x: number, y: number, z: number) => evalScene(groups, depth, x, y, z);
+    expect(f(0, 0, 0.4)).toBeGreaterThan(0); // the front wall is drilled through
+    expect(f(0.5, 0.5, 0.4)).toBeGreaterThan(0);
+    expect(f(0, 0, -0.4)).toBeLessThan(0); // the back wall is untouched
+    expect(f(0, 3, 0.4)).toBeLessThan(0); // the front wall beside the hole too
+  }, 120000);
+});

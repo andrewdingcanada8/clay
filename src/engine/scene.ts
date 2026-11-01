@@ -142,7 +142,8 @@ export function compileGroups(doc: SceneDoc): CompiledGroup[] {
       r: pin.radius,
     });
   }
-  const kept = groups.filter((g) => g.shells.length + g.solids.length > 0);
+  // (a body of cuts only still cuts what is below it: a hole above a hollow group)
+  const kept = groups.filter((g) => g.shells.length + g.solids.length + g.subs.length > 0);
   // the program, with its objects and bodies resolved
   const prog: CompiledIns[] = [];
   const opens: number[] = [];
@@ -452,9 +453,42 @@ export function evalScene(groups: CompiledGroup[], depth: DepthFn, x: number, y:
   return stG[0];
 }
 
+/**
+ * How deep a hole drilled at surface point q along outward normal n, radius r,
+ * must reach to go through the wall there and no further: along the axis at the
+ * centre and round the rim, the field is followed in from outside through the
+ * first stretch of clay to where it ends (the hollow, or the far side of a thin
+ * part). Measured from q, inward. Null: no clay along the axis within maxReach.
+ */
+export function wallReach(groups: CompiledGroup[], depth: DepthFn, q: Vec3, n: Vec3, r: number, maxReach: number): number | null {
+  const a: Vec3 = Math.abs(n[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+  const u: Vec3 = [n[1] * a[2] - n[2] * a[1], n[2] * a[0] - n[0] * a[2], n[0] * a[1] - n[1] * a[0]];
+  const lu = Math.hypot(...u);
+  u[0] /= lu; u[1] /= lu; u[2] /= lu;
+  const v: Vec3 = [n[1] * u[2] - n[2] * u[1], n[2] * u[0] - n[0] * u[2], n[0] * u[1] - n[1] * u[0]];
+  const step = Math.max(0.004, Math.min(0.02, maxReach / 400));
+  let reach: number | null = null;
+  for (let k = 0; k <= 8; k++) {
+    const ang = (k / 8) * 2 * Math.PI, rr = k === 0 ? 0 : 0.98 * r;
+    const ox = q[0] + rr * (Math.cos(ang) * u[0] + Math.sin(ang) * v[0]);
+    const oy = q[1] + rr * (Math.cos(ang) * u[1] + Math.sin(ang) * v[1]);
+    const oz = q[2] + rr * (Math.cos(ang) * u[2] + Math.sin(ang) * v[2]);
+    let inClay = false, end: number | null = null;
+    for (let s = -Math.max(1, r); s <= maxReach; s += step) {
+      const f = evalScene(groups, depth, ox - n[0] * s, oy - n[1] * s, oz - n[2] * s);
+      if (!inClay) { if (f < 0) inClay = true; } else if (f > 0) { end = s; break; }
+    }
+    if (inClay) reach = Math.max(reach ?? 0, end ?? maxReach);
+  }
+  return reach;
+}
+
 export function sceneBounds(groups: CompiledGroup[]): AABB {
   const b = emptyAABB();
-  for (const g of groups) { growAABB(b, ...g.bounds.min); growAABB(b, ...g.bounds.max); }
+  for (const g of groups) {
+    if (g.bounds.min[0] > g.bounds.max[0]) continue; // a body of cuts only
+    growAABB(b, ...g.bounds.min); growAABB(b, ...g.bounds.max);
+  }
   return b;
 }
 

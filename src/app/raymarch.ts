@@ -838,6 +838,7 @@ export class SdfRenderer {
     this.writeData(objs, groups, slots, prog);
     this.bounds.makeEmpty();
     for (const g of groups) {
+      if (g.bounds.min[0] > g.bounds.max[0]) continue; // a body of cuts only
       this.bounds.expandByPoint(new THREE.Vector3(...g.bounds.min));
       this.bounds.expandByPoint(new THREE.Vector3(...g.bounds.max));
     }

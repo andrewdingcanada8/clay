@@ -9,7 +9,8 @@ import type { CavityGrid } from '../engine/cavity';
 import { type Group, isCut } from '../engine/document';
 import type { Vec3 } from '../engine/math';
 import { classifyPoint, compileScene, sdfWorld } from '../engine/primitives';
-import { compileGroups, needsUnitGrid } from '../engine/scene';
+import { compileGroups, needsUnitGrid, wallReach } from '../engine/scene';
+import { depthFromGrids } from '../engine/sdfKernel';
 import { examples } from '../examples';
 import { Builder } from './builder';
 import { type CurveMode, ProfileEditor } from './profileEditor';
@@ -1235,7 +1236,13 @@ view.onTap = (hit) => {
     ).normalize();
     const d = sdfWorld(c.obj, p.x, p.y, p.z);
     const q = p.clone().addScaledVector(g, -d);
-    update((doc2) => { addHole(doc2, oid, [q.x, q.y, q.z], [g.x, g.y, g.z], ui.pinRadius); });
+    // as deep as the wall there, so nothing behind it is cut (SDF view: its exact walls)
+    const sdfView = doc.kernel === 'sdf';
+    const groups = sdfView ? view.sdf.compiledGroups() : compileGroups(expandDoc(doc));
+    const depth = depthFromGrids(sdfView ? view.sdf.grids() : []);
+    const wall = shellOf(doc, oid)?.thickness ?? 1;
+    const reach = wallReach(groups, depth, [q.x, q.y, q.z], [g.x, g.y, g.z], ui.pinRadius, 3 * wall + 2 * ui.pinRadius + 1);
+    update((doc2) => { addHole(doc2, oid, [q.x, q.y, q.z], [g.x, g.y, g.z], ui.pinRadius, reach === null ? null : reach + 0.05 + 0.1 * wall); });
     renderPanel();
     toast(`Hole ⌀ ${(ui.pinRadius * 2).toFixed(2)} cm added to the layers`);
     return;

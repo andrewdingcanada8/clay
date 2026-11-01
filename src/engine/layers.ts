@@ -224,13 +224,14 @@ export function cutAbove(doc: SceneDoc, gid: string, ids: string[]): void {
 
 /**
  * A Hole layer drilled into object `objId` at world point p along its outward
- * world normal n: a cylinder Subtract that reaches out of the surface and in
- * through the wall of the object's hollow group, just above that group (or, with
- * no hollow group, just above the object). Returns its id.
+ * world normal n: a cylinder Subtract that reaches out of the surface and `reach`
+ * in (through the wall of the object's hollow group), just above that group (or,
+ * with no hollow group, just above the object). Returns its id.
  */
-export function addHole(doc: SceneDoc, objId: string, p: Vec3, n: Vec3, radius: number): string {
+export function addHole(doc: SceneDoc, objId: string, p: Vec3, n: Vec3, radius: number, reach?: number | null): string {
   const g = shellOf(doc, objId);
-  const out = Math.max(0.5, radius), depth = pinDepth(g ? g.thickness : null, radius);
+  // through the wall there and no further (scene.wallReach), else a reach that clears a wall of this thickness
+  const out = Math.max(0.5, radius), depth = reach ?? pinDepth(g ? g.thickness : null, radius);
   const a: Vec3 = [p[0] + n[0] * out, p[1] + n[1] * out, p[2] + n[2] * out];
   const b: Vec3 = [p[0] - n[0] * depth, p[1] - n[1] * depth, p[2] - n[2] * depth];
   // local Y along n: columns x, y = n, z of a rotation
