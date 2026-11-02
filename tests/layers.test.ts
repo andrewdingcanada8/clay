@@ -242,3 +242,27 @@ describe('holes', () => {
     expect(f(0, 3, 0.4)).toBeLessThan(0); // the front wall beside the hole too
   }, 120000);
 });
+
+describe('a layer added above a cut in a hollow group', () => {
+  it('is hollowed and opens, though it lies inside the cut below it', async () => {
+    const { cavityGrids, depthFromGrids } = await import('../src/engine/sdfKernel');
+    const d = emptyDoc();
+    const g = d.groups[0];
+    g.thickness = 0.5;
+    const body = makeObject('box', { params: { x: 10, y: 10, z: 10 } });
+    const cut = makeObject('box', { mode: 'subtract', params: { x: 6, y: 20, z: 6 }, transform: { position: [7, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } });
+    // a spout reaching out through the cut's volume, open at its end
+    const spout = makeObject('cylinder', { params: { r: 1.5, h: 8 }, holes: ['top'], transform: { position: [7, 0, 0], rotation: [0, 0, -90], scale: [1, 1, 1] } });
+    d.objects.push(body, cut, spout);
+    g.children = [body.id, cut.id, spout.id];
+    const groups = compileGroups(expandDoc(d));
+    expect(groups[0].cutsBound).toBe(false);
+    const grids: ReturnType<typeof cavityGrids> = [];
+    cavityGrids(groups, 'normal').forEach((c, i) => { grids[groups[i].index] = c; });
+    const depth = depthFromGrids(grids);
+    const f = (x: number, y: number, z: number) => evalScene(groups, depth, x, y, z);
+    expect(f(7, 0, 0)).toBeGreaterThan(0); // inside the spout: hollow
+    expect(f(7, 1.3, 0)).toBeLessThan(0); // its wall
+    expect(f(10.9, 0, 0)).toBeGreaterThan(0); // its end is open
+  }, 120000);
+});

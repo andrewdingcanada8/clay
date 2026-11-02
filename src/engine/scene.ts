@@ -68,6 +68,10 @@ export interface CompiledGroup {
   /** Its layers don't simply add up less their cuts (nested groups, a layer above a
    *  cut, smooth cuts): the analytic depth needs the grid's correction. */
   complex: boolean;
+  /** Every cut comes after all of its Add layers, so a closed cut's surface bounds
+   *  the depth everywhere. With a layer added above a cut, the cut doesn't carve
+   *  that layer, and the grid alone brings in the cuts' walls. */
+  cutsBound: boolean;
   /** Shelling applies (global switch on and the group has shell objects). */
   hollow: boolean;
   shells: CompiledObject[];
@@ -107,7 +111,7 @@ export function compileGroups(doc: SceneDoc): CompiledGroup[] {
     index, id: g.id, name: g.name, t: Math.max(0.01, g.thickness), k: Math.max(0, g.blend ?? 0), round: Math.max(0, g.round ?? 0), hollow: false,
     compound: !!g.compound && (g.round ?? 0) > 0, rim: g.compound ? 0 : Math.max(0, g.round ?? 0),
     shells: [], solids: [], subs: [], pins: [], holes: new Set(), bounds: emptyAABB(), shellBounds: emptyAABB(),
-    prog: [], open: -1, close: -1, complex: false,
+    prog: [], open: -1, close: -1, complex: false, cutsBound: true,
   }));
   const gById = new Map(groups.map((g) => [g.id, g]));
   for (const o of objs) {
@@ -172,8 +176,9 @@ export function compileGroups(doc: SceneDoc): CompiledGroup[] {
     }
     for (let i = g.open + 1; i < g.close; i++) {
       const n = prog[i];
-      if (n.op !== 0) { g.complex = true; break; }
-      if (n.sub) { cut = true; if (n.k > 0) g.complex = true; } else if (cut) g.complex = true;
+      // (a nested group: complex; a group cut counts as a cut, its adds as adds)
+      if (n.op !== 0) { g.complex = true; if (n.op === 2 && n.sub) cut = true; continue; }
+      if (n.sub) { cut = true; if (n.k > 0) g.complex = true; } else if (cut) { g.complex = true; g.cutsBound = false; }
     }
   }
   return kept;
@@ -364,7 +369,7 @@ function openDepth(c: CompiledObject, holes: Set<string>, x: number, y: number, 
 export function approxDepth(g: CompiledGroup, x: number, y: number, z: number): number {
   let d = -Infinity;
   for (const o of g.shells) d = Math.max(d, holeDepth(o, g.holes, x, y, z));
-  for (const o of g.subs) if (o.obj.mode === 'subtract') d = Math.min(d, sdfWorld(o, x, y, z));
+  if (g.cutsBound) for (const o of g.subs) if (o.obj.mode === 'subtract') d = Math.min(d, sdfWorld(o, x, y, z));
   return d;
 }
 
@@ -428,7 +433,7 @@ export function baseDepth(g: CompiledGroup, x: number, y: number, z: number, cla
   if (top) { top.i = i1; top.gap = t1 - t2; }
   let d = t2 === -Infinity ? t1 : -smin(-t1, -t2, k);
   // a closed cut's surface bounds the depth too
-  for (const o of g.subs) if (o.obj.mode === 'subtract') d = Math.min(d, sdfWorld(o, x, y, z));
+  if (g.cutsBound) for (const o of g.subs) if (o.obj.mode === 'subtract') d = Math.min(d, sdfWorld(o, x, y, z));
   return Math.max(-clampV, Math.min(clampV, d));
 }
 

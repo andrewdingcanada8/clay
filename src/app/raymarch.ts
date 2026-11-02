@@ -73,6 +73,7 @@ uniform vec4 uGroupC[${MAX_GROUPS}];
 uniform vec4 uGroupE[${MAX_GROUPS}];
 uniform float uT[${MAX_GROUPS}];
 uniform float uK[${MAX_GROUPS}];
+uniform int uCutsBound[${MAX_GROUPS}]; // scene.CompiledGroup.cutsBound
 uniform float uRound[${MAX_GROUPS}]; // rounds the rims of the group's cuts
 uniform int uHollow[${MAX_GROUPS}];
 uniform int uUseGrid[${MAX_GRIDS}];
@@ -488,8 +489,9 @@ float unitDepth(int g, vec3 p, float fs) {
     if (d > t1) { t2 = t1; t1 = d; } else t2 = max(t2, d);
   }
   float D = -smin(-t1, -t2, kS);
-  // a closed cut's surface bounds the depth too (see scene.baseDepth)
+  // a closed cut's surface bounds the depth too, unless a layer is added above a cut (see scene.baseDepth)
   for (int i = R.z; i < R.w; i++) {
+    if (uCutsBound[g] == 0) break;
     if (!objOn(i) || int(row(i, 6).z) != 0) continue;
     float b = bound(i, p);
     D = min(D, b < D + 0.5 ? sdObj(i, p) : b);
@@ -712,6 +714,7 @@ export class SdfRenderer {
       uK: { value: range(MAX_GROUPS).map(() => 0) },
       uRound: { value: range(MAX_GROUPS).map(() => 0) },
       uHollow: { value: range(MAX_GROUPS).map(() => 0) },
+      uCutsBound: { value: range(MAX_GROUPS).map(() => 1) },
       uUseGrid: { value: range(MAX_GRIDS).map(() => 0) },
       uUseRound: { value: range(MAX_GRIDS).map(() => 0) },
       uRoundR: { value: range(MAX_GRIDS).map(() => 0) },
@@ -805,6 +808,7 @@ export class SdfRenderer {
       (u.uK.value as number[])[k] = g.k;
       (u.uRound.value as number[])[k] = g.rim;
       (u.uHollow.value as number[])[k] = g.hollow ? 1 : 0;
+      (u.uCutsBound.value as number[])[k] = g.cutsBound ? 1 : 0;
     });
     u.uGroupCount.value = groups.length;
     u.uObjCount.value = objs.length;
