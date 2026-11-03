@@ -212,6 +212,32 @@ describe('blended nested group in a hollow body', () => {
   }, 60000);
 });
 
+describe('a group blended into its parent', () => {
+  it("its objects reach as far as the parent's blend (culling, bounds)", () => {
+    const d = emptyDoc();
+    const g1 = d.groups[0];
+    const ball = makeObject('sphere', { params: { r: 8 } });
+    ball.groupId = g1.id;
+    g1.children = [ball.id];
+    const disc = makeObject('cylinder', { params: { r: 10, h: 2 }, transform: { position: [0, -8, 0], rotation: [0, 0, 0], scale: [1, 1, 1] } });
+    const g2 = newGroup('g2', 'Group 2', { shell: false, children: [disc.id] });
+    disc.groupId = 'g2';
+    const g3 = newGroup('g3', 'Group 3', { shell: false, blend: 8, children: [g1.id, 'g2'] });
+    d.objects.push(ball, disc);
+    d.groups.push(g2, g3);
+    d.root = ['g3'];
+    const groups = compileGroups(expandDoc(d));
+    const discBody = groups.find((g) => g.shells.some((o) => o.obj.id === disc.id) || g.solids.some((o) => o.obj.id === disc.id))!;
+    const ballBody = groups.find((g) => g.shells.some((o) => o.obj.id === ball.id))!;
+    expect(discBody.reach).toBe(8);
+    expect(ballBody.reach).toBe(8);
+    expect(ballBody.k).toBe(0); // its own hollow isn't smoothed by the outer blend
+    expect(discBody.bounds.max[0]).toBeGreaterThanOrEqual(10 + 2 - 1e-9);
+    // the fillet past the disc's box is in the field
+    expect(evalScene(groups, approxDepth, 10.3, -7.5, 0)).toBeLessThan(0);
+  });
+});
+
 describe('holes', () => {
   it('a hole goes through the wall it is drilled into and nothing behind it', async () => {
     const { addHole } = await import('../src/engine/layers');

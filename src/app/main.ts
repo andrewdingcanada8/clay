@@ -528,7 +528,7 @@ function groupEditBody(g: Group) {
   const t = g.transform ?? { position: [0, 0, 0] as Vec3, rotation: [0, 0, 0] as Vec3, scale: [1, 1, 1] as Vec3 };
   return `
     <div class="section"><h3>Group · ${escapeHtml(g.name)}</h3>
-      <p class="hint">${(g.children ?? []).length} layer${(g.children ?? []).length === 1 ? '' : 's'}. Its op, Shell, Blend and Round are in the Layers tab.</p></div>
+      <p class="hint">${(g.children ?? []).length} layer${(g.children ?? []).length === 1 ? '' : 's'}. Its op, Shell and Blend are in the Layers tab.</p></div>
     ${symmetrySection(g.id, g.sym)}
     <div class="section"><h3>Transform</h3>
       ${seg<GizmoMode>('gizmo', ui.gizmo, [['translate', 'Move'], ['rotate', 'Rotate'], ['scale', 'Scale'], ['off', 'Hide']])}
@@ -617,7 +617,7 @@ function editPanel() {
       ${o.type === 'revolve' ? `<button class="btn primary" data-act="edit-profile">Edit profile (${o.params.points?.length ?? 0} points)</button>` : ''}
       ${o.type === 'sweep' ? sweepControls(o) : ''}
       ${ROUNDABLE.has(o.type) ? `${slider('p.round', 'Round edges cm', o.params.round ?? 0, 0, 5, 0.05)}
-      <p class="hint">Rounds every edge and corner of this object${(bodyGroup(o.id)?.round ?? 0) > 0 ? ' (its group rounds them too; the larger wins)' : ''}. A group's Round does every object in it at once and the rims of its cuts; Blend fillets where objects meet.</p>` : ''}
+      <p class="hint">Rounds every edge and corner of this object. A group's Blend fillets where its layers meet.</p>` : ''}
     </div>
     ${symmetrySection(o.id, o.sym)}
     <div class="section"><h3>Transform</h3>

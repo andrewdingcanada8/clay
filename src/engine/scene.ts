@@ -51,6 +51,11 @@ export interface CompiledGroup {
   t: number;
   /** Smooth-union radius (0 = sharp min). */
   k: number;
+  /** The widest blend any of its objects is folded with on the way to the
+   *  result: its own steps and every enclosing group's fold (a group blended into
+   *  its parent). How far past its objects it can change the field, e.g. a
+   *  fillet reaching out from a cylinder in a group blended with another. */
+  reach: number;
   /** Edge rounding radius. */
   round: number;
   /** Round the finished body as a whole (a grid, engine/round) rather than each
@@ -111,7 +116,7 @@ export function compileGroups(doc: SceneDoc): CompiledGroup[] {
     index, id: g.id, name: g.name, t: Math.max(0.01, g.thickness), k: Math.max(0, g.blend ?? 0), round: Math.max(0, g.round ?? 0), hollow: false,
     compound: !!g.compound && (g.round ?? 0) > 0, rim: g.compound ? 0 : Math.max(0, g.round ?? 0),
     shells: [], solids: [], subs: [], pins: [], holes: new Set(), bounds: emptyAABB(), shellBounds: emptyAABB(),
-    prog: [], open: -1, close: -1, complex: false, cutsBound: true,
+    prog: [], open: -1, close: -1, complex: false, cutsBound: true, reach: 0,
   }));
   const gById = new Map(groups.map((g) => [g.id, g]));
   for (const o of objs) {
@@ -128,8 +133,6 @@ export function compileGroups(doc: SceneDoc): CompiledGroup[] {
     for (const o of g.shells) {
       growAABB(g.shellBounds, ...o.worldBounds.min); growAABB(g.shellBounds, ...o.worldBounds.max);
     }
-    // a smooth union bulges at most k/4 past the plain union
-    if (g.k > 0) for (const b of [g.bounds, g.shellBounds]) for (let a = 0; a < 3; a++) { b.min[a] -= g.k / 4; b.max[a] += g.k / 4; }
   }
   for (const pin of doc.pins) {
     const o = byId.get(pin.objectId);
@@ -164,8 +167,26 @@ export function compileGroups(doc: SceneDoc): CompiledGroup[] {
       prog.push({ op: 2, o: null, sub: (ins[1] & 1) === 1, solid: false, k: ins[3], g: live });
     }
   }
+  // each object's reach: the widest blend among its own step and the folds of the
+  // groups around it (a ')' folds its group into the parent with that blend)
+  const closeK = new Map<number, number>();
+  const stack: number[] = [];
+  prog.forEach((n, i) => {
+    if (n.op === 1) stack.push(i);
+    else if (n.op === 2) closeK.set(stack.pop() ?? -1, n.k);
+  });
+  const outer: number[] = [0];
+  const bodyOf = new Map<CompiledObject, CompiledGroup>();
+  for (const g of groups) for (const o of [...g.shells, ...g.solids, ...g.subs]) bodyOf.set(o, g);
+  prog.forEach((n, i) => {
+    const top = outer[outer.length - 1];
+    if (n.op === 1) outer.push(Math.max(top, closeK.get(i) ?? 0));
+    else if (n.op === 2) { if (outer.length > 1) outer.pop(); }
+    else { const g = bodyOf.get(n.o!); if (g) g.reach = Math.max(g.reach, top, n.k); }
+  });
   for (const g of kept) {
     g.prog = prog;
+    g.reach = Math.max(g.reach, g.k);
     if (g.open < 0) continue;
     let cut = false;
     // its objects join with the blends of the folds they're in (nested groups'
@@ -179,6 +200,14 @@ export function compileGroups(doc: SceneDoc): CompiledGroup[] {
       // (a nested group: complex; a group cut counts as a cut, its adds as adds)
       if (n.op !== 0) { g.complex = true; if (n.op === 2 && n.sub) cut = true; continue; }
       if (n.sub) { cut = true; if (n.k > 0) g.complex = true; } else if (cut) { g.complex = true; g.cutsBound = false; }
+    }
+  }
+  // a smooth union bulges at most k/4 past the plain union: the body's own
+  // blends for its shell (what it is hollowed as), every fold for what is drawn
+  for (const g of kept) {
+    for (let a = 0; a < 3; a++) {
+      if (g.reach > 0) { g.bounds.min[a] -= g.reach / 4; g.bounds.max[a] += g.reach / 4; }
+      if (g.k > 0) { g.shellBounds.min[a] -= g.k / 4; g.shellBounds.max[a] += g.k / 4; }
     }
   }
   return kept;

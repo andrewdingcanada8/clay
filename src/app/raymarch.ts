@@ -73,6 +73,7 @@ uniform vec4 uGroupC[${MAX_GROUPS}];
 uniform vec4 uGroupE[${MAX_GROUPS}];
 uniform float uT[${MAX_GROUPS}];
 uniform float uK[${MAX_GROUPS}];
+uniform float uReach[${MAX_GROUPS}]; // scene.CompiledGroup.reach: every fold its objects pass through
 uniform int uCutsBound[${MAX_GROUPS}]; // scene.CompiledGroup.cutsBound
 uniform float uRound[${MAX_GROUPS}]; // rounds the rims of the group's cuts
 uniform int uHollow[${MAX_GROUPS}];
@@ -313,7 +314,7 @@ uvec4 rayMask(vec3 ro, vec3 rd, float ta, float tb, float reach, out vec2 span) 
     vec4 meta = row(i, 6), S = row(i, 4);
     int g = int(meta.w);
     float cavH = g < ${MAX_GRIDS} ? uCavH[min(g, ${MAX_GRIDS - 1})] : 0.0;
-    float grow = reach + uK[g] + uRound[g] + 3.0 * cavH + 0.05;
+    float grow = reach + uReach[g] + uRound[g] + 3.0 * cavH + 0.05;
     if (int(meta.z) != 0) grow += 2.0 * row(i, 5).w; // depth carries on through openings
     if (i >= uGroupRange[g].z) grow += 2.0 * uT[g];  // a cut's wall lies up to t inside the shape
     vec3 o = toLocal(i, ro), d = toLocal(i, ro + rd) - o;
@@ -712,6 +713,7 @@ export class SdfRenderer {
       uGroupE: { value: range(MAX_GROUPS).map(() => new THREE.Vector4()) },
       uT: { value: range(MAX_GROUPS).map(() => 0.5) },
       uK: { value: range(MAX_GROUPS).map(() => 0) },
+      uReach: { value: range(MAX_GROUPS).map(() => 0) },
       uRound: { value: range(MAX_GROUPS).map(() => 0) },
       uHollow: { value: range(MAX_GROUPS).map(() => 0) },
       uCutsBound: { value: range(MAX_GROUPS).map(() => 1) },
@@ -821,7 +823,7 @@ export class SdfRenderer {
     u.uSweepCount.value = ns;
     // beyond this, a sweep's bounding sphere stands in for it: farther than any
     // caller needs it exactly (blends, occlusion samples, cut walls)
-    u.uSweepGate.value = 4 + Math.max(0, ...groups.map((g) => g.k)) + 2 * Math.max(0, ...groups.map((g) => g.t));
+    u.uSweepGate.value = 4 + Math.max(0, ...groups.map((g) => g.reach)) + 2 * Math.max(0, ...groups.map((g) => g.t));
     // the layer program, by object and body index; each body's widest blend (culling reach)
     const prog: number[] = [];
     const ks = groups.map(() => 0);
@@ -836,7 +838,10 @@ export class SdfRenderer {
       } else if (n.op === 1) prog.push(1, 0, 0, 0);
       else prog.push(2, n.sub ? 1 : 0, n.g ? groups.indexOf(n.g) + 1 : 0, n.k);
     }
-    ks.forEach((k, i) => { (u.uK.value as number[])[i] = Math.max(k, groups[i].k); });
+    ks.forEach((k, i) => {
+      (u.uK.value as number[])[i] = Math.max(k, groups[i].k);
+      (u.uReach.value as number[])[i] = Math.max(k, groups[i].k, groups[i].reach);
+    });
     u.uProgLen.value = Math.min(MAX_PROG, prog.length / 4);
     u.uProgRow.value = objs.length;
     this.writeData(objs, groups, slots, prog);
