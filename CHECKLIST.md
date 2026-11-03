@@ -100,3 +100,4 @@ Last updated: 2026-10-27. Benchmark numbers come from `bench/REPORT.md`, which `
 | ✅ | Visual contact sheets per case × kernel (`bench/out/*.png`) | Exterior views, 3 sections, zoomed wall details, 360° interior camera (black on white: white = opening or leak). |
 | ✅ | Programmatic: build time, triangles, open edges (must be 0), non-manifold edges, interior white % | |
 | ⬜ | Expected-opening masks so the interior white % is checked automatically | |
+| ⬜ | Seam history with a blend (deferred) | Same view as the Seam History viewer (sphere + cube, SDF, Z section at 0.5, camera pos [12,0,12] target [2,1,-2]) but with group blend 1.5, across commits #20–now; add as a second strip in that viewer. #55, #58, #67 should change the seam. Also optionally #10–#19 for the sharp seam's history. |
