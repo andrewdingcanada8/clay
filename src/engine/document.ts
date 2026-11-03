@@ -14,14 +14,18 @@ export type PrimitiveType = 'sphere' | 'box' | 'cylinder' | 'cone' | 'torus' | '
  *  solid    — never hollowed itself, but still cut by its group's cavity.
  */
 /** subtract: carved from the shell shape before hollowing (the cut gets a wall);
- *  cutout: carved from the finished piece, walls and all (opens into the hollow). */
-export type ObjectMode = 'shell' | 'solid' | 'subtract' | 'cutout';
-export const isCut = (m: ObjectMode) => m === 'subtract' || m === 'cutout';
+ *  cutout: carved from the finished piece, walls and all (opens into the hollow);
+ *  mask: keeps only what is below it inside its shape (an intersection; the mask
+ *  itself adds nothing). */
+export type ObjectMode = 'shell' | 'solid' | 'subtract' | 'cutout' | 'mask';
+/** Modes that add no clay of their own: cuts and masks. */
+export const isCut = (m: ObjectMode) => m === 'subtract' || m === 'cutout' || m === 'mask';
 
 /** How a layer joins the layers below it in its group (bottom to top, as in a
  *  paint program's layers): added, carved out before its group is hollowed (the cut
- *  gets a wall), or cut out of the finished group, walls and all. */
-export type LayerOp = 'add' | 'subtract' | 'cutout';
+ *  gets a wall), cut out of the finished group, walls and all, or a mask: what is
+ *  below is kept only inside the layer's shape, and the layer itself isn't drawn. */
+export type LayerOp = 'add' | 'subtract' | 'cutout' | 'mask';
 
 /**
  * A group of layers. In a document as authored, groups form the layer tree: each
@@ -155,8 +159,8 @@ export interface SceneDoc {
 
 /**
  * One step of a built document's program, run with a stack of (body, shell
- * surface) pairs: ['o', object id, flags (1 subtract, 2 solid), blend] folds an
- * object into the group on top; ['('] starts a group; [')', flags (1 subtract),
+ * surface) pairs: ['o', object id, flags (1 subtract, 2 solid, 4 mask), blend] folds an
+ * object into the group on top; ['('] starts a group; [')', flags (1 subtract, 4 mask),
  * hollowed body's group id or '', blend] ends one, hollowing it if it names a body,
  * and folds it into its parent.
  */
@@ -324,7 +328,7 @@ export function normalizeDoc(d: Partial<SceneDoc> & { shell?: { enabled?: boolea
   const tree = Array.isArray(d.root);
   const groups = tree ? d.groups ?? [] : d.groups?.length ? d.groups : [{ id: DEFAULT_GROUP, name: 'Group 1', thickness: legacyWall ?? DEFAULT_WALL }];
   const groupIds = new Set(groups.map((g) => g.id));
-  const modeMap: Record<string, ObjectMode> = { join: 'shell', cut: 'subtract', solid: 'solid', shell: 'shell', subtract: 'subtract', cutout: 'cutout' };
+  const modeMap: Record<string, ObjectMode> = { join: 'shell', cut: 'subtract', solid: 'solid', shell: 'shell', subtract: 'subtract', cutout: 'cutout', mask: 'mask' };
   return {
     ...base,
     ...d,

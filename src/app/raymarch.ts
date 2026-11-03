@@ -23,6 +23,8 @@ const MAX_PINS = 32;
 const ROWS = 10; // texels per object in the data texture
 const TYPE_CODE: Record<string, number> = { sphere: 0, box: 1, cylinder: 2, cone: 3, torus: 4, capsule: 5, prism: 6, revolve: 7, sweep: 8 };
 const MAX_SWEEPS = 6;
+/** Hole-mask bit marking a mask object (above the faces' bits): no opening, never culled. */
+const MASK_FLAG = 256;
 /** Layer program: most steps, and deepest group nesting. */
 const MAX_PROG = 512;
 const MAX_DEPTH = 12;
@@ -319,6 +321,8 @@ uvec4 rayMask(vec3 ro, vec3 rd, float ta, float tb, float reach, out vec2 span) 
     if (i >= uGroupRange[g].z) grow += 2.0 * uT[g];  // a cut's wall lies up to t inside the shape
     vec3 o = toLocal(i, ro), d = toLocal(i, ro + rd) - o;
     vec3 gl = grow / S.xyz;
+    // a mask trims everything below it wherever the ray goes: never culled
+    if ((int(meta.z) & ${MASK_FLAG}) != 0) { m[i >> 5] |= 1u << uint(i & 31); continue; }
     vec2 st = segBox(o, d, ta, tb, row(i, 8).xyz - gl, row(i, 9).xyz + gl);
     if (st.x <= st.y) { m[i >> 5] |= 1u << uint(i & 31); span = vec2(min(span.x, st.x), max(span.y, st.y)); }
   }
@@ -532,12 +536,16 @@ float map(vec3 p) {
       int i = int(ins.y + 0.5), fl = int(ins.z + 0.5);
       float k = ins.w;
       if (!objOn(i)) continue;
-      bool sub = (fl & 1) == 1, solid = (fl & 2) == 2;
+      bool sub = (fl & 1) == 1, solid = (fl & 2) == 2, msk = (fl & 4) == 4;
       float b = bound(i, p);
-      // (the shell surface is never below the body, so the body's test covers it for cuts)
-      bool need = sub ? b < 0.5 + k - g : b < max(solid ? g : f, 0.0) + 0.5 + k;
+      // (the shell surface is never below the body, so the body's test covers it for
+      // cuts; a mask's distance is the field wherever it trims, so it is always exact)
+      bool need = msk || (sub ? b < 0.5 + k - g : b < max(solid ? g : f, 0.0) + 0.5 + k);
       float d = need ? sdShell(i, p) : b;
-      if (sub) {
+      if (msk) {
+        if (d > g) kd = -1;
+        g = -smin(-g, -d, k); f = -smin(-f, -d, k);
+      } else if (sub) {
         if (-d > g) kd = -1;
         g = -smin(-g, d, k); f = -smin(-f, d, k);
       } else {
@@ -559,7 +567,10 @@ float map(vec3 p) {
         if (-cav > gv) { gv = -cav; kind = u; }
       }
       if (sp > 0) { sp--; g = G[sp]; f = F[sp]; kd = K[sp]; }
-      if ((fl & 1) == 1) {
+      if ((fl & 4) == 4) {
+        if (gv > g) kd = kind;
+        g = -smin(-g, -gv, k); f = -smin(-f, -gv, k);
+      } else if ((fl & 1) == 1) {
         if (-gv > g) kd = -1;
         g = -smin(-g, gv, k); f = -smin(-f, gv, k);
       } else {
@@ -832,11 +843,11 @@ export class SdfRenderer {
       if (n.op === 0) {
         const i = objs.indexOf(n.o!);
         if (i < 0) continue;
-        prog.push(0, i, (n.sub ? 1 : 0) | (n.solid ? 2 : 0), n.k);
+        prog.push(0, i, (n.sub ? 1 : 0) | (n.solid ? 2 : 0) | (n.mask ? 4 : 0), n.k);
         const b = bodyOf(n.o!);
         if (b >= 0) ks[b] = Math.max(ks[b], n.k);
       } else if (n.op === 1) prog.push(1, 0, 0, 0);
-      else prog.push(2, n.sub ? 1 : 0, n.g ? groups.indexOf(n.g) + 1 : 0, n.k);
+      else prog.push(2, (n.sub ? 1 : 0) | (n.mask ? 4 : 0), n.g ? groups.indexOf(n.g) + 1 : 0, n.k);
     }
     ks.forEach((k, i) => {
       (u.uK.value as number[])[i] = Math.max(k, groups[i].k);
@@ -1067,6 +1078,7 @@ function usesTable(o: CompiledObject): boolean {
 
 /** Bit mask of a primitive's faces that are openings (layout matches holeDepth in the shader). */
 function holeMask(o: CompiledObject, g: CompiledGroup): number {
+  if (o.obj.mode === 'mask') return MASK_FLAG; // (not an opening: skipped by the cut-depth bound, never culled)
   if (isCut(o.obj.mode)) return o.obj.mode === 'cutout' ? 1 : 0; // a cutout gets no wall
   const h = (f: string) => g.holes.has(`${o.obj.id}|${f}`);
   if (usesTable(o)) return o.profile!.faces.some(h) ? 1 : 0;

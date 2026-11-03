@@ -90,7 +90,7 @@ export interface CompiledGroup {
 }
 
 /** A program step with its objects and bodies resolved (see document.ProgIns). */
-export interface CompiledIns { op: 0 | 1 | 2; o: CompiledObject | null; sub: boolean; solid: boolean; k: number; g: CompiledGroup | null }
+export interface CompiledIns { op: 0 | 1 | 2; o: CompiledObject | null; sub: boolean; solid: boolean; k: number; g: CompiledGroup | null; mask?: boolean }
 
 /** The program of a document from before layers: each group a hollowed body of
  *  its objects, cutouts and pins cut after hollowing. */
@@ -157,14 +157,14 @@ export function compileGroups(doc: SceneDoc): CompiledGroup[] {
   for (const ins of doc.program ?? legacyProgram(doc)) {
     if (ins[0] === 'o') {
       const o = byId.get(ins[1]);
-      if (o) prog.push({ op: 0, o, sub: (ins[2] & 1) === 1, solid: (ins[2] & 2) === 2, k: ins[3], g: null });
+      if (o) prog.push({ op: 0, o, sub: (ins[2] & 1) === 1, solid: (ins[2] & 2) === 2, k: ins[3], g: null, mask: (ins[2] & 4) === 4 });
     } else if (ins[0] === '(') { opens.push(prog.length); prog.push({ op: 1, o: null, sub: false, solid: false, k: 0, g: null }); }
     else {
       const g = gById.get(ins[2]) ?? null;
       const open = opens.pop() ?? 0;
       const live = g && kept.includes(g) ? g : null;
       if (live) { live.open = open; live.close = prog.length; }
-      prog.push({ op: 2, o: null, sub: (ins[1] & 1) === 1, solid: false, k: ins[3], g: live });
+      prog.push({ op: 2, o: null, sub: (ins[1] & 1) === 1, solid: false, k: ins[3], g: live, mask: (ins[1] & 4) === 4 });
     }
   }
   // each object's reach: the widest blend among its own step and the folds of the
@@ -197,8 +197,10 @@ export function compileGroups(doc: SceneDoc): CompiledGroup[] {
     }
     for (let i = g.open + 1; i < g.close; i++) {
       const n = prog[i];
-      // (a nested group: complex; a group cut counts as a cut, its adds as adds)
+      // (a nested group: complex; a group cut counts as a cut, its adds as adds; a mask
+      // trims the body below the analytic depth: the grid brings in its walls)
       if (n.op !== 0) { g.complex = true; if (n.op === 2 && n.sub) cut = true; continue; }
+      if (n.mask) { g.complex = true; continue; }
       if (n.sub) { cut = true; if (n.k > 0) g.complex = true; } else if (cut) { g.complex = true; g.cutsBound = false; }
     }
   }
@@ -279,7 +281,8 @@ function runProgram(prog: CompiledIns[], start: number, end: number, depth: Dept
     const n = prog[i];
     if (n.op === 0) {
       const d = sdfWorld(n.o!, x, y, z);
-      if (n.sub) { stG[sp] = smax(stG[sp], -d, n.k); stF[sp] = smax(stF[sp], -d, n.k); }
+      if (n.mask) { stG[sp] = smax(stG[sp], d, n.k); stF[sp] = smax(stF[sp], d, n.k); }
+      else if (n.sub) { stG[sp] = smax(stG[sp], -d, n.k); stF[sp] = smax(stF[sp], -d, n.k); }
       else { stG[sp] = smin(stG[sp], d, n.k); if (!n.solid) stF[sp] = smin(stF[sp], d, n.k); }
     } else if (n.op === 1) {
       sp++;
@@ -294,7 +297,10 @@ function runProgram(prog: CompiledIns[], start: number, end: number, depth: Dept
         if (-cut > gv) { gv = -cut; kind = ck; unit = g.index; } else if (kind === 0) unit = g.index;
       }
       sp--;
-      if (n.sub) { stG[sp] = smax(stG[sp], -gv, n.k); stF[sp] = smax(stF[sp], -gv, n.k); }
+      if (n.mask) {
+        if (gv > stG[sp]) { stK[sp] = kind; stU[sp] = unit; }
+        stG[sp] = smax(stG[sp], gv, n.k); stF[sp] = smax(stF[sp], gv, n.k);
+      } else if (n.sub) { stG[sp] = smax(stG[sp], -gv, n.k); stF[sp] = smax(stF[sp], -gv, n.k); }
       else {
         if (gv < stG[sp]) { stK[sp] = kind; stU[sp] = unit; }
         stG[sp] = smin(stG[sp], gv, n.k);
@@ -309,7 +315,7 @@ export function bodySDF(g: CompiledGroup, x: number, y: number, z: number): numb
   let u = Infinity, sub = Infinity;
   for (const o of g.shells) u = smin(u, sdfWorld(o, x, y, z), g.k);
   for (const o of g.solids) u = smin(u, sdfWorld(o, x, y, z), g.k);
-  for (const o of g.subs) if (o.obj.mode !== 'cutout') sub = Math.min(sub, sdfWorld(o, x, y, z));
+  for (const o of g.subs) if (o.obj.mode === 'subtract') sub = Math.min(sub, sdfWorld(o, x, y, z));
   return smax(u, -sub, g.rim);
 }
 

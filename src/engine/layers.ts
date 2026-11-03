@@ -289,7 +289,7 @@ interface Placed { obj: SceneObject; flips: number }
 /** xf: the enclosing groups' placement; maps: the enclosing group copies' moves,
  *  innermost first; unit: the hollowed group whose body the layers join; k: the
  *  blend of the group being folded. */
-interface Ctx { xf: Transform; maps: SymMap[]; suffix: string; unit: Group | null; k: number }
+interface Ctx { xf: Transform; maps: SymMap[]; suffix: string; unit: Group | null; k: number; inMask?: boolean }
 
 /** The copies a symmetry makes (none for the original), about its frame. */
 function symMaps(sym: Symmetry | undefined, frame: (sym: Symmetry) => { c: Vec3; a: Vec3 }): SymMap[] {
@@ -355,26 +355,31 @@ export function flattenLayers(src: SceneDoc, notes: string[] = []): SceneDoc {
       const o = objs.get(id);
       if (o) {
         if (o.hidden || o.type === 'part') continue;
-        const sub = isCut(o.mode);
+        const mask = o.mode === 'mask', sub = isCut(o.mode) && !mask;
         const unit = ctx.unit ?? base;
-        const solid = !sub && o.mode === 'solid';
+        const solid = !sub && !mask && o.mode === 'solid';
+        // (a mask group's layers only shape the mask: none of them is clay of the body)
+        const mode = mask || ctx.inMask ? 'mask' : sub ? 'subtract' : ctx.unit && !solid ? 'shell' : 'solid';
         for (const p of place(o, ctx)) {
-          out.objects.push({ ...p.obj, groupId: unit.id, mode: sub ? 'subtract' : ctx.unit && !solid ? 'shell' : 'solid' });
-          prog.push(['o', p.obj.id, (sub ? 1 : 0) | (solid ? 2 : 0), ctx.k]);
+          out.objects.push({ ...p.obj, groupId: unit.id, mode });
+          prog.push(['o', p.obj.id, (sub ? 1 : 0) | (solid ? 2 : 0) | (mask ? 4 : 0), ctx.k]);
         }
         continue;
       }
       const g = groups.get(id);
       if (!g || g.hidden) continue;
+      const op = g.op ?? 'add';
+      // (a mask is a shape, not a body: it isn't hollowed)
+      const hollow = !!g.shell && op !== 'mask';
       forCopies(g, ctx, (c) => {
         let unit = ctx.unit;
-        if (g.shell) {
+        if (hollow) {
           unit = { id: g.id + c.suffix, name: g.name, thickness: g.thickness, blend: g.blend };
           units.push(unit);
         }
         prog.push(['(']);
-        walk(g.children ?? [], { ...c, unit, k: Math.max(0, g.blend ?? 0) });
-        prog.push([')', (g.op ?? 'add') === 'add' ? 0 : 1, g.shell ? unit!.id : '', ctx.k]);
+        walk(g.children ?? [], { ...c, unit, k: Math.max(0, g.blend ?? 0), inMask: op === 'mask' || (!!ctx.inMask && !hollow) });
+        prog.push([')', op === 'mask' ? 4 : op === 'add' ? 0 : 1, hollow ? unit!.id : '', ctx.k]);
       });
     }
   };

@@ -348,6 +348,8 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
   // A hollow body's cavity: the hollow grown in from its Shell objects (each
   // form's own; see Built), carved clear of its closed cuts by the wall, opened
   // through its open faces, and its pin holes.
+  // mask objects folded in as masks themselves (not layers of a mask group)
+  const directMasks = new Set((doc.program ?? []).filter((x): x is ['o', string, number, number] => x[0] === 'o' && (x[2] & 4) === 4).map((x) => x[1]));
   const unitCavity = (g: SceneDoc['groups'][number]): Manifold | null => {
     const members = objs.filter((c) => c.obj.groupId === g.id);
     const shells = members.filter((c) => c.obj.mode === 'shell');
@@ -419,6 +421,13 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
       cavCuts.push(cavity);
       let cav = union(cavCuts);
       if (cav && closed && doc.meshMethod !== 'minkowski') cav = keep(cav.subtract(keep(closed.minkowskiSum(ball))));
+      // a mask inside the body: the walls follow it, so the hollow stays a wall inside it
+      for (const c of subs) {
+        if (c.obj.mode !== 'mask' || !cav) continue;
+        if (!directMasks.has(c.obj.id)) { warnings.push(`${g.name}: a mask group inside a hollow group gets no wall along it in the mesh kernel`); continue; }
+        const inset = built.get(c.obj.id)!.cavity(-t);
+        cav = inset ? keep(cav.intersect(inset)) : null;
+      }
       cuts.push(cav);
     }
     const memberIds = new Set(members.map((c) => c.obj.id));
@@ -432,15 +441,16 @@ export async function buildMeshKernel(doc: SceneDoc, quality: Quality): Promise<
   const units = new Map(doc.groups.map((g) => [g.id, g]));
   const stack: (Manifold | null)[] = [];
   let cur: Manifold | null = null;
-  const fold = (acc: Manifold | null, m: Manifold | null, sub: boolean) => (sub ? (acc && m ? keep(acc.subtract(m)) : acc) : union([acc, m]));
+  const fold = (acc: Manifold | null, m: Manifold | null, fl: number) =>
+    (fl & 4 ? (acc && m ? keep(acc.intersect(m)) : null) : fl & 1 ? (acc && m ? keep(acc.subtract(m)) : acc) : union([acc, m]));
   for (const ins of doc.program ?? legacyProgram(doc)) {
-    if (ins[0] === 'o') cur = fold(cur, built.get(ins[1])?.solid ?? null, (ins[2] & 1) === 1);
+    if (ins[0] === 'o') cur = fold(cur, built.get(ins[1])?.solid ?? null, ins[2] & 5);
     else if (ins[0] === '(') { stack.push(cur); cur = null; }
     else {
       let body = cur;
       const u = ins[2] ? units.get(ins[2]) : undefined;
       if (u && body) { const cav = unitCavity(u); if (cav) body = keep(body.subtract(cav)); }
-      cur = fold(stack.pop() ?? null, body, (ins[1] & 1) === 1);
+      cur = fold(stack.pop() ?? null, body, ins[1] & 5);
     }
   }
   timer.lap('groups');

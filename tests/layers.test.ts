@@ -292,3 +292,100 @@ describe('a layer added above a cut in a hollow group', () => {
     expect(f(10.9, 0, 0)).toBeGreaterThan(0); // its end is open
   }, 120000);
 });
+
+describe('mask layers', () => {
+  const ball = (r: number, x = 0, y = 0, z = 0, extra: Record<string, unknown> = {}) =>
+    makeObject('sphere', { params: { r }, transform: { position: [x, y, z], rotation: [0, 0, 0], scale: [1, 1, 1] }, ...extra });
+  const solidGroup = () => { const d = emptyDoc(); d.groups[0].shell = false; return d; };
+
+  it('an object mask keeps only what is below it inside its shape, and adds nothing', () => {
+    const d = solidGroup();
+    const body = makeObject('box', box(0, 0, 0, 4));
+    const mask = ball(1.5, 1.5, 0, 0, { mode: 'mask' });
+    d.objects.push(body, mask);
+    d.groups[0].children = [body.id, mask.id];
+    const x = flattenLayers(d);
+    expect(x.program!.find((p) => p[0] === 'o' && p[1] === mask.id)![2]).toBe(4);
+    const g = compileGroups(x);
+    const f = (px: number, py: number, pz: number) => evalScene(g, approxDepth, px, py, pz);
+    expect(f(1.5, 0, 0)).toBeLessThan(0); // in both
+    expect(f(-1.5, 0, 0)).toBeGreaterThan(0); // in the box, outside the mask
+    expect(f(2.6, 0, 0)).toBeGreaterThan(0); // in the mask, outside the box
+    expect(f(1.5, 1.6, 0)).toBeGreaterThan(0); // in the box, just outside the ball
+    expect(f(1.5, 0, 0)).toBeCloseTo(-Math.min(0.5, 1.5), 6); // the box's +x face is nearest
+  });
+
+  it('layers above a mask are not masked', () => {
+    const d = solidGroup();
+    const body = makeObject('box', box(0, 0, 0, 4));
+    const mask = ball(1, 1.5, 0, 0, { mode: 'mask' });
+    const top = ball(0.5, -1.5, 0, 0);
+    d.objects.push(body, mask, top);
+    d.groups[0].children = [body.id, mask.id, top.id];
+    const g = compileGroups(flattenLayers(d));
+    expect(evalScene(g, approxDepth, -1.5, 0, 0)).toBeLessThan(0); // the top ball stays
+    expect(evalScene(g, approxDepth, -1.5, 1.5, 0)).toBeGreaterThan(0); // the box there is masked away
+  });
+
+  it('a group can be a mask: its layers make the shape (not hollowed, not drawn)', () => {
+    const d = solidGroup();
+    const body = makeObject('box', box(0, 0, 0, 8));
+    const a = ball(1, -2, 0, 0), b = ball(1, 2, 0, 0);
+    const mg = newGroup('mg', 'Mask', { op: 'mask', shell: true, children: [a.id, b.id] });
+    d.objects.push(body, a, b);
+    d.groups.push(mg);
+    d.groups[0].children = [body.id, 'mg'];
+    const x = flattenLayers(d);
+    expect(x.groups.some((u) => u.id === 'mg')).toBe(false); // no hollow body
+    expect(x.objects.filter((o) => o.id === a.id || o.id === b.id).every((o) => o.mode === 'mask')).toBe(true);
+    const g = compileGroups(x);
+    const f = (px: number, py: number, pz: number) => evalScene(g, approxDepth, px, py, pz);
+    expect(f(-2, 0, 0)).toBeLessThan(0);
+    expect(f(2, 0, 0)).toBeLessThan(0);
+    expect(f(0, 0, 0)).toBeGreaterThan(0); // between the balls: masked away
+    expect(f(0, 3, 0)).toBeGreaterThan(0);
+  });
+
+  it('a mask inside a hollow group: the walls follow it', async () => {
+    const d = emptyDoc();
+    d.groups[0].thickness = 0.5;
+    const body = makeObject('box', box(0, 0, 0, 8));
+    const mask = ball(3.5, 2, 0, 0, { mode: 'mask' });
+    d.objects.push(body, mask);
+    d.groups[0].children = [body.id, mask.id];
+    const groups = compileGroups(flattenLayers(d));
+    const unit = groups.find((u) => u.hollow)!;
+    expect(unit.complex).toBe(true);
+    const { cavityGrids, depthFromGrids } = await import('../src/engine/sdfKernel');
+    const grids: ReturnType<typeof cavityGrids> = [];
+    cavityGrids(groups, 'normal').forEach((c, i) => { grids[groups[i].index] = c; });
+    const depth = depthFromGrids(grids);
+    const f = (px: number, py: number, pz: number) => evalScene(groups, depth, px, py, pz);
+    // along -x: the mask's surface is at x = -1.5; a wall inside it, then the hollow
+    expect(f(-1.6, 0, 0)).toBeGreaterThan(0); // masked away
+    expect(f(-1.25, 0, 0)).toBeLessThan(0); // the wall along the mask
+    expect(f(0.5, 0, 0)).toBeGreaterThan(0); // the hollow
+    expect(f(3.75, 0, 0)).toBeLessThan(0); // the box's own wall
+  }, 60000);
+
+  it('a mask above a hollow group trims the finished walls (opens it)', async () => {
+    const d = emptyDoc();
+    d.groups[0].thickness = 0.5;
+    const body = makeObject('box', box(0, 0, 0, 8));
+    d.objects.push(body);
+    d.groups[0].children = [body.id];
+    const mask = ball(3.5, 2, 0, 0, { mode: 'mask', groupId: '' });
+    d.objects.push(mask);
+    d.root = [d.groups[0].id, mask.id];
+    const groups = compileGroups(flattenLayers(d));
+    const { cavityGrids, depthFromGrids } = await import('../src/engine/sdfKernel');
+    const grids: ReturnType<typeof cavityGrids> = [];
+    cavityGrids(groups, 'normal').forEach((c, i) => { grids[groups[i].index] = c; });
+    const depth = depthFromGrids(grids);
+    const f = (px: number, py: number, pz: number) => evalScene(groups, depth, px, py, pz);
+    expect(f(-1.25, 0, 0)).toBeGreaterThan(0); // no wall at the mask's surface: the hollow is open there
+    expect(f(3.75, 0, 0)).toBeLessThan(0); // the box's wall inside the mask stays
+    expect(f(2, 0, 0)).toBeGreaterThan(0); // the hollow
+    expect(f(2, 3.75, 0)).toBeGreaterThan(0); // the top wall, outside the mask
+  }, 60000);
+});

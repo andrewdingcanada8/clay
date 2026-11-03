@@ -429,7 +429,7 @@ function renderPanel() {
 
 function objectChips() {
   if (!doc.objects.length) return '<p class="hint">No objects yet. Add one from the Add tab.</p>';
-  return `<div class="chips">${doc.objects.map((o) => `<button class="obj-chip" data-select="${o.id}" aria-pressed="${o.id === ui.selectedId}"><span class="dot ${isCut(o.mode) ? 'cut' : o.mode}"></span>${escapeHtml(o.name)}</button>`).join('')}</div>`;
+  return `<div class="chips">${doc.objects.map((o) => `<button class="obj-chip" data-select="${o.id}" aria-pressed="${o.id === ui.selectedId}"><span class="dot ${o.mode === 'mask' ? 'mask' : isCut(o.mode) ? 'cut' : o.mode}"></span>${escapeHtml(o.name)}</button>`).join('')}</div>`;
 }
 
 function addPanel() {
@@ -638,15 +638,15 @@ function opControls(o: SceneObject) {
   const body = bodyGroup(o.id);
   const hollow = !!body?.shell;
   const op: LayerOp = isCut(o.mode) ? o.mode as LayerOp : 'add';
-  return `${seg<LayerOp>('mode', op, [['add', 'Add'], ['subtract', 'Subtract']])}
+  return `${seg<LayerOp>('mode', op, [['add', 'Add'], ['subtract', 'Subtract'], ['mask', 'Mask']])}
     ${op === 'add' && hollow ? `<label class="toggle"><input type="checkbox" data-act="keep-solid" ${o.mode === 'solid' ? 'checked' : ''}> Keep solid (not hollowed with "${escapeHtml(body!.name)}")</label>` : ''}
-    <p class="hint">${op === 'add' ? (hollow ? (o.mode === 'solid' ? 'Joins the body but is not hollowed itself; the hollow still carves it where it passes through.' : `Joins "${escapeHtml(body!.name)}", which is hollowed as one body.`) : 'Joins the layers below it in its group.') : hollow ? `Carves the layers below it before "${escapeHtml(body!.name)}" is hollowed, so the cut gets a wall. To cut the finished walls instead, put it above that group.` : 'Carves the layers below it in its group.'}</p>`;
+    <p class="hint">${op === 'mask' ? `Keeps only the part of the layers below it in its group that lies inside this shape; the mask itself isn't drawn.${hollow ? ` Inside "${escapeHtml(body!.name)}" the walls follow the mask; above that group it trims the finished walls.` : ''}` : op === 'add' ? (hollow ? (o.mode === 'solid' ? 'Joins the body but is not hollowed itself; the hollow still carves it where it passes through.' : `Joins "${escapeHtml(body!.name)}", which is hollowed as one body.`) : 'Joins the layers below it in its group.') : hollow ? `Carves the layers below it before "${escapeHtml(body!.name)}" is hollowed, so the cut gets a wall. To cut the finished walls instead, put it above that group.` : 'Carves the layers below it in its group.'}</p>`;
 }
 
 // ---------- the Layers tab
 const EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 const EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4M6.6 6.6C3.7 8.4 2 12 2 12s3.5 7 10 7c1.8 0 3.4-.5 4.8-1.3"/></svg>';
-const OP_MARK: Record<LayerOp, string> = { add: '+', subtract: '−', cutout: '⊘' };
+const OP_MARK: Record<LayerOp, string> = { add: '+', subtract: '−', cutout: '⊘', mask: '∩' };
 
 function layerRows(gid: string, depth: number): string {
   // children run bottom to top; the list shows the top first, as paint programs do
@@ -685,10 +685,10 @@ function layersPanel() {
     const g = l.g;
     settings = `<div class="section group-card">
       <input class="group-name" data-layer-name="${g.id}" value="${escapeHtml(g.name)}" aria-label="Group name">
-      ${seg<LayerOp>('gop', (g.op ?? 'add') === 'add' ? 'add' : 'subtract', [['add', 'Add'], ['subtract', 'Subtract']])}
-      <p class="hint">${(g.op ?? 'add') === 'add' ? 'The group, as it comes out, joins the layers below it.' : 'The group, as it comes out, carves the layers below it.'}</p>
-      <label class="toggle"><input type="checkbox" data-act="gshell" ${g.shell ? 'checked' : ''}> Shell: hollow this group as one body</label>
-      ${g.shell ? slider('g.wall', 'Wall cm', g.thickness, 0.05, 4, 0.01) : ''}
+      ${seg<LayerOp>('gop', g.op === 'mask' ? 'mask' : (g.op ?? 'add') === 'add' ? 'add' : 'subtract', [['add', 'Add'], ['subtract', 'Subtract'], ['mask', 'Mask']])}
+      <p class="hint">${g.op === 'mask' ? 'The group, as it comes out, is a mask: only the part of the layers below it that lies inside it is kept, and the group itself isn\'t drawn.' : (g.op ?? 'add') === 'add' ? 'The group, as it comes out, joins the layers below it.' : 'The group, as it comes out, carves the layers below it.'}</p>
+      ${g.op === 'mask' ? '' : `<label class="toggle"><input type="checkbox" data-act="gshell" ${g.shell ? 'checked' : ''}> Shell: hollow this group as one body</label>
+      ${g.shell ? slider('g.wall', 'Wall cm', g.thickness, 0.05, 4, 0.01) : ''}`}
       ${slider('g.blend', 'Blend cm', g.blend ?? 0, 0, 10, 0.1)}
       <p class="hint">Shell hollows what the group's layers make, inward from its outside; a cut inside the group gets a wall, a cut above it goes through the walls. Blend smooths where its layers join and where its cuts carve.</p>
       ${ui.partNaming === g.id
