@@ -25,6 +25,7 @@ import {
 } from '../engine/layers';
 import { expandDoc } from '../engine/symmetry';
 import { type GizmoMode, Viewport } from './viewport';
+import { DEFAULT_PROMPT, buildSheet } from './refsheet';
 
 type Tab = 'add' | 'edit' | 'layers' | 'holes' | 'view';
 type Axis = 'x' | 'y' | 'z';
@@ -39,6 +40,7 @@ const ICON: Record<string, string> = {
   undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg>',
   redo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 000 12h3"/></svg>',
   frame: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
+  camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
   sphere: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><circle cx="16" cy="16" r="11"/><ellipse cx="16" cy="16" rx="11" ry="4" opacity=".5"/></svg>',
   box: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 11l10-5 10 5v11l-10 5-10-5z"/><path d="M6 11l10 5 10-5M16 16v11" opacity=".6"/></svg>',
   cylinder: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="16" cy="8" rx="9" ry="3"/><path d="M7 8v16c0 1.7 4 3 9 3s9-1.3 9-3V8"/></svg>',
@@ -151,6 +153,7 @@ app.innerHTML = `
     <div class="topbar">
       <div class="brand">Clay <small id="piece-name">Untitled</small></div>
       <button class="icon-btn" id="btn-gallery" aria-label="Pieces">Pieces</button>
+      <button class="icon-btn" id="btn-capture" aria-label="Capture a reference sheet from this angle" title="Reference sheet from this angle">${ICON.camera}</button>
       <button class="icon-btn" id="btn-frame" aria-label="Frame model">${ICON.frame}</button>
       <button class="icon-btn" id="btn-undo" aria-label="Undo">${ICON.undo}</button>
       <button class="icon-btn" id="btn-redo" aria-label="Redo">${ICON.redo}</button>
@@ -1228,6 +1231,86 @@ document.getElementById('btn-redo')!.addEventListener('click', () => {
   restore(future.pop()!);
 });
 document.getElementById('btn-frame')!.addEventListener('click', () => view.frame());
+document.getElementById('btn-capture')!.addEventListener('click', () => { void captureSheet(); });
+
+// ---------- reference sheet
+const PROMPT_KEY = 'clay.prompt';
+const loadPrompt = () => { try { return localStorage.getItem(PROMPT_KEY) || DEFAULT_PROMPT; } catch { return DEFAULT_PROMPT; } };
+const savePrompt = (v: string) => { try { if (v === DEFAULT_PROMPT) localStorage.removeItem(PROMPT_KEY); else localStorage.setItem(PROMPT_KEY, v); } catch { /* storage unavailable */ } };
+type Downloads = { save(r: { filename: string; data: Blob }): Promise<{ status: string }> };
+let downloadsP: Promise<Downloads | null> | null = null;
+const downloads = () => (downloadsP ??= (async () => {
+  const claude = (window as unknown as { claude?: { use(n: string): Promise<unknown> } }).claude;
+  if (!claude?.use) return null;
+  try { return (await claude.use('downloads')) as Downloads | null; } catch { return null; }
+})());
+
+async function captureSheet() {
+  const btn = document.getElementById('btn-capture') as HTMLButtonElement;
+  if (btn.disabled) return;
+  btn.disabled = true;
+  try {
+    const dir = view.camera.position.clone().sub(view.orbit.target);
+    if (dir.lengthSq() < 1e-9) dir.set(1, 0.6, 1);
+    // (one frame for the button state to show before the renders block)
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    const blob = await buildSheet(view, dir, current.name || 'Untitled');
+    if (!blob) { toast('Nothing to capture yet'); return; }
+    openSheetModal(blob);
+  } catch (e) {
+    toast(`Capture failed: ${(e as Error).message}`);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function openSheetModal(blob: Blob) {
+  document.querySelector('.cap-modal')?.remove();
+  const url = URL.createObjectURL(blob);
+  const name = `${(current.name || 'Untitled').replace(/[^\w\- ]+/g, '').trim() || 'piece'} reference sheet.png`;
+  const m = document.createElement('div');
+  m.className = 'cap-modal';
+  m.innerHTML = `<div class="cap-card" role="dialog" aria-modal="true" aria-labelledby="cap-title">
+      <div class="cap-head"><h2 id="cap-title">Reference sheet</h2><button class="icon-btn" data-cap="close" aria-label="Close">✕</button></div>
+      <img class="cap-img" src="${url}" alt="Reference sheet: this angle with its depth, normal, edge and silhouette maps, and front, side, top and 3/4 views">
+      <div class="row"><button class="btn primary" data-cap="save">Save image</button></div>
+      <p class="hint" id="cap-save-hint">Or press and hold the image to save it to Photos.</p>
+      <label class="cap-label" for="cap-prompt">Prompt</label>
+      <textarea id="cap-prompt" rows="5"></textarea>
+      <div class="row"><button class="btn primary" data-cap="copy">Copy prompt</button><button class="btn" data-cap="reset">Default</button></div>
+      <p class="hint">Not in the image: paste it with the sheet into the image model. Your edits are kept for next time.</p>
+    </div>`;
+  document.body.appendChild(m);
+  const ta = m.querySelector<HTMLTextAreaElement>('#cap-prompt')!;
+  ta.value = loadPrompt();
+  ta.addEventListener('input', () => savePrompt(ta.value));
+  const close = () => { m.remove(); URL.revokeObjectURL(url); };
+  void downloads().then((d) => { if (!d && (window as unknown as { claude?: unknown }).claude) m.querySelector<HTMLButtonElement>('[data-cap="save"]')!.hidden = true; });
+  m.addEventListener('click', async (e) => {
+    if (e.target === m) return close();
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-cap]');
+    if (!b) return;
+    const act = b.dataset.cap;
+    if (act === 'close') close();
+    else if (act === 'reset') { ta.value = DEFAULT_PROMPT; savePrompt(ta.value); }
+    else if (act === 'copy') {
+      try { await navigator.clipboard.writeText(ta.value); toast('Prompt copied'); }
+      catch { ta.focus(); ta.select(); toast('Select the text and copy it'); }
+    } else if (act === 'save') {
+      const d = await downloads();
+      if (d) {
+        try { await d.save({ filename: name, data: blob }); toast('Sheet saved'); }
+        catch (err) { const code = (err as { code?: string }).code; if (code !== 'declined') toast(code === 'rate_limited' ? 'A save is already waiting for you' : 'Saving isn\'t available here: press and hold the image instead'); }
+      } else {
+        // outside claude.ai: a plain download
+        const a = document.createElement('a');
+        a.href = url; a.download = name; a.click();
+      }
+    }
+  });
+  m.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  m.querySelector<HTMLButtonElement>('[data-cap="save"]')!.focus();
+}
 document.getElementById('btn-gallery')!.addEventListener('click', () => {
   ui.showGallery = !ui.showGallery;
   ui.sheetOpen = true;

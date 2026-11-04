@@ -24,6 +24,18 @@ export type GizmoMode = 'translate' | 'rotate' | 'scale' | 'off';
 /** SDF resolution while the view moves, as fractions of the settled one (starts at 0.5). */
 const MOVING_LEVELS = [0.35, 0.5, 0.7, 1];
 
+/** One view for the reference sheet (see Viewport.captureViews). */
+export interface CaptureSpec {
+  /** from the piece toward the camera */
+  dir: THREE.Vector3;
+  ortho: boolean;
+  size: number;
+  passes: ('shade' | 'depth' | 'normal')[];
+  fov?: number;
+  /** how much of the frame the piece's box fills */
+  fill?: number;
+}
+
 export class Viewport {
   renderer: THREE.WebGLRenderer;
   scene = new THREE.Scene();
@@ -195,6 +207,121 @@ export class Viewport {
     for (const o of hidden) o.visible = true;
     this.setCameraState(saved);
     return out.toDataURL('image/jpeg', 0.78);
+  }
+
+  /**
+   * Views of the piece for the reference sheet: each from direction `dir` (from the
+   * piece toward the camera), framed on it, square, `size` pixels, in each pass
+   * asked for: shaded on a plain light ground, depth (near white, the piece's own
+   * depth range, black ground), view-space normals (black ground). Helpers, the
+   * section cut and the ghost are left out; everything is put back afterwards.
+   */
+  captureViews(specs: CaptureSpec[]): Record<string, HTMLCanvasElement>[] | null {
+    const box = this.bounds();
+    if (!box) return null;
+    const c = box.getCenter(new THREE.Vector3());
+    const R = Math.max(0.01, box.getSize(new THREE.Vector3()).length() / 2);
+    const corners = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => new THREE.Vector3(
+      i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z));
+    // put aside: helpers, section, background, resolution
+    const hidden = [this.gizmo.getHelper(), this.ghost, this.grid, this.hand.object].filter((o) => o.visible);
+    for (const o of hidden) o.visible = false;
+    const clips = [...this.clipPlanes];
+    this.clipPlanes.length = 0;
+    this.sdf.setClip(null);
+    this.front.needsUpdate = this.back.needsUpdate = this.wire.needsUpdate = true;
+    const bg = this.scene.background;
+    const ratio = this.renderer.getPixelRatio();
+    this.renderer.setPixelRatio(1);
+    const depthMat = new THREE.ShaderMaterial({
+      uniforms: { uNear: { value: 0 }, uFar: { value: 1 } },
+      vertexShader: 'varying float vZ; void main(){ vec4 v = modelViewMatrix * vec4(position, 1.0); vZ = -v.z; gl_Position = projectionMatrix * v; }',
+      fragmentShader: 'uniform float uNear, uFar; varying float vZ; void main(){ float v = 1.0 - clamp((vZ - uNear) / max(uFar - uNear, 1e-4), 0.0, 1.0); gl_FragColor = vec4(vec3(0.06 + 0.94 * v), 1.0); }',
+      side: THREE.DoubleSide,
+    });
+    const normalMat = new THREE.MeshNormalMaterial({ side: THREE.DoubleSide });
+    const out: Record<string, HTMLCanvasElement>[] = [];
+    try {
+      for (const spec of specs) {
+        this.renderer.setSize(spec.size, spec.size, false);
+        const dir = spec.dir.clone().normalize();
+        const up = Math.abs(dir.y) > 0.99 ? new THREE.Vector3(0, 0, -Math.sign(dir.y)) : new THREE.Vector3(0, 1, 0);
+        const fill = spec.fill ?? 0.86;
+        let cam: THREE.PerspectiveCamera | THREE.OrthographicCamera;
+        let dist: number;
+        if (spec.ortho) {
+          dist = R * 4 + 1;
+          const o = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, dist + R * 2 + 1);
+          o.up.copy(up);
+          o.position.copy(c).addScaledVector(dir, dist);
+          o.lookAt(c);
+          o.updateMatrixWorld();
+          let half = 0;
+          for (const p of corners) { const q = p.clone().applyMatrix4(o.matrixWorldInverse); half = Math.max(half, Math.abs(q.x), Math.abs(q.y)); }
+          half = Math.max(half, 0.01) / fill;
+          Object.assign(o, { left: -half, right: half, top: half, bottom: -half });
+          o.updateProjectionMatrix();
+          cam = o;
+        } else {
+          const p = new THREE.PerspectiveCamera(spec.fov ?? 30, 1, 0.01, 5000);
+          p.up.copy(up);
+          const fits = (d: number) => {
+            p.position.copy(c).addScaledVector(dir, d);
+            p.lookAt(c);
+            p.updateMatrixWorld();
+            return corners.every((q) => { const v = q.clone().project(p); return v.z < 1 && Math.abs(v.x) <= fill && Math.abs(v.y) <= fill; });
+          };
+          let lo = 0.01, hi = R * 40 + 1;
+          for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (fits(m)) hi = m; else lo = m; }
+          fits(hi);
+          p.near = Math.max(0.01, hi - R * 2);
+          p.far = hi + R * 2;
+          p.updateProjectionMatrix();
+          dist = hi;
+          cam = p;
+        }
+        // the key light follows whichever camera draws (mesh kernel)
+        const key = new THREE.DirectionalLight(0xffffff, 1.7);
+        key.position.set(6, 10, 7);
+        cam.add(key);
+        this.scene.add(cam);
+        // depth range: the piece's box along the view (tighter than its bounding sphere)
+        const camPos = cam.position, view = dir.clone().negate();
+        let near = Infinity, far = -Infinity;
+        for (const q of corners) { const z = q.clone().sub(camPos).dot(view); near = Math.min(near, z); far = Math.max(far, z); }
+        if (!(far > near)) { near = dist - R; far = dist + R; }
+        const shots: Record<string, HTMLCanvasElement> = {};
+        for (const pass of spec.passes) {
+          this.scene.background = new THREE.Color(pass === 'shade' ? 0xf1eee9 : 0x000000);
+          if (this.mode === 'sdf') {
+            this.sdf.setPass(pass === 'depth' ? 1 : pass === 'normal' ? 2 : 0, cam, near, far);
+            this.scene.overrideMaterial = null;
+          } else {
+            depthMat.uniforms.uNear.value = near; depthMat.uniforms.uFar.value = far;
+            this.scene.overrideMaterial = pass === 'depth' ? depthMat : pass === 'normal' ? normalMat : null;
+          }
+          this.renderer.render(this.scene, cam);
+          const cv = document.createElement('canvas');
+          cv.width = cv.height = spec.size;
+          cv.getContext('2d')!.drawImage(this.renderer.domElement, 0, 0, spec.size, spec.size, 0, 0, spec.size, spec.size);
+          shots[pass] = cv;
+        }
+        this.scene.remove(cam);
+        out.push(shots);
+      }
+    } finally {
+      this.sdf.setPass(0);
+      this.scene.overrideMaterial = null;
+      depthMat.dispose(); normalMat.dispose();
+      this.scene.background = bg;
+      for (const o of hidden) o.visible = true;
+      this.clipPlanes.push(...clips);
+      this.sdf.setClip(clips.length ? this.clip : null);
+      this.front.needsUpdate = this.back.needsUpdate = this.wire.needsUpdate = true;
+      this.renderer.setPixelRatio(ratio);
+      this.resize();
+    }
+    return out;
   }
 
   /** Frame-time benchmark: orbit once around the piece, rendering `frames` frames

@@ -56,6 +56,12 @@ uniform highp sampler2D uSweep;
 uniform vec4 uClip;
 uniform int uClipOn;
 uniform int uFlat;
+// reference sheet passes: 0 shaded, 1 depth (near white), 2 view-space normal
+uniform int uPass;
+uniform vec3 uCamPos;
+uniform vec3 uCamDir;
+uniform mat3 uViewRot;
+uniform vec2 uDepthRange;
 uniform vec3 uClay;
 uniform vec3 uCap;
 uniform vec3 uBoundsMin;
@@ -671,6 +677,13 @@ void main() {
   if (kind == 2 && gCavH > 0.0) ne = max(ne, 0.25 * gCavH);
   vec3 n = calcNormal(p, ne);
   if (dot(n, rd) > 0.0) n = -n;
+  if (uPass == 1) {
+    float z = dot(p - uCamPos, uCamDir);
+    float v = 1.0 - clamp((z - uDepthRange.x) / max(uDepthRange.y - uDepthRange.x, 1e-4), 0.0, 1.0);
+    pc_fragColor = vec4(vec3(0.06 + 0.94 * v), 1.0); // (never black: black is background)
+    return;
+  }
+  if (uPass == 2) { pc_fragColor = vec4(normalize(uViewRot * n) * 0.5 + 0.5, 1.0); return; }
   vec3 base = kind == 1 ? uCap : uClay;
   vec3 key = normalize(-rd + vec3(0.35, 0.65, 0.2));
   float dif = clamp(dot(n, key), 0.0, 1.0);
@@ -704,6 +717,11 @@ export class SdfRenderer {
       uClip: { value: new THREE.Vector4(0, 0, -1, 0) },
       uClipOn: { value: 0 },
       uFlat: { value: 0 },
+      uPass: { value: 0 },
+      uCamPos: { value: new THREE.Vector3() },
+      uCamDir: { value: new THREE.Vector3(0, 0, -1) },
+      uViewRot: { value: new THREE.Matrix3() },
+      uDepthRange: { value: new THREE.Vector2(0, 1) },
       uClay: { value: new THREE.Color(0xc8b6a4) },
       uCap: { value: new THREE.Color(0xc0634a) },
       uBoundsMin: { value: new THREE.Vector3() },
@@ -778,6 +796,19 @@ export class SdfRenderer {
     if (opts.cost !== undefined) u.uFlat.value = opts.cost ? 2 : 0;
     if (opts.clay !== undefined) u.uClay.value.set(opts.clay);
     if (opts.cap !== undefined) u.uCap.value.set(opts.cap);
+  }
+
+  /** Reference-sheet pass: 0 shaded, 1 depth over [near, far] along the view (near
+   *  white), 2 view-space normal (x right, y up, z toward the camera). */
+  setPass(pass: 0 | 1 | 2, camera?: THREE.Camera, near = 0, far = 1) {
+    const u = this.material.uniforms;
+    u.uPass.value = pass;
+    if (!camera) return;
+    camera.updateMatrixWorld();
+    u.uCamPos.value.setFromMatrixPosition(camera.matrixWorld);
+    camera.getWorldDirection(u.uCamDir.value);
+    u.uViewRot.value.setFromMatrix4(camera.matrixWorldInverse);
+    u.uDepthRange.value.set(near, far);
   }
 
   /** Keep the side the plane normal points to (three.js clipping convention). */
