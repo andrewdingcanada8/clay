@@ -44,6 +44,9 @@ export interface Group {
   /** Placement of the group's contents (uniform scale). */
   transform?: Transform;
   sym?: Symmetry;
+  /** Flipped (mirrored in place) across the planes through its centre square to
+   *  these world axes; the layer itself, not a copy. */
+  flip?: ('x' | 'y' | 'z')[];
   hidden?: boolean;
   /** Folded in the Layers list. */
   collapsed?: boolean;
@@ -113,6 +116,9 @@ export interface SceneObject {
    *  an axis, through the reference object's centre (none: the world origin) along
    *  its local axis. Copies follow every edit of the original. */
   sym?: Symmetry;
+  /** Flipped (mirrored in place) across the planes through its centre square to
+   *  these world axes; the layer itself, not a copy. */
+  flip?: ('x' | 'y' | 'z')[];
   hidden?: boolean;
 }
 
@@ -121,6 +127,9 @@ export interface Symmetry {
   /** reference object id (its centre and axes); null = the world origin and axes */
   ref: string | null;
   axis: 'x' | 'y' | 'z';
+  /** mirror: every plane it mirrors across (square to these axes of its frame);
+   *  each combination is a copy, so n planes make 2^n in all. Missing: [axis]. */
+  axes?: ('x' | 'y' | 'z')[];
   /** radial: copies in all, the original included */
   count: number;
 }

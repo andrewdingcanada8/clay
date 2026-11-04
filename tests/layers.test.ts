@@ -389,3 +389,61 @@ describe('mask layers', () => {
     expect(f(2, 3.75, 0)).toBeGreaterThan(0); // the top wall, outside the mask
   }, 60000);
 });
+
+describe('flip and multi-plane mirror', () => {
+  const at = (x: number, y: number, z: number) => ({ position: [x, y, z] as [number, number, number], rotation: [0, 0, 0] as [number, number, number], scale: [1, 1, 1] as [number, number, number] });
+  const solid = () => { const d = emptyDoc(); d.groups[0].shell = false; return d; };
+  const field = (d: SceneDoc) => { const g = compileGroups(flattenLayers(d)); return (x: number, y: number, z: number) => evalScene(g, approxDepth, x, y, z); };
+
+  it('a mirror across two planes makes 4, across three 8', () => {
+    const d = solid();
+    const s = makeObject('sphere', { params: { r: 1 }, transform: at(3, 2, 3) });
+    s.sym = { kind: 'mirror', ref: null, axis: 'x', axes: ['x', 'z'], count: 2 };
+    d.objects.push(s);
+    d.groups[0].children = [s.id];
+    expect(flattenLayers(d).objects.length).toBe(4);
+    let f = field(d);
+    for (const [x, z] of [[3, 3], [-3, 3], [3, -3], [-3, -3]]) expect(f(x, 2, z)).toBeLessThan(0);
+    expect(f(3, -2, 3)).toBeGreaterThan(0);
+    s.sym.axes = ['x', 'y', 'z'];
+    expect(flattenLayers(d).objects.length).toBe(8);
+    f = field(d);
+    expect(f(-3, -2, -3)).toBeLessThan(0);
+  });
+
+  it('an old one-axis mirror still makes 2', () => {
+    const d = solid();
+    const s = makeObject('sphere', { params: { r: 1 }, transform: at(3, 0, 0) });
+    s.sym = { kind: 'mirror', ref: null, axis: 'x', count: 2 };
+    d.objects.push(s);
+    d.groups[0].children = [s.id];
+    expect(flattenLayers(d).objects.length).toBe(2);
+  });
+
+  it('flip mirrors an object in place about its centre (no copy)', () => {
+    const d = solid();
+    const c = makeObject('cone', { params: { r: 2, h: 4 }, transform: at(5, 0, 0) });
+    d.objects.push(c);
+    d.groups[0].children = [c.id];
+    expect(field(d)(6.5, -1.5, 0)).toBeLessThan(0); // the wide base is at the bottom
+    c.flip = ['y'];
+    expect(flattenLayers(d).objects.length).toBe(1);
+    const f = field(d);
+    expect(f(6.5, -1.5, 0)).toBeGreaterThan(0);
+    expect(f(6.5, 1.5, 0)).toBeLessThan(0); // now at the top
+  });
+
+  it('flipping a group mirrors its contents about their middle', () => {
+    const d = solid();
+    const c = makeObject('cone', { params: { r: 2, h: 4 }, transform: at(5, 0, 0) });
+    const s = makeObject('sphere', { params: { r: 1 }, transform: at(-5, 0, 0) });
+    const g2 = newGroup('g2', 'Pair', { shell: false, children: [c.id, s.id], flip: ['x'] });
+    d.objects.push(c, s);
+    d.groups.push(g2);
+    d.groups[0].children = ['g2'];
+    const f = field(d);
+    expect(f(5, 0, 0)).toBeLessThan(0); // the sphere moved to +x
+    expect(f(6.2, 0, 0)).toBeGreaterThan(0);
+    expect(f(-5, -1.5, 0)).toBeLessThan(0); // the cone to -x, still base down
+  });
+});

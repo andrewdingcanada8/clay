@@ -21,12 +21,13 @@ import { type LibraryPart, PartStore, type Piece, type PieceFlag, PieceStore, ty
 import { partScale, placedId } from '../engine/parts';
 import {
   type Layer, ancestors, attach, childIds, copyLayer, deleteLayer, flattenLayers, groupLayers, layerOf, layerOp, localTransform,
-  addHole, parentOf, repairTree, shellOf, subtree, toLayers, ungroup, worldTransform,
+  addHole, parentOf, placedObject, repairTree, shellOf, subtree, toLayers, ungroup, worldTransform,
 } from '../engine/layers';
 import { expandDoc } from '../engine/symmetry';
 import { type GizmoMode, Viewport } from './viewport';
 
 type Tab = 'add' | 'edit' | 'layers' | 'holes' | 'view';
+type Axis = 'x' | 'y' | 'z';
 
 const ICON: Record<string, string> = {
   add: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
@@ -207,7 +208,7 @@ function selectedGroup(): Group | null {
 /** The selected layer as the ghost draws it: placed in the world (a group: its contents, in its own frame). */
 function ghostOf(): SceneObject | null {
   const o = selected();
-  if (o) return { ...o, transform: worldTransform(doc, o.id) };
+  if (o) return placedObject(doc, o.id) ?? { ...o, transform: worldTransform(doc, o.id) };
   const g = selectedGroup();
   if (!g) return null;
   // the group's contents as built, in the group's own frame
@@ -495,11 +496,27 @@ function symmetrySection(id: string, sym: Symmetry | undefined) {
     ${seg<'off' | 'mirror' | 'radial'>('symkind', sym?.kind ?? 'off', [['off', 'Off'], ['mirror', 'Mirror'], ['radial', 'Radial']])}
     ${sym ? `<div class="sub">About</div>
     <div class="row"><button class="face-chip" data-sym-ref="" aria-pressed="${!sym.ref}">World origin</button>${others.map((x) => `<button class="face-chip" data-sym-ref="${x.id}" aria-pressed="${sym.ref === x.id}">${escapeHtml(x.name)}</button>`).join('')}</div>
-    <div class="sub">${sym.kind === 'mirror' ? 'Across the plane square to its axis' : 'Round its axis'}</div>
-    ${seg<'x' | 'y' | 'z'>('symaxis', sym.axis, [['x', 'X'], ['y', 'Y'], ['z', 'Z']])}
+    <div class="sub">${sym.kind === 'mirror' ? 'Across the planes square to (tap to combine)' : 'Round its axis'}</div>
+    ${sym.kind === 'mirror' ? axisToggles('sym-axis', mirrorAxes(sym)) : seg<'x' | 'y' | 'z'>('symaxis', sym.axis, [['x', 'X'], ['y', 'Y'], ['z', 'Z']])}
     ${sym.kind === 'radial' ? slider('sym.count', 'Copies in all', sym.count, 2, 24, 1) : ''}
-    <p class="hint">${sym.kind === 'mirror' ? 'A mirror image across the plane through the centre of the object chosen above, square to its axis.' : 'Copies spaced evenly round the axis through the centre of the object chosen above (a revolve\'s own axis is Y).'} The copies follow every change.</p>` : '<p class="hint">Mirror this layer across a plane, or repeat it round an axis, through another object (say the vase it sits on) or the world origin.</p>'}
+    <p class="hint">${sym.kind === 'mirror' ? `Mirror images across the planes through the centre of the object chosen above, square to the axes turned on: ${1 << mirrorAxes(sym).length} in all, the original included.` : 'Copies spaced evenly round the axis through the centre of the object chosen above (a revolve\'s own axis is Y).'} The copies follow every change.</p>` : '<p class="hint">Mirror this layer across a plane, or repeat it round an axis, through another object (say the vase it sits on) or the world origin.</p>'}
   </div>`;
+}
+
+/** A mirror's planes (older documents: its one axis). */
+function mirrorAxes(sym: Symmetry): Axis[] {
+  return sym.axes?.length ? sym.axes : [sym.axis];
+}
+
+/** X / Y / Z buttons, each on or off. */
+function axisToggles(attr: string, on: Axis[]) {
+  return `<div class="row">${(['x', 'y', 'z'] as const).map((a) => `<button class="face-chip" data-${attr}="${a}" aria-pressed="${on.includes(a)}">${a.toUpperCase()}</button>`).join('')}</div>`;
+}
+
+/** The Flip row of a layer's Transform section. */
+function flipRow(flip: Axis[] | undefined) {
+  return `<div class="sub">Flip</div>${axisToggles('flip', flip ?? [])}
+    <p class="hint">Mirrors the layer in place, across the plane through its centre square to each axis turned on. Turn it off to undo.</p>`;
 }
 
 function partSummary(p: LibraryPart): string {
@@ -536,6 +553,7 @@ function groupEditBody(g: Group) {
       ${xyz('rotation', 'Rotation°', t.rotation, 1)}
       ${slider('tf.uscale', 'Size ×', +partScale(t).toFixed(3), 0.1, Math.max(4, Math.ceil(partScale(t) * 1.5)), 0.01)}
       <p class="hint">Moves, turns and scales everything in the group together. Groups scale evenly; walls keep their thickness.</p>
+      ${flipRow(g.flip)}
     </div>
     <div class="row"><button class="btn" data-act="duplicate">Duplicate</button><button class="btn danger" data-act="delete">Delete</button></div>`;
 }
@@ -626,6 +644,7 @@ function editPanel() {
       ${xyz('rotation', 'Rotation°', t.rotation, 1)}
       ${xyz('scale', 'Scale', t.scale, 0.01, true)}
       <p class="hint">Scale runs along the object's own axes. Turn on ⛓ uniform to scale all three together.</p>
+      ${flipRow(o.flip)}
     </div>
     <div class="row"><button class="btn" data-act="duplicate">Duplicate</button><button class="btn danger" data-act="delete">Delete</button></div>`;
   } else if (selectedGroup()) body = groupEditBody(selectedGroup()!);
@@ -660,7 +679,8 @@ function layerRows(gid: string, depth: number): string {
     const badges = [
       g?.shell ? `Shell ${g.thickness.toFixed(2)}` : '', (g?.blend ?? 0) > 0 ? 'Blend' : '', (g?.round ?? 0) > 0 ? 'Round' : '',
       l.kind === 'object' && l.o.mode === 'solid' && bodyGroup(id)?.shell ? 'Solid' : '',
-      (l.kind === 'object' ? l.o.sym : g?.sym) ? ((l.kind === 'object' ? l.o.sym : g?.sym)!.kind === 'mirror' ? 'Mirror' : 'Radial') : '',
+      ((sym) => sym ? (sym.kind === 'mirror' ? `Mirror ×${1 << mirrorAxes(sym).length}` : `Radial ×${sym.count}`) : '')(l.kind === 'object' ? l.o.sym : g?.sym),
+      ((f) => f?.length ? `Flip ${f.map((a) => a.toUpperCase()).join('')}` : '')(l.kind === 'object' ? l.o.flip : g?.flip),
     ].filter(Boolean);
     const icon = l.kind === 'group' ? ICON.layers : ICON[l.o.type] ?? '';
     const row = `<div class="layer-row${id === ui.selectedId ? ' on' : ''}${hidden ? ' off' : ''}" style="--depth:${depth}">
@@ -973,6 +993,33 @@ panel.addEventListener('click', (e) => {
   if (d.unhole) {
     const [oid, fid] = d.unhole.split('|');
     return toggleHole(oid, fid);
+  }
+  if (d.symAxis) {
+    const a = d.symAxis as Axis;
+    update((doc2) => {
+      const sym = symOf(doc2);
+      if (!sym) return;
+      const on = new Set(mirrorAxes(sym));
+      if (on.has(a)) { if (on.size > 1) on.delete(a); } else on.add(a);
+      sym.axes = (['x', 'y', 'z'] as const).filter((x) => on.has(x));
+      sym.axis = sym.axes[0];
+    });
+    renderPanel();
+    return;
+  }
+  if (d.flip) {
+    const a = d.flip as Axis;
+    update((doc2) => {
+      const l = layerOf(doc2, ui.selectedId ?? '');
+      if (!l) return;
+      const host = l.kind === 'object' ? l.o : l.g;
+      const on = new Set(host.flip ?? []);
+      if (on.has(a)) on.delete(a); else on.add(a);
+      if (on.size) host.flip = (['x', 'y', 'z'] as const).filter((x) => on.has(x)); else delete host.flip;
+    });
+    refreshGhost();
+    renderPanel();
+    return;
   }
   if (d.symRef !== undefined) {
     update((doc2) => { const sym = symOf(doc2); if (sym) sym.ref = d.symRef || null; });

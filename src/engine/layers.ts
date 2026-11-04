@@ -295,11 +295,47 @@ interface Ctx { xf: Transform; maps: SymMap[]; suffix: string; unit: Group | nul
 function symMaps(sym: Symmetry | undefined, frame: (sym: Symmetry) => { c: Vec3; a: Vec3 }): SymMap[] {
   if (!sym) return [];
   const { c, a } = frame(sym);
-  if (sym.kind === 'mirror') return [{ L: reflection(a), c, flip: true }];
+  if (sym.kind === 'mirror') {
+    // every combination of its planes: n planes, 2^n - 1 copies
+    const axes = [...new Set(sym.axes?.length ? sym.axes : [sym.axis])];
+    const refl = axes.map((ax) => reflection(ax === sym.axis ? a : frame({ ...sym, axis: ax }).a));
+    const out: SymMap[] = [];
+    for (let m = 1; m < 1 << refl.length; m++) {
+      let L: Float64Array = new Float64Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+      let n = 0;
+      refl.forEach((R, i) => { if (m & (1 << i)) { L = mul3(R, L); n++; } });
+      out.push({ L, c, flip: n % 2 === 1 });
+    }
+    return out;
+  }
   const n = Math.max(2, Math.min(64, Math.round(sym.count)));
   const out: SymMap[] = [];
   for (let k = 1; k < n; k++) out.push({ L: axisAngle(a, (2 * Math.PI * k) / n), c, flip: false });
   return out;
+}
+
+/** 3×3 row-major product A·B. */
+function mul3(A: Float64Array, B: Float64Array): Float64Array {
+  const C = new Float64Array(9);
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) C[3 * i + j] = A[3 * i] * B[j] + A[3 * i + 1] * B[3 + j] + A[3 * i + 2] * B[6 + j];
+  return C;
+}
+
+/** A layer's flip: mirrored across the planes through c square to the world axes (null: none). */
+function flipMap(axes: ('x' | 'y' | 'z')[] | undefined, c: Vec3): SymMap | null {
+  const set = new Set(axes ?? []);
+  if (!set.size) return null;
+  const d = (ax: 'x' | 'y' | 'z') => (set.has(ax) ? -1 : 1);
+  return { L: new Float64Array([d('x'), 0, 0, 0, d('y'), 0, 0, 0, d('z')]), c, flip: set.size % 2 === 1 };
+}
+
+/** An object as drawn alone (the selection ghost): placed in the world and flipped. */
+export function placedObject(doc: SceneDoc, id: string): SceneObject | null {
+  const o = doc.objects.find((x) => x.id === id);
+  if (!o) return null;
+  const w: SceneObject = { ...o, transform: worldTransform(doc, id) };
+  const f = flipMap(o.flip, w.transform.position);
+  return f ? moved(w, f.L, f.c, f.flip, o.id) : w;
 }
 
 /** The body the layers outside every hollowed group join. */
@@ -332,8 +368,11 @@ export function flattenLayers(src: SceneDoc, notes: string[] = []): SceneDoc {
 
   /** An object placed in the world: itself and its own symmetry copies, moved as its group copy is. */
   const place = (o: SceneObject, ctx: Ctx): Placed[] => {
-    const base: SceneObject = { ...JSON.parse(JSON.stringify(o)), id: o.id + ctx.suffix, sym: undefined, transform: composeTransform(ctx.xf, o.transform) };
-    const list: Placed[] = [{ obj: base, flips: 0 }];
+    let base: SceneObject = { ...JSON.parse(JSON.stringify(o)), id: o.id + ctx.suffix, sym: undefined, transform: composeTransform(ctx.xf, o.transform) };
+    // its own flip, in place about its centre (before any copies)
+    const fm = flipMap(o.flip, base.transform.position);
+    if (fm) base = moved(base, fm.L, fm.c, fm.flip, base.id);
+    const list: Placed[] = [{ obj: base, flips: fm?.flip ? 1 : 0 }];
     symMaps(o.sym, frame).forEach((m, k) => list.push({ obj: moved(base, m.L, m.c, m.flip, `${base.id}${PART_SEP}s${k + 1}`), flips: m.flip ? 1 : 0 }));
     return list.map((p) => ctx.maps.reduce((q, m) => ({ obj: moved(q.obj, m.L, m.c, m.flip, q.obj.id), flips: q.flips + (m.flip ? 1 : 0) }), p));
   };
@@ -344,9 +383,24 @@ export function flattenLayers(src: SceneDoc, notes: string[] = []): SceneDoc {
   /** Run `f` once per symmetry copy of group g, with g's placement. */
   const forCopies = (g: Group, ctx: Ctx, f: (c: Ctx) => void) => {
     const xf = g.transform ? composeTransform(ctx.xf, g.transform) : ctx.xf;
-    f({ ...ctx, xf });
+    // its flip, about the middle of what it holds, comes first (the copies are of the flipped group)
+    const fm = g.flip?.length ? flipMap(g.flip, groupPivot(g.id, xf)) : null;
+    const own = fm ? [fm] : [];
+    f({ ...ctx, xf, maps: [...own, ...ctx.maps] });
     // a copy: placed the same, then moved by its map (before the enclosing group copies' moves)
-    symMaps(g.sym, frame).forEach((m, k) => f({ ...ctx, xf, maps: [m, ...ctx.maps], suffix: `${ctx.suffix}${PART_SEP}s${k + 1}` }));
+    symMaps(g.sym, frame).forEach((m, k) => f({ ...ctx, xf, maps: [...own, m, ...ctx.maps], suffix: `${ctx.suffix}${PART_SEP}s${k + 1}` }));
+  };
+  // the middle of a group's objects' centres, placed by xf (the group's own placement)
+  const groupPivot = (gid: string, xf: Transform): Vec3 => {
+    const lo: Vec3 = [Infinity, Infinity, Infinity], hi: Vec3 = [-Infinity, -Infinity, -Infinity];
+    const visit = (id: string, t: Transform) => {
+      const o = objs.get(id);
+      if (o) { const p = composeTransform(t, o.transform).position; for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], p[a]); hi[a] = Math.max(hi[a], p[a]); } return; }
+      const g = groups.get(id);
+      if (g) for (const c of g.children ?? []) visit(c, g.transform ? composeTransform(t, g.transform) : t);
+    };
+    for (const c of groups.get(gid)?.children ?? []) visit(c, xf);
+    return lo[0] <= hi[0] ? [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2] : [...xf.position] as Vec3;
   };
 
   // children bottom to top: each one joins what is below it in its group
