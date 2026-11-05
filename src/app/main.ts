@@ -1282,7 +1282,7 @@ function openSheetModal() {
       <div class="cap-head"><h2 id="cap-title">Reference sheet</h2><button class="icon-btn" data-cap="close" aria-label="Close">✕</button></div>
       <div class="cap-frame"><div class="cap-wait"><span>Rendering views…</span><div class="cap-bar"><i style="width:0%"></i></div></div></div>
       <div class="cap-label">Glaze</div>
-      <div class="cap-grid">${GLAZES.map((g) => `<button class="cap-opt" data-glaze="${g.id}" aria-pressed="${g.id === look.glaze}"><span class="cap-sw round" style="background:${GLAZE_PHOTOS[g.id] ? `center / cover url(${GLAZE_PHOTOS[g.id]})` : g.swatch}"></span><span>${escapeHtml(g.name)}</span></button>`).join('')}</div>
+      <div class="cap-grid">${GLAZES.map((g) => `<button class="cap-opt" data-glaze="${g.id}" aria-pressed="${g.id === look.glaze}"><span class="cap-sw round" style="background:${GLAZE_PHOTOS[g.id] ? `center / cover url(${GLAZE_PHOTOS[g.id]})` : g.swatch}"></span><span>${escapeHtml(g.name)}${g.wip ? ' <em class="cap-wip">WIP</em>' : ''}</span></button>`).join('')}</div>
       <div class="cap-label">Setting</div>
       <div class="cap-grid bg">${BACKDROPS.map((b) => `<button class="cap-opt" data-bg="${b.id}" aria-pressed="${b.id === look.bg}"><span class="cap-sw" style="background:${b.swatch}"></span><span>${escapeHtml(b.name)}</span></button>`).join('')}</div>
       <label class="cap-label" for="cap-prompt">Prompt</label>

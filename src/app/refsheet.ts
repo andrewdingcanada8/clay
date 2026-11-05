@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import type { CaptureSpec, Viewport } from './viewport';
 
 /** A glaze to ask for: its name, a swatch (CSS background) and how to describe it. */
-export interface Glaze { id: string; name: string; swatch: string; prompt: string }
+export interface Glaze { id: string; name: string; swatch: string; prompt: string; /** prompt still being workshopped; no reference photo yet */ wip?: boolean }
 /** A setting to photograph the piece in. */
 export interface Backdrop { id: string; name: string; swatch: string; prompt: string }
 
@@ -37,6 +37,27 @@ export const GLAZES: Glaze[] = [
     prompt: 'satin-matte pale grey glaze over the whole body with soft vertical streaks of mint green and muted lavender, the lavender stronger on the upper half and the mint lower down; a thin rust-brown line at the shoulder edge and a brown lip, fine speckled texture throughout' },
   { id: 'copper-green', name: 'Copper verdigris', swatch: 'radial-gradient(circle at 35% 30%,#7a6b45 0 10%,transparent 18%),linear-gradient(180deg,#6e7a52 0 25%,#3f8a6c 55%,#2f7a62)',
     prompt: 'matte, finely speckled copper-green glaze; on the upper cone it is broken by large cloudy patches of dark bronze-brown covering about half of it, heaviest toward the rim, with green showing through at uneven mottled edges; a thin dark brown line along the sharp widest edge; the lower cone an even speckled verdigris green' },
+  // common glazes, prompts being workshopped (no reference photos yet)
+  { id: 'gloss-white', name: 'Glossy white', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
+    prompt: 'high-gloss opaque bright white glaze covering the whole body evenly, smooth and glassy with crisp reflections, thinning to a faint warm cream at the rim and edges and pooling slightly brighter in recesses' },
+  { id: 'matte-white', name: 'Matte white', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
+    prompt: 'dry matte warm white glaze covering the whole body evenly, soft and chalky with no reflections, a very fine eggshell texture, thinning to a pale buff at the rim and sharp edges' },
+  { id: 'gloss-black', name: 'Glossy black', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
+    prompt: 'high-gloss deep jet-black glaze covering the whole body evenly, smooth and mirror-like with sharp white reflections, thinning to a dark brown at the rim and edges' },
+  { id: 'matte-black', name: 'Matte black', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
+    prompt: 'satin-matte soft charcoal-black glaze covering the whole body evenly, velvety with only faint diffuse sheen, a fine smooth texture, slightly greyer where it thins at the rim and edges' },
+  { id: 'stone-grey', name: 'Satin stone grey', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
+    prompt: 'satin mid-grey glaze with a faint cool cast covering the whole body, softly mottled with slightly darker and lighter grey patches and fine dark specks, thinning to a pale grey at the rim and edges' },
+  { id: 'clear-stoneware', name: 'Clear over speckled clay', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
+    prompt: 'glossy clear glaze over a warm buff stoneware body covering the whole piece, the clay\'s fine dark iron speckles showing through evenly, light and slightly honey-toned where the glaze is thin at the rim and edges, deeper amber where it pools in recesses' },
+  { id: 'jade-celadon', name: 'Jade celadon', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
+    prompt: 'glossy translucent pale jade blue-green glaze covering the whole body, a fine crackle network across the surface, lighter and almost white on rims and edges where it thins, deeper blue-green where it pools in recesses and toward the foot' },
+  { id: 'chun-blue', name: 'Chun blue', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
+    prompt: 'thick glossy opalescent lavender-blue glaze covering the whole body, milky and slightly cloudy, with a few soft purple-red splashes on the upper body, thinning to a brownish olive at the rim and edges, pooling deeper blue toward the foot' },
+  { id: 'tea-dust', name: 'Tea dust', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
+    prompt: 'matte olive-brown glaze covering the whole body, densely covered with fine yellow-green specks like dust, evenly spread from rim to foot, slightly darker brown where it thins at the rim and edges' },
+  { id: 'tenmoku', name: 'Tenmoku', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
+    prompt: 'glossy deep black-brown glaze over most of the body, breaking to rust-brown on the rim, edges and raised areas where it thins, with the darkest black where it pools in recesses and toward the foot' },
   { id: 'unglazed', name: 'Unglazed stoneware', swatch: 'radial-gradient(circle at 60% 40%,#8a7560 0 3%,transparent 4%),linear-gradient(160deg,#cbb59b,#b59c80)',
     prompt: 'unglazed bisque-fired stoneware, dry warm-buff clay body with fine iron speckles and visible throwing texture' },
 ];

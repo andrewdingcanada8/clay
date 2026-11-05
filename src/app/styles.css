@@ -262,3 +262,4 @@ input[type="number"] {
 .cap-grid.bg .cap-opt span:last-child { white-space: normal; line-height: 1.2; }
 .cap-sw { flex: none; width: 28px; height: 28px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.12); }
 .cap-sw.round { width: 34px; height: 34px; border-radius: 50%; }
+.cap-wip { font: 600 9px/1 var(--font-mono, monospace); font-style: normal; letter-spacing: 0.06em; color: #b0108f; border: 1px solid currentColor; border-radius: 3px; padding: 1px 3px; vertical-align: 1px; }
