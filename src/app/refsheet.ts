@@ -6,7 +6,10 @@ import * as THREE from 'three';
 import type { CaptureSpec, Viewport } from './viewport';
 
 /** A glaze to ask for: its name, a swatch (CSS background) and how to describe it. */
-export interface Glaze { id: string; name: string; swatch: string; prompt: string; /** prompt still being workshopped; no reference photo yet */ wip?: boolean }
+export interface Glaze { id: string; name: string; swatch: string; prompt: string; /** prompt still being workshopped; no reference photo yet */ wip?: boolean;
+  /** no glaze: the bare body is the surface (its prompt says what it looks like) */ bare?: boolean }
+/** The clay body under the glaze: its color, speckle and grog, and how it shows through. */
+export interface Clay { id: string; name: string; swatch: string; prompt: string }
 /** A setting to photograph the piece in. */
 export interface Backdrop { id: string; name: string; swatch: string; prompt: string }
 
@@ -66,8 +69,21 @@ export const GLAZES: Glaze[] = [
     prompt: 'satin-matte deep brick-red terracotta finish covering the whole piece evenly, rich red-orange with a soft burnished sheen and a smooth fine-grained surface, slightly darker oxblood red where it thins at the rim and edges, no gloss' },
   { id: 'matte-stone', name: 'Matte stone', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
     prompt: 'dry matte stone-like glaze covering the whole piece evenly, warm grey-beige like sandstone, densely flecked with fine dark brown and pale cream specks, a slightly gritty, porous surface with no sheen, a little darker where it thins at the rim and edges' },
-  { id: 'unglazed', name: 'Unglazed stoneware', swatch: 'radial-gradient(circle at 60% 40%,#8a7560 0 3%,transparent 4%),linear-gradient(160deg,#cbb59b,#b59c80)',
+  { id: 'unglazed', name: 'Unglazed stoneware', bare: true, swatch: 'radial-gradient(circle at 60% 40%,#8a7560 0 3%,transparent 4%),linear-gradient(160deg,#cbb59b,#b59c80)',
     prompt: 'unglazed bisque-fired stoneware, dry warm-buff clay body with fine iron speckles and visible throwing texture' },
+];
+
+// Clay bodies: what shows through the glaze. The stoneware ones speckle and tint it;
+// porcelain leaves it clean.
+export const CLAYS: Clay[] = [
+  { id: 'groggy', name: 'Groggy stoneware', swatch: 'radial-gradient(circle at 30% 35%,#4a3626 0 6%,transparent 7%),radial-gradient(circle at 68% 62%,#5a4330 0 5%,transparent 6%),radial-gradient(circle at 55% 25%,#e6d3b8 0 5%,transparent 6%),linear-gradient(160deg,#b58f6a,#9c7856)',
+    prompt: 'a groggy medium stoneware, warm tan-brown with visible coarse grog and plenty of dark iron speckles; the grog and speckles show through the glaze as fine bumps and scattered dark spots, the tan body breaks through where the glaze thins at the rim, edges and throwing lines, warming and slightly browning the glaze color, with bare tan clay at the foot' },
+  { id: 'light', name: 'Light clay', swatch: 'radial-gradient(circle at 30% 35%,#5b4532 0 5%,transparent 6%),radial-gradient(circle at 70% 60%,#6b5340 0 4%,transparent 5%),linear-gradient(160deg,#e8dcc6,#d9c8ac)',
+    prompt: 'a light buff stoneware, warm cream-beige with frequent small dark iron speckles and a little fine grit; the speckles bleed up through the glaze as scattered dark dots, and the warm body shows where the glaze thins at the rim, edges and foot, softening and warming the glaze color, with bare cream clay at the foot' },
+  { id: 'dark', name: 'Dark clay', swatch: 'radial-gradient(circle at 35% 40%,#1c1410 0 6%,transparent 7%),radial-gradient(circle at 65% 65%,#8a6a4f 0 4%,transparent 5%),linear-gradient(160deg,#5a4030,#3e2b20)',
+    prompt: 'a dark iron-rich stoneware, chocolate brown to near-black with dense speckling; the dark body shows strongly through the glaze, deepening and muting its color, with bold dark breaks at the rim, edges and throwing lines and dark specks bleeding through, and bare dark clay at the foot' },
+  { id: 'porcelain', name: 'Porcelain', swatch: 'linear-gradient(160deg,#ffffff,#f1f2f2)',
+    prompt: 'a pure white porcelain, perfectly smooth and fine with no speckles, grog or imperfections of any kind; the glaze color stays clean, bright and true, translucent glazes look lighter over the white body, and any bare foot is smooth bright white' },
 ];
 
 export const BACKDROPS: Backdrop[] = [
@@ -80,12 +96,15 @@ export const BACKDROPS: Backdrop[] = [
 ];
 
 /** The prompt for a sheet: match the design exactly, in this glaze and setting. */
-export function composePrompt(glaze: Glaze, bg: Backdrop): string {
+export function composePrompt(glaze: Glaze, bg: Backdrop, clay: Clay = CLAYS[0]): string {
   return 'Photorealistic handmade pottery, product photography, 4K. Output one single photograph of the piece, seen from the same angle ' +
     'as the large Reference view on the sheet; the other tiles are reference only and must not appear (no grid, no multiple views, no labels, ' +
     'no depth or normal map colors). The ceramic piece must match the reference sheet exactly: ' +
     'the same silhouette, proportions, openings and details as the reference view and its depth, normal and edge maps, ' +
-    `and as the front, side, top and 3/4 views. Glaze: ${glaze.prompt}. Setting: ${bg.prompt}. ` +
+    `and as the front, side, top and 3/4 views. Glaze: ${glaze.prompt}. ` +
+    // (unglazed: the glaze line already describes the bare body)
+    (glaze.bare ? '' : `Clay body: ${clay.prompt}. `) +
+    `Setting: ${bg.prompt}. ` +
     'Realistic glaze texture and reflections, sharp focus, no text or labels.';
 }
 

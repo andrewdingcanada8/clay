@@ -25,7 +25,7 @@ import {
 } from '../engine/layers';
 import { expandDoc } from '../engine/symmetry';
 import { type GizmoMode, Viewport } from './viewport';
-import { BACKDROPS, GLAZES, buildSheet, composePrompt } from './refsheet';
+import { BACKDROPS, CLAYS, GLAZES, buildSheet, composePrompt } from './refsheet';
 import { GLAZE_PHOTOS } from './glazePhotos';
 
 type Tab = 'add' | 'edit' | 'layers' | 'holes' | 'view';
@@ -1236,11 +1236,12 @@ document.getElementById('btn-capture')!.addEventListener('click', () => { void c
 
 // ---------- reference sheet
 const LOOK_KEY = 'clay.sheetLook';
-const loadLook = (): { glaze: string; bg: string } => {
-  try { const v = JSON.parse(localStorage.getItem(LOOK_KEY) ?? 'null'); if (v?.glaze && v?.bg) return v; } catch { /* storage unavailable */ }
-  return { glaze: GLAZES[0].id, bg: BACKDROPS[0].id };
+type Look = { glaze: string; bg: string; clay: string };
+const loadLook = (): Look => {
+  try { const v = JSON.parse(localStorage.getItem(LOOK_KEY) ?? 'null'); if (v?.glaze && v?.bg) return { clay: CLAYS[0].id, ...v }; } catch { /* storage unavailable */ }
+  return { glaze: GLAZES[0].id, bg: BACKDROPS[0].id, clay: CLAYS[0].id };
 };
-const saveLook = (v: { glaze: string; bg: string }) => { try { localStorage.setItem(LOOK_KEY, JSON.stringify(v)); } catch { /* storage unavailable */ } };
+const saveLook = (v: Look) => { try { localStorage.setItem(LOOK_KEY, JSON.stringify(v)); } catch { /* storage unavailable */ } };
 type Downloads = { save(r: { filename: string; data: Blob }): Promise<{ status: string }> };
 let downloadsP: Promise<Downloads | null> | null = null;
 const downloads = () => (downloadsP ??= (async () => {
@@ -1283,12 +1284,14 @@ function openSheetModal() {
       <div class="cap-frame"><div class="cap-wait"><span>Rendering views…</span><div class="cap-bar"><i style="width:0%"></i></div></div></div>
       <div class="cap-label">Glaze</div>
       <div class="cap-grid">${GLAZES.map((g) => `<button class="cap-opt" data-glaze="${g.id}" aria-pressed="${g.id === look.glaze}"><span class="cap-sw round" style="background:${GLAZE_PHOTOS[g.id] ? `center / cover url(${GLAZE_PHOTOS[g.id]})` : g.swatch}"></span><span>${escapeHtml(g.name)}${g.wip ? ' <em class="cap-wip">WIP</em>' : ''}</span></button>`).join('')}</div>
+      <div class="cap-label">Clay body</div>
+      <div class="cap-grid">${CLAYS.map((c) => `<button class="cap-opt" data-clay="${c.id}" aria-pressed="${c.id === look.clay}"><span class="cap-sw round" style="background:${c.swatch}"></span><span>${escapeHtml(c.name)}</span></button>`).join('')}</div>
       <div class="cap-label">Setting</div>
       <div class="cap-grid bg">${BACKDROPS.map((b) => `<button class="cap-opt" data-bg="${b.id}" aria-pressed="${b.id === look.bg}"><span class="cap-sw" style="background:${b.swatch}"></span><span>${escapeHtml(b.name)}</span></button>`).join('')}</div>
       <label class="cap-label" for="cap-prompt">Prompt</label>
       <textarea id="cap-prompt" rows="6"></textarea>
       <div class="row"><button class="btn primary" data-cap="copy">Copy prompt</button><button class="btn primary" data-cap="save" disabled>Save image</button></div>
-      <p class="hint">The prompt isn't in the image: paste it with the sheet into the image model. Picking a glaze or setting rewrites it. You can also press and hold the sheet to save it to Photos.</p>
+      <p class="hint">The prompt isn't in the image: paste it with the sheet into the image model. Picking a glaze, clay or setting rewrites it. You can also press and hold the sheet to save it to Photos.</p>
     </div>`;
   document.body.appendChild(m);
   const ta = m.querySelector<HTMLTextAreaElement>('#cap-prompt')!;
@@ -1297,7 +1300,8 @@ function openSheetModal() {
   const compose = () => {
     const g = GLAZES.find((x) => x.id === look.glaze) ?? GLAZES[0];
     const b = BACKDROPS.find((x) => x.id === look.bg) ?? BACKDROPS[0];
-    ta.value = composePrompt(g, b);
+    const c = CLAYS.find((x) => x.id === look.clay) ?? CLAYS[0];
+    ta.value = composePrompt(g, b, c);
   };
   compose();
   let open = true;
@@ -1307,9 +1311,10 @@ function openSheetModal() {
     if (e.target === m) return close();
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
     if (!b) return;
-    if (b.dataset.glaze || b.dataset.bg) {
-      if (b.dataset.glaze) look.glaze = b.dataset.glaze; else look.bg = b.dataset.bg!;
-      m.querySelectorAll<HTMLButtonElement>(b.dataset.glaze ? '[data-glaze]' : '[data-bg]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    if (b.dataset.glaze || b.dataset.bg || b.dataset.clay) {
+      const kind = b.dataset.glaze ? 'glaze' : b.dataset.bg ? 'bg' : 'clay';
+      look[kind] = b.dataset[kind]!;
+      m.querySelectorAll<HTMLButtonElement>(`[data-${kind}]`).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
       saveLook(look);
       compose();
       return;
