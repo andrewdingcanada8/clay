@@ -38,9 +38,9 @@ export const GLAZES: Glaze[] = [
   { id: 'copper-green', name: 'Copper verdigris', swatch: 'radial-gradient(circle at 35% 30%,#7a6b45 0 10%,transparent 18%),linear-gradient(180deg,#6e7a52 0 25%,#3f8a6c 55%,#2f7a62)',
     prompt: 'matte, finely speckled copper-green glaze; on the upper cone it is broken by large cloudy patches of dark bronze-brown covering about half of it, heaviest toward the rim, with green showing through at uneven mottled edges; a thin dark brown line along the sharp widest edge; the lower cone an even speckled verdigris green' },
   // common glazes, prompts being workshopped (no reference photos yet)
-  { id: 'gloss-white', name: 'Glossy white', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
+  { id: 'gloss-white', name: 'Glossy white', swatch: 'linear-gradient(160deg,#ffffff,#e9e9e7)',
     prompt: 'high-gloss opaque bright white glaze covering the whole body evenly, smooth and glassy with crisp reflections, thinning to a faint warm cream at the rim and edges and pooling slightly brighter in recesses' },
-  { id: 'matte-white', name: 'Matte white', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
+  { id: 'matte-white', name: 'Matte white', swatch: 'linear-gradient(160deg,#efebe4,#ddd7cd)',
     prompt: 'dry matte warm white glaze covering the whole body evenly, soft and chalky with no reflections, a very fine eggshell texture, thinning to a pale buff at the rim and sharp edges' },
   { id: 'gloss-black', name: 'Glossy black', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
     prompt: 'high-gloss deep jet-black glaze covering the whole body evenly, smooth and mirror-like with sharp white reflections, thinning to a dark brown at the rim and edges' },
