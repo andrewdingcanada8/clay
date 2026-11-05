@@ -73,7 +73,9 @@ export const BACKDROPS: Backdrop[] = [
 
 /** The prompt for a sheet: match the design exactly, in this glaze and setting. */
 export function composePrompt(glaze: Glaze, bg: Backdrop): string {
-  return 'Photorealistic handmade pottery, product photography, 4K. The ceramic piece must match the reference sheet exactly: ' +
+  return 'Photorealistic handmade pottery, product photography, 4K. Output one single photograph of the piece, seen from the same angle ' +
+    'as the large Reference view on the sheet; the other tiles are reference only and must not appear (no grid, no multiple views, no labels, ' +
+    'no depth or normal map colors). The ceramic piece must match the reference sheet exactly: ' +
     'the same silhouette, proportions, openings and details as the reference view and its depth, normal and edge maps, ' +
     `and as the front, side, top and 3/4 views. Glaze: ${glaze.prompt}. Setting: ${bg.prompt}. ` +
     'Realistic glaze texture and reflections, sharp focus, no text or labels.';
