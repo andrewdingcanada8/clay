@@ -257,7 +257,8 @@ input[type="number"] {
 .cap-grid.bg { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .cap-opt { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 8px 6px 6px; border-radius: 9px; border: 1px solid var(--line);
   background: var(--surface); color: var(--fg); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
-.cap-opt span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cap-opt span:last-child { min-width: 0; line-height: 1.2; }
 .cap-opt[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--accent-soft, var(--surface-2)); }
 .cap-grid.bg .cap-opt span:last-child { white-space: normal; line-height: 1.2; }
 .cap-sw { flex: none; width: 28px; height: 28px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.12); }
+.cap-sw.round { width: 34px; height: 34px; border-radius: 50%; }
