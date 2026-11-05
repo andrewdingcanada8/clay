@@ -246,5 +246,18 @@ input[type="number"] {
 .cap-head h2 { margin: 0; font-size: 17px; }
 .cap-img { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); background: #faf8f5; -webkit-touch-callout: default; }
 .cap-label { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
-#cap-prompt { width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; line-height: 1.45; color: var(--fg); background: var(--surface-2);
+#cap-prompt { flex: none; min-height: 7.5em; width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; line-height: 1.45; color: var(--fg); background: var(--surface-2);
   border: 1px solid var(--line); border-radius: 8px; padding: 10px; resize: vertical; }
+.cap-frame { flex: none; width: 100%; aspect-ratio: 2136 / 1676; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); display: grid; place-items: center; overflow: hidden; }
+.cap-frame .cap-img { border: 0; border-radius: 0; height: 100%; object-fit: contain; }
+.cap-wait { display: grid; gap: 10px; justify-items: center; color: var(--muted); font-size: 13px; width: 60%; }
+.cap-bar { width: 100%; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.cap-bar i { display: block; height: 100%; background: var(--accent); transition: width .2s; }
+.cap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.cap-grid.bg { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.cap-opt { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 8px 6px 6px; border-radius: 9px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--fg); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.cap-opt span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cap-opt[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--accent-soft, var(--surface-2)); }
+.cap-grid.bg .cap-opt span:last-child { white-space: normal; line-height: 1.2; }
+.cap-sw { flex: none; width: 28px; height: 28px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.12); }

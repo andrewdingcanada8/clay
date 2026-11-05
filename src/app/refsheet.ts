@@ -3,12 +3,60 @@
 // hand an image model along with a prompt. Rendered by Viewport.captureViews.
 
 import * as THREE from 'three';
-import type { Viewport } from './viewport';
+import type { CaptureSpec, Viewport } from './viewport';
 
-export const DEFAULT_PROMPT =
-  'Photorealistic handmade pottery, product photography, 4K. The ceramic piece must match the reference sheet exactly: ' +
-  'the same silhouette, proportions, openings and details as the reference view and its depth, normal and edge maps, ' +
-  'and as the front, side, top and 3/4 views. Real clay and glaze materials, soft studio lighting, neutral background, sharp focus.';
+/** A glaze to ask for: its name, a swatch (CSS background) and how to describe it. */
+export interface Glaze { id: string; name: string; swatch: string; prompt: string }
+/** A setting to photograph the piece in. */
+export interface Backdrop { id: string; name: string; swatch: string; prompt: string }
+
+// Glazes read from reference photos of finished pottery (glossy drips and speckles,
+// satin ash and iron, matte copper), each worded for an image model.
+export const GLAZES: Glaze[] = [
+  { id: 'blue-drip', name: 'Watercolor blue drip', swatch: 'linear-gradient(180deg,#eef2f6 0 42%,#7d97c4 52%,#2f4fa6 64%,#d8c2a2 74%,#f4f2ee 82%)',
+    prompt: 'glossy white glaze with a band of cobalt and denim blue running down in soft watercolor drips across the lower body, a thin toasted-brown iron line where the glaze breaks thin, glossy white liner and foot' },
+  { id: 'speckled-blue', name: 'Speckled midnight blue', swatch: 'radial-gradient(circle at 30% 30%,#5c86b0 0 6%,transparent 7%),radial-gradient(circle at 70% 60%,#0d1a2b 0 7%,transparent 8%),linear-gradient(160deg,#2f5f8f,#1b3556)',
+    prompt: 'high-gloss deep midnight blue glaze densely speckled with black and pale blue crystals, rich reflections' },
+  { id: 'celadon', name: 'Celadon green', swatch: 'linear-gradient(160deg,#bfd8c3,#8fb59b 60%,#6f9a80)',
+    prompt: 'smooth high-gloss pale sea-green celadon glaze, translucent, pooling slightly darker in recesses and thinning lighter on edges' },
+  { id: 'turquoise-teal', name: 'Turquoise over teal', swatch: 'linear-gradient(180deg,#5f8f86 0 30%,#3f9c9a 55%,#2fb3c4 80%,#46c0d0)',
+    prompt: 'glossy variegated glaze, bright turquoise on the lower body rising into streaky teal and sea green, pale green breaking at the shoulder' },
+  { id: 'blue-ochre', name: 'Blue-grey over ochre', swatch: 'linear-gradient(180deg,#9fb2c4 0 40%,#7e98ad 55%,#c8a24a 70%,#b8902f)',
+    prompt: 'glossy dusty blue-grey glaze on the upper body running down into a warm mustard ochre glaze on the lower body, softly blended where they meet' },
+  { id: 'oil-spot', name: 'Black oil-spot', swatch: 'radial-gradient(circle at 25% 35%,#6f8fb0 0 5%,transparent 6%),radial-gradient(circle at 65% 70%,#8fa6bf 0 4%,transparent 5%),linear-gradient(160deg,#1c2533,#0b0f15)',
+    prompt: 'glossy near-black tenmoku glaze covered in small blue-silver oil-spot speckles, deep blue at the rim' },
+  { id: 'rust-shino', name: 'Rust shino', swatch: 'linear-gradient(180deg,#9a5a34 0 30%,#b07a52 50%,#cfc7bd 75%,#e2ddd5)',
+    prompt: 'satin matte shino glaze, rust-orange iron flashing on the shoulder fading down into speckled grey-white, fine pinholes, toasted bare clay at the rim and foot' },
+  { id: 'ash-grey', name: 'Pale ash grey', swatch: 'linear-gradient(160deg,#dcdcd6,#c4c6c0 60%,#b3b4ae)',
+    prompt: 'satin matte pale grey-white ash glaze with a fine dry texture and faint green and lavender variation, rim breaking brown' },
+  { id: 'iron-brown', name: 'Toasted iron brown', swatch: 'radial-gradient(circle at 40% 40%,#6d4a32 0 4%,transparent 5%),linear-gradient(180deg,#8f6a52,#a5785a 60%,#8c5f44)',
+    prompt: 'satin matte warm toasted-brown iron glaze with fine dark speckles and subtle vertical streaks' },
+  { id: 'plum-tenmoku', name: 'Plum tenmoku', swatch: 'linear-gradient(180deg,#4a2a26 0 25%,#6b3d2e 55%,#8a5a3e)',
+    prompt: 'satin dark plum-brown iron glaze, darkest at the shoulder and warming to reddish brown toward the foot, fine streaks' },
+  { id: 'mint-ash', name: 'Mint-lavender ash', swatch: 'linear-gradient(90deg,#c9cbc4,#b9c9bd 35%,#c5bccb 65%,#cfcfc8)',
+    prompt: 'satin matte pale grey glaze with soft mint-green and lavender streaks running vertically down the body' },
+  { id: 'copper-green', name: 'Copper verdigris', swatch: 'radial-gradient(circle at 35% 30%,#7a6b45 0 10%,transparent 18%),linear-gradient(180deg,#6e7a52 0 25%,#3f8a6c 55%,#2f7a62)',
+    prompt: 'matte speckled copper-green verdigris glaze with fine dark specks, a rusty iron-brown break across the shoulder and rim, a thin line of dark bare clay at the carination' },
+  { id: 'unglazed', name: 'Unglazed stoneware', swatch: 'radial-gradient(circle at 60% 40%,#8a7560 0 3%,transparent 4%),linear-gradient(160deg,#cbb59b,#b59c80)',
+    prompt: 'unglazed bisque-fired stoneware, dry warm-buff clay body with fine iron speckles and visible throwing texture' },
+];
+
+export const BACKDROPS: Backdrop[] = [
+  { id: 'white-sweep', name: 'White sweep', swatch: 'linear-gradient(180deg,#ffffff,#eceae6)',
+    prompt: 'on a seamless pure white studio backdrop with a soft gradient, soft diffuse lighting and a gentle contact shadow' },
+  { id: 'black-mirror', name: 'Black mirror', swatch: 'linear-gradient(180deg,#f4f4f4 0 58%,#c9c9c9 60%,#111 62%,#2a2a2a)',
+    prompt: 'against a light grey to white gradient backdrop, standing on a glossy black mirror surface with a clear reflection of the piece below it' },
+  { id: 'white-counter', name: 'White countertop', swatch: 'linear-gradient(180deg,#f2f2f0 0 55%,#e2e1dd 56%,#fbfbfa)',
+    prompt: 'standing on a matte white tabletop against a bright white wall, the line where the table meets the wall visible behind it, soft natural window light and a soft shadow' },
+];
+
+/** The prompt for a sheet: match the design exactly, in this glaze and setting. */
+export function composePrompt(glaze: Glaze, bg: Backdrop): string {
+  return 'Photorealistic handmade pottery, product photography, 4K. The ceramic piece must match the reference sheet exactly: ' +
+    'the same silhouette, proportions, openings and details as the reference view and its depth, normal and edge maps, ' +
+    `and as the front, side, top and 3/4 views. Glaze: ${glaze.prompt}. Setting: ${bg.prompt}. ` +
+    'Realistic glaze texture and reflections, sharp focus, no text or labels.';
+}
 
 const REF = 1024; // the reference view and its passes
 const TILE = 500; // the smaller tiles
@@ -81,16 +129,24 @@ function mask(depth: HTMLCanvasElement): HTMLCanvasElement {
 
 /** The sheet as a PNG, or null when there is nothing to draw. `dir`: the view on
  *  screen, from the piece toward the camera. */
-export async function buildSheet(view: Viewport, dir: THREE.Vector3, title: string): Promise<Blob | null> {
+export async function buildSheet(view: Viewport, dir: THREE.Vector3, title: string, onProgress?: (f: number) => void): Promise<Blob | null> {
   const iso = new THREE.Vector3(1, 0.7, 1.2);
-  const shots = view.captureViews([
+  const specs: CaptureSpec[] = [
     { dir, ortho: false, size: REF, passes: ['shade', 'depth', 'normal'] },
     { dir: new THREE.Vector3(0, 0, 1), ortho: true, size: TILE, passes: ['shade'] },
     { dir: new THREE.Vector3(1, 0, 0), ortho: true, size: TILE, passes: ['shade'] },
     { dir: new THREE.Vector3(0, 1, 0), ortho: true, size: TILE, passes: ['shade'] },
     { dir: iso, ortho: false, size: TILE, passes: ['shade'] },
-  ]);
-  if (!shots) return null;
+  ];
+  // one view per frame, so the page stays responsive while the sheet renders
+  const shots: Record<string, HTMLCanvasElement>[] = [];
+  for (let i = 0; i < specs.length; i++) {
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+    const one = view.captureViews([specs[i]]);
+    if (!one) return null;
+    shots.push(one[0]);
+    onProgress?.((i + 1) / specs.length);
+  }
   const [ref, front, side, top, threeQ] = shots;
   stretch(ref.depth);
 

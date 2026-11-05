@@ -25,7 +25,7 @@ import {
 } from '../engine/layers';
 import { expandDoc } from '../engine/symmetry';
 import { type GizmoMode, Viewport } from './viewport';
-import { DEFAULT_PROMPT, buildSheet } from './refsheet';
+import { BACKDROPS, GLAZES, buildSheet, composePrompt } from './refsheet';
 
 type Tab = 'add' | 'edit' | 'layers' | 'holes' | 'view';
 type Axis = 'x' | 'y' | 'z';
@@ -1234,9 +1234,12 @@ document.getElementById('btn-frame')!.addEventListener('click', () => view.frame
 document.getElementById('btn-capture')!.addEventListener('click', () => { void captureSheet(); });
 
 // ---------- reference sheet
-const PROMPT_KEY = 'clay.prompt';
-const loadPrompt = () => { try { return localStorage.getItem(PROMPT_KEY) || DEFAULT_PROMPT; } catch { return DEFAULT_PROMPT; } };
-const savePrompt = (v: string) => { try { if (v === DEFAULT_PROMPT) localStorage.removeItem(PROMPT_KEY); else localStorage.setItem(PROMPT_KEY, v); } catch { /* storage unavailable */ } };
+const LOOK_KEY = 'clay.sheetLook';
+const loadLook = (): { glaze: string; bg: string } => {
+  try { const v = JSON.parse(localStorage.getItem(LOOK_KEY) ?? 'null'); if (v?.glaze && v?.bg) return v; } catch { /* storage unavailable */ }
+  return { glaze: GLAZES[0].id, bg: BACKDROPS[0].id };
+};
+const saveLook = (v: { glaze: string; bg: string }) => { try { localStorage.setItem(LOOK_KEY, JSON.stringify(v)); } catch { /* storage unavailable */ } };
 type Downloads = { save(r: { filename: string; data: Blob }): Promise<{ status: string }> };
 let downloadsP: Promise<Downloads | null> | null = null;
 const downloads = () => (downloadsP ??= (async () => {
@@ -1245,62 +1248,81 @@ const downloads = () => (downloadsP ??= (async () => {
   try { return (await claude.use('downloads')) as Downloads | null; } catch { return null; }
 })());
 
+/** Capture the sheet from the angle on screen. The modal opens at once, so the glaze
+ *  and setting can be picked while the views render. */
 async function captureSheet() {
   const btn = document.getElementById('btn-capture') as HTMLButtonElement;
   if (btn.disabled) return;
+  if (!view.bounds()) { toast('Nothing to capture yet'); return; }
   btn.disabled = true;
+  const dir = view.camera.position.clone().sub(view.orbit.target);
+  if (dir.lengthSq() < 1e-9) dir.set(1, 0.6, 1);
+  const modal = openSheetModal();
   try {
-    const dir = view.camera.position.clone().sub(view.orbit.target);
-    if (dir.lengthSq() < 1e-9) dir.set(1, 0.6, 1);
-    // (one frame for the button state to show before the renders block)
-    await new Promise((r) => requestAnimationFrame(() => r(null)));
-    const blob = await buildSheet(view, dir, current.name || 'Untitled');
-    if (!blob) { toast('Nothing to capture yet'); return; }
-    openSheetModal(blob);
+    const blob = await buildSheet(view, dir, current.name || 'Untitled', (f) => modal.progress(f));
+    if (!blob) { modal.close(); toast('Nothing to capture yet'); return; }
+    modal.ready(blob);
   } catch (e) {
+    modal.close();
     toast(`Capture failed: ${(e as Error).message}`);
   } finally {
     btn.disabled = false;
   }
 }
 
-function openSheetModal(blob: Blob) {
+function openSheetModal() {
   document.querySelector('.cap-modal')?.remove();
-  const url = URL.createObjectURL(blob);
+  const look = loadLook();
+  let blob: Blob | null = null, url = '';
   const name = `${(current.name || 'Untitled').replace(/[^\w\- ]+/g, '').trim() || 'piece'} reference sheet.png`;
   const m = document.createElement('div');
   m.className = 'cap-modal';
   m.innerHTML = `<div class="cap-card" role="dialog" aria-modal="true" aria-labelledby="cap-title">
       <div class="cap-head"><h2 id="cap-title">Reference sheet</h2><button class="icon-btn" data-cap="close" aria-label="Close">✕</button></div>
-      <img class="cap-img" src="${url}" alt="Reference sheet: this angle with its depth, normal, edge and silhouette maps, and front, side, top and 3/4 views">
-      <div class="row"><button class="btn primary" data-cap="save">Save image</button></div>
-      <p class="hint" id="cap-save-hint">Or press and hold the image to save it to Photos.</p>
+      <div class="cap-frame"><div class="cap-wait"><span>Rendering views…</span><div class="cap-bar"><i style="width:0%"></i></div></div></div>
+      <div class="cap-label">Glaze</div>
+      <div class="cap-grid">${GLAZES.map((g) => `<button class="cap-opt" data-glaze="${g.id}" aria-pressed="${g.id === look.glaze}"><span class="cap-sw" style="background:${g.swatch}"></span><span>${escapeHtml(g.name)}</span></button>`).join('')}</div>
+      <div class="cap-label">Setting</div>
+      <div class="cap-grid bg">${BACKDROPS.map((b) => `<button class="cap-opt" data-bg="${b.id}" aria-pressed="${b.id === look.bg}"><span class="cap-sw" style="background:${b.swatch}"></span><span>${escapeHtml(b.name)}</span></button>`).join('')}</div>
       <label class="cap-label" for="cap-prompt">Prompt</label>
-      <textarea id="cap-prompt" rows="5"></textarea>
-      <div class="row"><button class="btn primary" data-cap="copy">Copy prompt</button><button class="btn" data-cap="reset">Default</button></div>
-      <p class="hint">Not in the image: paste it with the sheet into the image model. Your edits are kept for next time.</p>
+      <textarea id="cap-prompt" rows="6"></textarea>
+      <div class="row"><button class="btn primary" data-cap="copy">Copy prompt</button><button class="btn primary" data-cap="save" disabled>Save image</button></div>
+      <p class="hint">The prompt isn't in the image: paste it with the sheet into the image model. Picking a glaze or setting rewrites it. You can also press and hold the sheet to save it to Photos.</p>
     </div>`;
   document.body.appendChild(m);
   const ta = m.querySelector<HTMLTextAreaElement>('#cap-prompt')!;
-  ta.value = loadPrompt();
-  ta.addEventListener('input', () => savePrompt(ta.value));
-  const close = () => { m.remove(); URL.revokeObjectURL(url); };
-  void downloads().then((d) => { if (!d && (window as unknown as { claude?: unknown }).claude) m.querySelector<HTMLButtonElement>('[data-cap="save"]')!.hidden = true; });
+  const frame = m.querySelector<HTMLDivElement>('.cap-frame')!;
+  const saveBtn = m.querySelector<HTMLButtonElement>('[data-cap="save"]')!;
+  const compose = () => {
+    const g = GLAZES.find((x) => x.id === look.glaze) ?? GLAZES[0];
+    const b = BACKDROPS.find((x) => x.id === look.bg) ?? BACKDROPS[0];
+    ta.value = composePrompt(g, b);
+  };
+  compose();
+  let open = true;
+  const close = () => { open = false; m.remove(); if (url) URL.revokeObjectURL(url); };
+  void downloads().then((d) => { if (!d && (window as unknown as { claude?: unknown }).claude) saveBtn.hidden = true; });
   m.addEventListener('click', async (e) => {
     if (e.target === m) return close();
-    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-cap]');
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('button');
     if (!b) return;
+    if (b.dataset.glaze || b.dataset.bg) {
+      if (b.dataset.glaze) look.glaze = b.dataset.glaze; else look.bg = b.dataset.bg!;
+      m.querySelectorAll<HTMLButtonElement>(b.dataset.glaze ? '[data-glaze]' : '[data-bg]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      saveLook(look);
+      compose();
+      return;
+    }
     const act = b.dataset.cap;
     if (act === 'close') close();
-    else if (act === 'reset') { ta.value = DEFAULT_PROMPT; savePrompt(ta.value); }
     else if (act === 'copy') {
       try { await navigator.clipboard.writeText(ta.value); toast('Prompt copied'); }
       catch { ta.focus(); ta.select(); toast('Select the text and copy it'); }
-    } else if (act === 'save') {
+    } else if (act === 'save' && blob) {
       const d = await downloads();
       if (d) {
         try { await d.save({ filename: name, data: blob }); toast('Sheet saved'); }
-        catch (err) { const code = (err as { code?: string }).code; if (code !== 'declined') toast(code === 'rate_limited' ? 'A save is already waiting for you' : 'Saving isn\'t available here: press and hold the image instead'); }
+        catch (err) { const code = (err as { code?: string }).code; if (code !== 'declined') toast(code === 'rate_limited' ? 'A save is already waiting for you' : 'Saving isn\'t available here: press and hold the sheet instead'); }
       } else {
         // outside claude.ai: a plain download
         const a = document.createElement('a');
@@ -1309,7 +1331,17 @@ function openSheetModal(blob: Blob) {
     }
   });
   m.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-  m.querySelector<HTMLButtonElement>('[data-cap="save"]')!.focus();
+  m.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus();
+  return {
+    progress(f: number) { const i = m.querySelector<HTMLElement>('.cap-bar i'); if (i) i.style.width = `${Math.round(f * 100)}%`; },
+    ready(b: Blob) {
+      if (!open) return;
+      blob = b; url = URL.createObjectURL(b);
+      frame.innerHTML = `<img class="cap-img" src="${url}" alt="Reference sheet: this angle with its depth, normal, edge and silhouette maps, and front, side, top and 3/4 views">`;
+      saveBtn.disabled = false;
+    },
+    close,
+  };
 }
 document.getElementById('btn-gallery')!.addEventListener('click', () => {
   ui.showGallery = !ui.showGallery;
