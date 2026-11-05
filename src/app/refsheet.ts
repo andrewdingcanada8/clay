@@ -84,32 +84,51 @@ const TILE = 500; // the smaller tiles
 const GAP = 24, PAD = 32, HEAD = 64;
 
 /** Edge map (white lines on black) from a depth and a normal pass of the same view:
- *  creases where the normal turns, outlines where the depth jumps or the piece ends. */
+ *  the outline, depth jumps, and creases where the surface turns. Normals are compared
+ *  K pixels either side (a crease spreads over a few pixels, so neighbours alone miss
+ *  it), only the peak across a crease is kept (thin lines), and lines are drawn 2 px
+ *  wide so they survive the sheet's downscaling. */
 function edges(depth: HTMLCanvasElement, normal: HTMLCanvasElement): HTMLCanvasElement {
+  const K = 3, CREASE = 1 - Math.cos((16 * Math.PI) / 180), JUMP = 14;
   const w = depth.width, h = depth.height;
   const D = depth.getContext('2d')!.getImageData(0, 0, w, h).data;
   const N = normal.getContext('2d')!.getImageData(0, 0, w, h).data;
-  const on = new Uint8Array(w * h);
-  const nv = (i: number) => [N[4 * i] / 127.5 - 1, N[4 * i + 1] / 127.5 - 1, N[4 * i + 2] / 127.5 - 1];
-  const inside = (i: number) => D[4 * i] > 4;
-  for (let y = 0; y < h - 1; y++) for (let x = 0; x < w - 1; x++) {
+  const n = new Float32Array(w * h * 3);
+  const inside = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    inside[i] = D[4 * i] > 4 ? 1 : 0;
+    const x = N[4 * i] / 127.5 - 1, y = N[4 * i + 1] / 127.5 - 1, z = N[4 * i + 2] / 127.5 - 1;
+    const l = Math.hypot(x, y, z) || 1;
+    n[3 * i] = x / l; n[3 * i + 1] = y / l; n[3 * i + 2] = z / l;
+  }
+  // how much the surface turns across each pixel, horizontally and vertically
+  const turn = (a: number, b: number) => (inside[a] && inside[b] ? 1 - (n[3 * a] * n[3 * b] + n[3 * a + 1] * n[3 * b + 1] + n[3 * a + 2] * n[3 * b + 2]) : 0);
+  const gx = new Float32Array(w * h), gy = new Float32Array(w * h);
+  for (let y = K; y < h - K; y++) for (let x = K; x < w - K; x++) {
     const i = y * w + x;
-    for (const j of [i + 1, i + w]) {
-      const a = inside(i), b = inside(j);
-      let edge = a !== b;
-      if (!edge && a) {
-        const p = nv(i), q = nv(j);
-        edge = p[0] * q[0] + p[1] * q[1] + p[2] * q[2] < 0.9 || Math.abs(D[4 * i] - D[4 * j]) > 10;
-      }
-      if (edge) { on[i] = 1; on[j] = 1; }
-    }
+    if (!inside[i]) continue;
+    gx[i] = turn(i - K, i + K);
+    gy[i] = turn(i - K * w, i + K * w);
+  }
+  const on = new Uint8Array(w * h);
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const i = y * w + x;
+    // outline and depth jumps
+    if (inside[i] !== inside[i + 1] || inside[i] !== inside[i + w]) { on[i] = 1; continue; }
+    if (!inside[i]) continue;
+    if (Math.abs(D[4 * (i - 1)] - D[4 * (i + 1)]) > JUMP || Math.abs(D[4 * (i - w)] - D[4 * (i + w)]) > JUMP) { on[i] = 1; continue; }
+    // creases: past the angle, and the peak across the crease
+    const hx = gx[i], hy = gy[i];
+    if (Math.max(hx, hy) < CREASE) continue;
+    if (hx >= hy ? hx >= gx[i - 1] && hx >= gx[i + 1] : hy >= gy[i - w] && hy >= gy[i + w]) on[i] = 1;
   }
   const out = document.createElement('canvas');
   out.width = w; out.height = h;
   const ctx = out.getContext('2d')!;
   const img = ctx.createImageData(w, h);
-  for (let i = 0; i < w * h; i++) {
-    const v = on[i] ? 255 : 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    const v = on[i] || (x > 0 && on[i - 1]) || (y > 0 && on[i - w]) || (x > 0 && y > 0 && on[i - w - 1]) ? 255 : 0;
     img.data[4 * i] = img.data[4 * i + 1] = img.data[4 * i + 2] = v;
     img.data[4 * i + 3] = 255;
   }
