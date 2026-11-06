@@ -811,6 +811,16 @@ export class SdfRenderer {
     u.uDepthRange.value.set(near, far);
   }
 
+  /** After a lost GPU context: upload every texture again. */
+  reupload() {
+    if (this.dataTex) this.dataTex.needsUpdate = true;
+    for (const u of Object.values(this.material.uniforms)) {
+      const v = u.value as { isTexture?: boolean; needsUpdate?: boolean } | null;
+      if (v && v.isTexture) v.needsUpdate = true;
+    }
+    this.material.needsUpdate = true;
+  }
+
   /** Keep the side the plane normal points to (three.js clipping convention). */
   setClip(plane: THREE.Plane | null) {
     const u = this.material.uniforms;

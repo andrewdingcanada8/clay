@@ -77,7 +77,10 @@ export class Viewport {
   private dragFrames = 0;
 
   constructor(private host: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
+    // (no preserveDrawingBuffer: every reader of the canvas reads right after a render,
+    // and keeping the buffer costs a full-frame copy of GPU memory, which phones run out of)
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    this.watchContext();
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.localClippingEnabled = true;
     host.appendChild(this.renderer.domElement);
@@ -134,6 +137,54 @@ export class Viewport {
       }
     };
     requestAnimationFrame(loop);
+  }
+
+  /** Called when the GPU context is lost (the phone's graphics reset) and when it comes back. */
+  onContextLost: () => void = () => {};
+  onContextRestored: () => void = () => {};
+  contextLost = false;
+  private gpuName = '';
+  private loseExt: WEBGL_lose_context | null = null;
+
+  private watchContext() {
+    const canvas = this.renderer.domElement;
+    try {
+      const gl = this.renderer.getContext();
+      // (fetched while the context is alive: a lost context hands out no extensions)
+      this.loseExt = gl.getExtension('WEBGL_lose_context');
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      this.gpuName = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+    } catch { /* no info */ }
+    canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault(); // (lets the browser restore it)
+      this.contextLost = true;
+      this.onContextLost();
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+      this.contextLost = false;
+      // three.js re-creates its GPU state; make sure every texture goes up again
+      this.sdf.reupload();
+      this.resize();
+      this.invalidate();
+      this.onContextRestored();
+    });
+  }
+
+  /** Ask the browser for the lost context back (true if it was asked). */
+  restoreContext(): boolean {
+    try { this.loseExt?.restoreContext(); return !!this.loseExt; } catch { return false; }
+  }
+
+  /** What the GPU was doing, for a crash report. */
+  gpuReport() {
+    const f = this.frameTimes;
+    const c = this.renderer.domElement;
+    return {
+      gpu: this.gpuName, mode: this.mode, moving: this.moving, dragging: this.dragging,
+      pixelRatio: +this.renderer.getPixelRatio().toFixed(2), canvas: [c.width, c.height],
+      frameMs: f.length > 1 ? +((f[f.length - 1] - f[0]) / (f.length - 1)).toFixed(1) : null,
+      dpr: window.devicePixelRatio, ua: navigator.userAgent,
+    };
   }
 
   /**

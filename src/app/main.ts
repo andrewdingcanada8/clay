@@ -1232,6 +1232,54 @@ document.getElementById('btn-redo')!.addEventListener('click', () => {
   restore(future.pop()!);
 });
 document.getElementById('btn-frame')!.addEventListener('click', () => view.frame());
+
+// ---------- the 3D view's GPU context lost (phones reset the graphics under memory or
+// time pressure): ask for it back, and offer a reload if it doesn't come; each loss is
+// logged (this browser, and the artifact's database where it has one) to find the cause
+let lostAt = 0;
+const lostOverlay = document.createElement('div');
+lostOverlay.className = 'gl-lost';
+lostOverlay.hidden = true;
+viewportEl.appendChild(lostOverlay);
+const showLost = (stuck: boolean) => {
+  lostOverlay.hidden = false;
+  lostOverlay.innerHTML = stuck
+    ? `<p>The 3D view stopped: this device reset its graphics and didn't hand the view back.</p>
+       <button class="btn primary" data-gl="reload">Reload view</button><p class="hint">Your piece is saved; reloading picks up where you left off.</p>`
+    : '<p>The 3D view was reset by this device\'s graphics. Bringing it back…</p>';
+};
+lostOverlay.addEventListener('click', (e) => {
+  if ((e.target as HTMLElement).closest('[data-gl="reload"]')) { save(doc); location.reload(); }
+});
+view.onContextLost = () => {
+  lostAt = Date.now();
+  showLost(false);
+  void logGpuCrash();
+  // browsers usually restore on their own; nudge once, then offer the reload
+  setTimeout(() => { if (view.contextLost) view.restoreContext(); }, 1500);
+  setTimeout(() => { if (view.contextLost) showLost(true); }, 5000);
+};
+view.onContextRestored = () => {
+  lostOverlay.hidden = true;
+  // rebuild what the GPU held: the scene and its cavity grids
+  view.setSdfDoc(expandDoc(doc));
+  view.setSdfGrids(currentGrids(expandDoc(doc)));
+  view.invalidate();
+  toast(`3D view restored after ${((Date.now() - lostAt) / 1000).toFixed(1)} s`);
+};
+async function logGpuCrash() {
+  const entry = { at: Date.now(), piece: current.name, kernel: doc.kernel, quality: ui.quality, objects: doc.objects.length, groups: doc.groups.length, ...view.gpuReport() };
+  try {
+    const log = JSON.parse(localStorage.getItem('clay.gpuCrashes') ?? '[]') as unknown[];
+    log.push(entry);
+    localStorage.setItem('clay.gpuCrashes', JSON.stringify(log.slice(-20)));
+  } catch { /* storage unavailable */ }
+  try {
+    const claude = (window as unknown as { claude?: { use(n: string): Promise<unknown> } }).claude;
+    const db = claude?.use ? (await claude.use('db')) as { collection(p: string): { doc(id: string): { set(d: unknown): Promise<unknown> } } } | null : null;
+    await db?.collection('gpuCrashes').doc(`c${entry.at}`).set(entry);
+  } catch { /* no database here */ }
+}
 document.getElementById('btn-capture')!.addEventListener('click', () => { void captureSheet(); });
 
 // ---------- reference sheet
