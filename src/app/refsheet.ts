@@ -62,7 +62,7 @@ export const GLAZES: Glaze[] = [
   { id: 'tenmoku', name: 'Tenmoku', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
     prompt: 'glossy deep black-brown glaze over most of the body, breaking to rust-brown on the rim, edges and raised areas where it thins, with the darkest black where it pools in recesses and toward the foot' },
   { id: 'toshiko-black', name: 'Toshiko black', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
-    prompt: 'satin black glaze with a soft lustrous sheen, deep charcoal-black covering the whole piece evenly, gentle diffuse highlights rather than mirror reflections, a smooth, slightly waxy surface with only faint tonal variation, thinning to a dark brown-black at the rim and edges' },
+    prompt: 'satin black glaze with a pronounced metallic, gunmetal-like sheen: deep charcoal-black covering every part of the piece in a thick, even coat, soft lustrous highlights with a faint silvery shimmer rather than mirror reflections, a smooth, slightly waxy surface with only faint tonal variation; the coat stays fully black over rims and edges, with no thinning or color break' },
   { id: 'matte-stone', name: 'Matte stone', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
     prompt: 'dry matte stone-like glaze covering the whole piece evenly, warm grey-beige like sandstone, densely flecked with fine dark brown and pale cream specks, a slightly gritty, porous surface with no sheen, a little darker where it thins at the rim and edges' },
   { id: 'unglazed', name: 'Bare clay', bare: true, swatch: 'radial-gradient(circle at 60% 40%,#8a7560 0 3%,transparent 4%),linear-gradient(160deg,#cbb59b,#b59c80)',
