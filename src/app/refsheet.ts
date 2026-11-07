@@ -51,7 +51,7 @@ export const GLAZES: Glaze[] = [
     prompt: 'satin-matte soft charcoal-black glaze covering the whole body evenly, velvety with only faint diffuse sheen, a fine smooth texture, slightly greyer where it thins at the rim and edges' },
   { id: 'stone-grey', name: 'Satin stone grey', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
     prompt: 'satin mid-grey glaze with a faint cool cast covering the whole body, softly mottled with slightly darker and lighter grey patches and fine dark specks, thinning to a pale grey at the rim and edges' },
-  { id: 'clear-stoneware', name: 'Clear glossy', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
+  { id: 'clear-stoneware', name: 'Clear glossy', swatch: 'linear-gradient(160deg,#f4f2ee,#d9d5cd 60%,#c9c4bb)',
     prompt: 'glossy clear glaze, fully transparent with at most a very faint cool blue-green tint, covering every part of the piece; it adds only gloss and crisp reflections and shows the clay body underneath exactly as it is, its own color and speckles unchanged, with no warm, yellow, honey or amber cast, only a touch deeper where it pools' },
   { id: 'jade-celadon', name: 'Jade celadon', swatch: 'repeating-conic-gradient(#ff00ff 0 25%,#000 0 50%) 0 0/14px 14px', wip: true,
     prompt: 'glossy translucent pale jade blue-green glaze covering the whole body, a fine crackle network across the surface, lighter and almost white on rims and edges where it thins, deeper blue-green where it pools in recesses and toward the foot' },
