@@ -37,10 +37,14 @@ export interface SweepSection {
 }
 
 /** Values of a graph y(x) for x in [0, 1], drawn as points (r = x). */
-export function graphSampler(points: ProfilePoint[] | undefined): (x: number) => number {
+export function graphSampler(points: ProfilePoint[] | undefined, xScale = 1): (x: number) => number {
   if (!points || points.length < 2) return () => 0;
-  const { xy } = sampleCurve(points, 16, { clampR: false });
-  return (x: number) => {
+  // Smooth in the units the graph is drawn in: x (0..1 of the path) times the path's
+  // length in cm against y in cm, as the lift editor shows it. Smoothed in raw (0..1,
+  // cm) units the curve shoots up near a corner and doesn't match what was drawn.
+  const { xy } = sampleCurve(points.map((q) => ({ ...q, r: q.r * xScale })), 16, { clampR: false });
+  return (u: number) => {
+    const x = u * xScale;
     if (x <= xy[0]) return xy[1];
     for (let i = 2; i < xy.length; i += 2) {
       if (xy[i] >= x) {
@@ -88,7 +92,7 @@ export function buildSweepPath(p: PrimitiveParams): SweepPath {
   const sp = [0];
   for (let i = 1; i < flat.length; i++) sp.push(sp[i - 1] + Math.hypot(flat[i][0] - flat[i - 1][0], flat[i][1] - flat[i - 1][1]));
   const L2 = sp[sp.length - 1] || 1;
-  const lift = graphSampler(p.lift);
+  const lift = graphSampler(p.lift, L2);
   let P3 = flat.map((q, i) => planePoint(p.plane, q[0], q[1], lift(sp[i] / L2)));
   // drop repeated points (zero-length segments)
   P3 = P3.filter((q, i) => i === 0 || Math.hypot(...sub(q, P3[i - 1]) as [number, number, number]) > 1e-6);
