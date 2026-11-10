@@ -68,8 +68,8 @@ export const GLAZES: Glaze[] = [
   // studio glazes, from picked reference photos (prompts untested) and names
   { id: 'petes-cranberry', name: 'Pete\'s cranberry', swatch: 'linear-gradient(160deg,#c43a5a,#9a2a4e 55%,#7d3a78)', wip: true,
     prompt: 'high-gloss deep cranberry glaze: saturated berry-to-raspberry red over most of the piece, streaked and mottled with soft violet and mauve where it runs, pooling darker crimson in recesses and thinning to a pale pinkish white at the rim and sharp edges; no blue speckles' },
-  { id: 'gittas-blue', name: 'Gitta\'s blue', swatch: 'linear-gradient(160deg,#b6d3df,#9cc2d2 60%,#8fb6c8)', wip: true,
-    prompt: 'satin-matte pale sky blue glaze covering the whole piece evenly, a soft powdery light blue with a faint grey cast, smooth and opaque with only slight variation, the clay\'s specks showing faintly through, a little paler where it thins at the rim and edges' },
+  { id: 'gittas-blue', name: 'Gitta\'s blue', swatch: 'linear-gradient(160deg,#c9e2d6,#b2d6c8 60%,#a4cbbd)',
+    prompt: 'satin-matte pale aqua glaze, a soft minty sea-glass blue-green covering the whole piece, gently mottled with cloudy paler patches and scattered small darker blue-green spots, a little more saturated where it pools in recesses and paler and milkier where it thins at the rim and edges, with a bare speckled clay foot ring' },
   { id: 'emilys-purple', name: 'Emily\'s purple', swatch: 'linear-gradient(160deg,#a58ad8,#8a6cc8 60%,#7556b4)', wip: true,
     prompt: 'satin lavender-violet glaze, a light, vibrant blue-violet covering the whole piece evenly with soft subtle streaking, a little deeper violet where it pools at the foot and in recesses and paler lilac where it thins at the rim and edges' },
   { id: 'ohata-red', name: 'Ohata red', swatch: 'linear-gradient(160deg,#8a2e1e,#6e2416 55%,#9a5a2a)', wip: true,
