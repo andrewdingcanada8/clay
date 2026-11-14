@@ -1244,29 +1244,36 @@ viewportEl.appendChild(lostOverlay);
 const showLost = (stuck: boolean) => {
   lostOverlay.hidden = false;
   lostOverlay.innerHTML = stuck
-    ? `<p>The 3D view stopped: this device reset its graphics and didn't hand the view back.</p>
-       <button class="btn primary" data-gl="reload">Reload view</button><p class="hint">Your piece is saved; reloading picks up where you left off.</p>`
+    ? `<p>This device has paused 3D graphics for this page, so the view can't come back yet.</p>
+       <button class="btn primary" data-gl="retry">Try again</button>
+       <p class="hint">Your piece is saved. If trying again doesn't work, close Clay and open it again.</p>`
     : '<p>The 3D view was reset by this device\'s graphics. Bringing it back…</p>';
 };
-lostOverlay.addEventListener('click', (e) => {
-  if ((e.target as HTMLElement).closest('[data-gl="reload"]')) { save(doc); location.reload(); }
-});
-view.onContextLost = () => {
-  lostAt = Date.now();
-  showLost(false);
-  void logGpuCrash();
-  // browsers usually restore on their own; nudge once, then offer the reload
-  setTimeout(() => { if (view.contextLost) view.restoreContext(); }, 1500);
-  setTimeout(() => { if (view.contextLost) showLost(true); }, 5000);
-};
-view.onContextRestored = () => {
+// the view is drawing again: rebuild what the GPU held (the scene and its cavity grids)
+const viewBack = () => {
   lostOverlay.hidden = true;
-  // rebuild what the GPU held: the scene and its cavity grids
   view.setSdfDoc(expandDoc(doc));
   view.setSdfGrids(currentGrids(expandDoc(doc)));
   view.invalidate();
   toast(`3D view restored after ${((Date.now() - lostAt) / 1000).toFixed(1)} s`);
 };
+// a fresh canvas and renderer, for a context the browser won't hand back
+const rebuildView = () => {
+  if (!view.contextLost) return;
+  if (view.recreateRenderer()) viewBack(); else showLost(true);
+};
+lostOverlay.addEventListener('click', (e) => {
+  if ((e.target as HTMLElement).closest('[data-gl="retry"]')) { showLost(false); setTimeout(rebuildView, 50); }
+});
+view.onContextLost = () => {
+  lostAt = Date.now();
+  showLost(false);
+  void logGpuCrash();
+  // ask for the context back; if it doesn't come, start over on a new canvas
+  setTimeout(() => { if (view.contextLost) view.restoreContext(); }, 1000);
+  setTimeout(rebuildView, 3000);
+};
+view.onContextRestored = viewBack;
 async function logGpuCrash() {
   const entry = { at: Date.now(), piece: current.name, kernel: doc.kernel, quality: ui.quality, objects: doc.objects.length, groups: doc.groups.length, ...view.gpuReport() };
   try {

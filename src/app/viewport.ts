@@ -170,6 +170,38 @@ export class Viewport {
     });
   }
 
+  /**
+   * Replace a dead renderer with a new one on a fresh canvas, in place: the camera,
+   * controls, gizmo, taps, scene and every texture carry over (a new renderer uploads
+   * them again). For a context the browser won't hand back. False if the device
+   * won't create a new GPU context either.
+   */
+  recreateRenderer(): boolean {
+    const old = this.renderer;
+    let r: THREE.WebGLRenderer;
+    try {
+      r = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+      if (r.getContext().isContextLost()) { r.dispose(); return false; }
+    } catch {
+      return false;
+    }
+    r.setPixelRatio(old.getPixelRatio());
+    r.localClippingEnabled = true;
+    this.host.insertBefore(r.domElement, old.domElement);
+    old.domElement.remove();
+    try { old.dispose(); } catch { /* already gone */ }
+    this.renderer = r;
+    this.orbit.disconnect(); this.orbit.connect(r.domElement);
+    this.gizmo.disconnect(); this.gizmo.connect(r.domElement);
+    this.setupTap();
+    this.watchContext();
+    this.contextLost = false;
+    this.sdf.reupload();
+    this.resize();
+    this.invalidate();
+    return true;
+  }
+
   /** Ask the browser for the lost context back (true if it was asked). */
   restoreContext(): boolean {
     try { this.loseExt?.restoreContext(); return !!this.loseExt; } catch { return false; }
