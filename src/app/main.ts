@@ -1,4 +1,6 @@
+import './debugLog'; // first: catches errors from everything after it
 import './styles.css';
+import { dlog, dlogInfo } from './debugLog';
 import * as THREE from 'three';
 import {
   type LayerOp, type ObjectMode, type PrimitiveType, type Quality, type SceneDoc, type SceneObject, type Symmetry, type Transform,
@@ -146,6 +148,7 @@ let current: Current = (() => {
   } catch { /* storage unavailable */ }
   return { id: null, name: 'Untitled', saved: committed };
 })();
+dlogInfo({ piece: current.name });
 
 // ---------- DOM skeleton
 const app = document.getElementById('app')!;
@@ -1255,18 +1258,22 @@ const viewBack = () => {
   view.setSdfDoc(expandDoc(doc));
   view.setSdfGrids(currentGrids(expandDoc(doc)));
   view.invalidate();
-  toast(`3D view restored after ${((Date.now() - lostAt) / 1000).toFixed(1)} s`);
+  dlog('view-back', { after: Date.now() - lostAt, safeLevel: view.safeLevel }, true);
+  toast(`3D view restored after ${((Date.now() - lostAt) / 1000).toFixed(1)} s${view.safeLevel ? ', at lower resolution' : ''}`);
 };
 // a fresh canvas and renderer, for a context the browser won't hand back
 const rebuildView = () => {
   if (!view.contextLost) return;
+  dlog('rebuild', { safeLevel: view.safeLevel });
   if (view.recreateRenderer()) viewBack(); else showLost(true);
 };
 lostOverlay.addEventListener('click', (e) => {
-  if ((e.target as HTMLElement).closest('[data-gl="retry"]')) { showLost(false); setTimeout(rebuildView, 50); }
+  if ((e.target as HTMLElement).closest('[data-gl="retry"]')) { dlog('retry-tapped', {}, true); showLost(false); setTimeout(rebuildView, 50); }
 });
 view.onContextLost = () => {
   lostAt = Date.now();
+  // come back at a lower resolution, so the frame that was too heavy isn't drawn again
+  view.safer();
   showLost(false);
   void logGpuCrash();
   // ask for the context back; if it doesn't come, start over on a new canvas
@@ -1481,6 +1488,8 @@ let toastTimer = 0;
 // ---------- pieces: save, open, new, gallery
 function setCurrent(c: Current) {
   current = c;
+  dlogInfo({ piece: c.name });
+  dlog('piece', { name: c.name });
   try { localStorage.setItem(CURRENT_KEY, JSON.stringify(c)); } catch { /* storage unavailable */ }
   renderTopbar();
 }

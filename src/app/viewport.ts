@@ -18,11 +18,14 @@ import { type CompiledGroup, approxDepth, traceScene } from '../engine/scene';
 import type { Vec3 } from '../engine/math';
 import { HandReference } from './hand';
 import { SdfRenderer } from './raymarch';
+import { dlog, dlogInfo } from './debugLog';
 
 export type GizmoMode = 'translate' | 'rotate' | 'scale' | 'off';
 
 /** SDF resolution while the view moves, as fractions of the settled one (starts at 0.5). */
 const MOVING_LEVELS = [0.35, 0.5, 0.7, 1];
+/** Settled resolution caps by safe level (raised by each GPU loss, see Viewport.safer). */
+const SAFE_CAPS = [Infinity, 1, 0.6, 0.4];
 
 /** One view for the reference sheet (see Viewport.captureViews). */
 export interface CaptureSpec {
@@ -63,7 +66,10 @@ export class Viewport {
   /** SDF kernel: drawn by raymarching on the GPU. Mesh kernel: triangles. */
   sdf = new SdfRenderer();
   private mode: 'sdf' | 'mesh' = 'sdf';
-  private basePixelRatio = Math.min(window.devicePixelRatio, 2);
+  /** After a GPU loss the view comes back at a lower settled resolution (each loss
+   *  one step further), so a frame too heavy for the device isn't drawn again. */
+  safeLevel = 0;
+  private get basePixelRatio() { return Math.min(window.devicePixelRatio, 2, SAFE_CAPS[this.safeLevel]); }
   private settleTimer = 0;
   /** SDF: resolution while the view moves, as a fraction of the settled one: one of
    *  MOVING_LEVELS, adapted to the frame rate (see adaptMoving). The settled frame is
@@ -128,11 +134,19 @@ export class Viewport {
     this.setupTap();
     new ResizeObserver(() => this.resize()).observe(host);
     this.resize();
+    let lastDraw = 0;
     const loop = (now: number) => {
       requestAnimationFrame(loop);
+      // a long gap after a draw: the GPU (or the page) stalled; log it
+      if (lastDraw && now - lastDraw > 400) {
+        const c = this.renderer.domElement;
+        dlog('stall', { ms: now - lastDraw, ratio: this.renderer.getPixelRatio(), w: c.width, h: c.height, moving: this.moving, hidden: document.hidden });
+      }
+      lastDraw = 0;
       if (this.orbit.update() || this.needsRender) {
         this.needsRender = false;
         this.renderer.render(this.scene, this.camera);
+        lastDraw = now;
         if (this.moving && this.mode === 'sdf') this.adaptMoving(now);
       }
     };
@@ -154,13 +168,17 @@ export class Viewport {
       this.loseExt = gl.getExtension('WEBGL_lose_context');
       const ext = gl.getExtension('WEBGL_debug_renderer_info');
       this.gpuName = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
-    } catch { /* no info */ }
+      dlogInfo({ gpu: this.gpuName });
+      dlog('context', { gpu: this.gpuName, loseExt: !!this.loseExt, w: canvas.width, h: canvas.height, ratio: this.renderer.getPixelRatio() });
+    } catch (err) { dlog('context-info-failed', { msg: String(err) }); }
     canvas.addEventListener('webglcontextlost', (e) => {
       e.preventDefault(); // (lets the browser restore it)
+      dlog('lost', this.gpuReport(), true);
       this.contextLost = true;
       this.onContextLost();
     });
     canvas.addEventListener('webglcontextrestored', () => {
+      dlog('restored', {}, true);
       this.contextLost = false;
       // three.js re-creates its GPU state; make sure every texture goes up again
       this.sdf.reupload();
@@ -181,11 +199,12 @@ export class Viewport {
     let r: THREE.WebGLRenderer;
     try {
       r = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-      if (r.getContext().isContextLost()) { r.dispose(); return false; }
-    } catch {
+      if (r.getContext().isContextLost()) { dlog('rebuild-failed', { why: 'new context already lost' }, true); r.dispose(); return false; }
+    } catch (err) {
+      dlog('rebuild-failed', { why: 'no new context', msg: String((err as Error)?.message ?? err) }, true);
       return false;
     }
-    r.setPixelRatio(old.getPixelRatio());
+    r.setPixelRatio(this.moving ? this.movingRatio() : this.basePixelRatio);
     r.localClippingEnabled = true;
     this.host.insertBefore(r.domElement, old.domElement);
     old.domElement.remove();
@@ -199,12 +218,28 @@ export class Viewport {
     this.sdf.reupload();
     this.resize();
     this.invalidate();
+    dlog('rebuilt', { ratio: r.getPixelRatio(), w: r.domElement.width, h: r.domElement.height, safeLevel: this.safeLevel }, true);
+    // did it actually draw? (a dead context draws nothing and reports no error)
+    window.setTimeout(() => {
+      try {
+        const gl = r.getContext();
+        dlog('rebuilt-check', { lost: gl.isContextLost(), glError: gl.getError(), current: this.renderer === r }, true);
+      } catch (err) { dlog('rebuilt-check', { msg: String(err) }, true); }
+    }, 1500);
+    return true;
+  }
+
+  /** One step lower settled resolution, after a GPU loss (false: already lowest). */
+  safer(): boolean {
+    if (this.safeLevel >= SAFE_CAPS.length - 1) return false;
+    this.safeLevel++;
+    dlog('safe-level', { level: this.safeLevel, ratio: this.basePixelRatio }, true);
     return true;
   }
 
   /** Ask the browser for the lost context back (true if it was asked). */
   restoreContext(): boolean {
-    try { this.loseExt?.restoreContext(); return !!this.loseExt; } catch { return false; }
+    try { this.loseExt?.restoreContext(); dlog('restore-asked', { ext: !!this.loseExt }); return !!this.loseExt; } catch (err) { dlog('restore-failed', { msg: String(err) }, true); return false; }
   }
 
   /** What the GPU was doing, for a crash report. */
@@ -237,6 +272,7 @@ export class Viewport {
     if (dt > 28 && !this.dragStepped && this.movingLevel > 0) {
       this.dragStepped = true;
       this.movingLevel--;
+      dlog('moving-step-down', { dt, level: this.movingLevel });
       f.length = 0;
       this.renderer.setPixelRatio(this.movingRatio());
       this.resize();
@@ -496,6 +532,7 @@ export class Viewport {
       if (Math.abs(this.renderer.getPixelRatio() - ratio) < 1e-3) return;
       this.renderer.setPixelRatio(ratio);
       this.resize();
+      if (!this.moving) dlog('settled', { ratio, w: this.renderer.domElement.width, h: this.renderer.domElement.height });
     };
     if (on && !this.moving) {
       // a whole smooth drag before this one: try a level finer
@@ -503,6 +540,10 @@ export class Viewport {
       this.dragStepped = false;
       this.dragSmooth = true;
       this.dragFrames = 0;
+    }
+    if (!on && this.moving) {
+      const f = this.frameTimes;
+      dlog('moved', { frames: this.dragFrames, dt: f.length > 1 ? (f[f.length - 1] - f[0]) / (f.length - 1) : null, ratio: this.renderer.getPixelRatio() });
     }
     this.moving = on;
     this.frameTimes.length = 0;
@@ -521,6 +562,10 @@ export class Viewport {
   /** `interactive`: mid-drag, slow profile tables wait for release (see SdfRenderer.setDoc). */
   setSdfDoc(doc: SceneDoc, interactive = false) {
     this.sdf.setDoc(doc, interactive);
+    if (!interactive) {
+      const n = (t: string) => doc.objects.filter((o) => o.type === t).length;
+      dlog('scene', { objects: doc.objects.length, sweeps: n('sweep'), revolves: n('revolve'), program: doc.program?.length ?? 0, bodies: doc.groups.length });
+    }
     this.sdf.mesh.visible = this.mode === 'sdf' && !this.sdf.bounds.isEmpty();
     if (this.mode === 'sdf') this.placeGround();
     this.invalidate();
@@ -528,6 +573,8 @@ export class Viewport {
 
   setSdfGrids(grids: (CavityGrid | null)[]) {
     this.sdf.setGrids(grids);
+    const sizes = grids.filter((g): g is CavityGrid => !!g).map((g) => g.dims.join('x'));
+    if (sizes.length) dlog('grids', { sizes: sizes.join(' ') });
     this.invalidate();
   }
 
