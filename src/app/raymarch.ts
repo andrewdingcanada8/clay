@@ -23,18 +23,21 @@ const MAX_PINS = 32;
 const ROWS = 10; // texels per object in the data texture
 const TYPE_CODE: Record<string, number> = { sphere: 0, box: 1, cylinder: 2, cone: 3, torus: 4, capsule: 5, prism: 6, revolve: 7, sweep: 8 };
 const MAX_SWEEPS = 6; // distinct sweep shapes (texture slots); copies of one share its slot
-const MAX_SWEEP_OBJS = 48; // sweep objects (copies included), each with its own distance
+const MAX_SWEEP_OBJS = 64; // sweep objects (copies included), each with its own distance
 /** Hole-mask bit marking a mask object (above the faces' bits): no opening, never culled. */
 const MASK_FLAG = 256;
 /** Layer program: most steps, and deepest group nesting. */
 const MAX_PROG = 512;
+const MAX_CLUSTERS = 32; // top-level layers, each culled per ray as a whole (see rayMask)
 const MAX_DEPTH = 12;
 // sweep texture rows per slot (indexed by path vertex / segment unless noted):
 // 0 point + length so far, 1 segment direction + length, 2/4 section normal square
 // to the segment at its start/end + flags of the vertex there (1 miter, 2 round
 // corner, 4 sharp), 3 section outline (by outline point), 5 plane between pieces
-// at a miter, 6-8 round corner axes and frame
-const SWEEP_ROWS = 9;
+// at a miter, 6-8 round corner axes and frame, 9 a bounding sphere per chunk of
+// SWEEP_CHUNK segments (for the nearest-segment search)
+const SWEEP_ROWS = 10;
+const SWEEP_CHUNK = 8;
 const SECTION_CODE: Record<string, number> = { circle: 0, square: 1, custom: 2 };
 
 interface ProfileTex { tex: THREE.DataTexture; min: [number, number]; max: [number, number] }
@@ -74,9 +77,13 @@ uniform int uObjCount;
 uniform int uProgLen; // the layer program (scene.CompiledIns), in uData from row uProgRow
 uniform int uProgRow;
 uniform int uSweepCount;
+uniform int uCluCount;
+uniform vec4 uCluMin[${MAX_CLUSTERS}]; // a top-level layer's world box; w: how far it reaches past it
+uniform vec4 uCluMax[${MAX_CLUSTERS}];
 uniform int uSweepObj[${MAX_SWEEP_OBJS}]; // object index of each sweep object
 uniform int uSweepData[${MAX_SWEEP_OBJS}]; // its shape's texture slot
 uniform float uSweepGate;
+uniform ivec2 uCluSw[${MAX_CLUSTERS}]; // each cluster's range in the sweep list
 uniform ivec4 uGroupRange[${MAX_GROUPS}];   // shells start, solids start, subs start, end
 uniform ivec2 uPinRange[${MAX_GROUPS}];
 uniform vec4 uGroupC[${MAX_GROUPS}];
@@ -188,17 +195,38 @@ vec2 sdSweep(int slot, vec4 P, vec4 M, vec3 q, int holeMask) {
   bool loop = M.z > 0.5, roundCap = cap == 1;
   bool openS = (holeMask & 2) != 0, openE = (holeMask & 4) != 0;
   float ext = cap == 2 ? P.z : 0.0;
-  // the segment nearest by its centre line
+  // the segment nearest by its centre line: the chunk whose bounding sphere is
+  // nearest first, then only the chunks that could hold a nearer segment
   float bd = 1e20;
   int bi = 0;
-  vec3 a = sw(slot, 0, 0).xyz;
-  for (int i = 0; i < ${MAX_PATH_POINTS - 1}; i++) {
-    if (i >= segs) break;
-    vec3 b = sw(slot, 0, i + 1).xyz, e = b - a;
-    vec3 dv = q - a - e * clamp(dot(q - a, e) / max(dot(e, e), 1e-12), 0.0, 1.0);
-    float dd = dot(dv, dv);
-    if (dd < bd) { bd = dd; bi = i; }
-    a = b;
+  int nch = (segs + ${SWEEP_CHUNK - 1}) / ${SWEEP_CHUNK}, cb = 0;
+  float lbBest = 1e20;
+  for (int c = 0; c < ${Math.ceil(MAX_PATH_POINTS / SWEEP_CHUNK)}; c++) {
+    if (c >= nch) break;
+    vec4 C = sw(slot, 9, c);
+    float lb = max(length(q - C.xyz) - C.w, 0.0);
+    if (lb < lbBest) { lbBest = lb; cb = c; }
+  }
+  for (int pass = 0; pass < ${Math.ceil(MAX_PATH_POINTS / SWEEP_CHUNK) + 1}; pass++) {
+    int c = pass == 0 ? cb : pass - 1;
+    if (c >= nch) break;
+    if (pass > 0) {
+      if (c == cb) continue;
+      vec4 C = sw(slot, 9, c);
+      float lb = max(length(q - C.xyz) - C.w, 0.0);
+      if (lb * lb >= bd) continue;
+    }
+    int i0 = c * ${SWEEP_CHUNK};
+    vec3 a = sw(slot, 0, i0).xyz;
+    for (int j = 0; j < ${SWEEP_CHUNK}; j++) {
+      int i = i0 + j;
+      if (i >= segs) break;
+      vec3 b = sw(slot, 0, i + 1).xyz, e = b - a;
+      vec3 dv = q - a - e * clamp(dot(q - a, e) / max(dot(e, e), 1e-12), 0.0, 1.0);
+      float dd = dot(dv, dv);
+      if (dd < bd) { bd = dd; bi = i; }
+      a = b;
+    }
   }
   int g0 = int(sw(slot, 2, bi).w + 0.5), g1 = int(sw(slot, 4, bi).w + 0.5);
   bool sharp0 = (g0 & 4) == 4 && (bi > 0 || loop), sharp1 = (g1 & 4) == 4 && (bi + 1 < segs || loop);
@@ -306,6 +334,7 @@ float bound(int i, vec3 p) { vec4 b = row(i, 5); return length(p - b.xyz) - b.w;
 // the normal and occlusion samples. Objects outside it cannot change map() at any
 // point the pixel evaluates, so skipping them leaves the image unchanged.
 uvec4 gMask = uvec4(0xffffffffu);
+uint gClu = 0xffffffffu, gAOClu = 0xffffffffu;
 bool objOn(int i) { return i >= 128 || ((gMask[i >> 5] >> uint(i & 31)) & 1u) == 1u; }
 // the part [t0, t1] of the segment [ta, tb] inside the box (empty if t0 > t1)
 vec2 segBox(vec3 ro, vec3 rd, float ta, float tb, vec3 lo, vec3 hi) {
@@ -316,11 +345,23 @@ vec2 segBox(vec3 ro, vec3 rd, float ta, float tb, vec3 lo, vec3 hi) {
 }
 // bit set per object hit by the segment [ta, tb], boxes grown by 'reach' (world units);
 // span: the first entry and last exit over those boxes
-uvec4 rayMask(vec3 ro, vec3 rd, float ta, float tb, float reach, out vec2 span) {
+// Top-level layers (clusters) first: a ray that misses one's box, grown the same way,
+// skips all its objects here and its steps in map(). clu: bit per cluster hit.
+uvec4 rayMask(vec3 ro, vec3 rd, float ta, float tb, float reach, out vec2 span, out uint clu) {
   uvec4 m = uvec4(0u);
   span = vec2(1e9, -1e9);
+  clu = 0u;
+  float cav = 0.0;
+  for (int k = 0; k < ${MAX_GRIDS}; k++) cav = max(cav, uCavH[k]);
+  for (int c = 0; c < ${MAX_CLUSTERS}; c++) {
+    if (c >= uCluCount) break;
+    float grow = reach + uCluMin[c].w + 3.0 * cav;
+    vec2 st = segBox(ro, rd, ta, tb, uCluMin[c].xyz - grow, uCluMax[c].xyz + grow);
+    if (st.x <= st.y) clu |= 1u << uint(c);
+  }
   for (int i = 0; i < 128; i++) {
     if (i >= uObjCount) break;
+    if (((clu >> uint(int(row(i, 8).w + 0.5))) & 1u) == 0u) continue;
     vec4 meta = row(i, 6), S = row(i, 4);
     int g = int(meta.w);
     float cavH = g < ${MAX_GRIDS} ? uCavH[min(g, ${MAX_GRIDS - 1})] : 0.0;
@@ -456,17 +497,26 @@ int gKind;        // 0 clay, 1 section cap, 2 cavity wall
 float gCavH;
 bool gNoClip = false;
 
-// Each nearby sweep, once per map() call (see gSw). Farther than the gate, its
-// bounding sphere stands in: every caller that wants it exact is nearer than that.
+// Each nearby sweep, once per map() call (see gSw). Farther than the gate, a
+// bound stands in: every caller that wants it exact is nearer than that. Sweeps are
+// listed by cluster, so a ray only loops over the sweeps of clusters it reaches.
+// Lower bound from the object's local box (tighter than its sphere for long shapes).
+float boxBound(int i, vec3 p) {
+  vec3 q = toLocal(i, p);
+  return length(max(max(row(i, 8).xyz - q, q - row(i, 9).xyz), 0.0)) * row(i, 4).w;
+}
 void sweepAll(vec3 p) {
-  for (int k = min(uGroupCount, 0); k < ${MAX_SWEEP_OBJS}; k++) {
-    if (k >= uSweepCount) break;
-    int i = uSweepObj[k];
-    float b = bound(i, p);
-    if (!objOn(i) || b > uSweepGate) { gSw[k] = vec2(b); continue; }
-    gObjN++;
-    vec4 meta = row(i, 6);
-    gSw[k] = sdSweep(uSweepData[k], row(i, 3), row(i, 7), toLocal(i, p), int(meta.z)) * row(i, 4).w;
+  for (int c = min(uGroupCount, 0); c < ${MAX_CLUSTERS}; c++) {
+    if (c >= uCluCount) break;
+    if (((gClu >> uint(c)) & 1u) == 0u) continue;
+    ivec2 r = uCluSw[c];
+    for (int k = r.x; k < r.y; k++) {
+      int i = uSweepObj[k];
+      float b = bound(i, p);
+      if (!objOn(i) || b > uSweepGate || (b = max(b, boxBound(i, p))) > uSweepGate) { gSw[k] = vec2(b); continue; }
+      gObjN++;
+      gSw[k] = sdSweep(uSweepData[k], row(i, 3), row(i, 7), toLocal(i, p), int(row(i, 6).z)) * row(i, 4).w;
+    }
   }
 }
 
@@ -562,6 +612,9 @@ float map(vec3 p) {
         if (!solid) f = smin(f, d, k);
       }
     } else if (op == 1) {
+      // a top-level group the ray can't reach: as if empty (never a mask; see setDoc)
+      int c = int(ins.z + 0.5) - 1;
+      if (c >= 0 && ((gClu >> uint(c)) & 1u) == 0u) { pc = int(ins.y + 0.5); continue; }
       if (sp < ${MAX_DEPTH}) { G[sp] = g; F[sp] = f; K[sp] = kd; sp++; }
       g = 1e5; f = 1e5; kd = -1;
     } else {
@@ -611,7 +664,9 @@ uvec4 gAOMask;
 float calcAO(vec3 p, vec3 n) {
   float occ = 0.0, sca = 1.0;
   uvec4 m = gMask;
+  uint mc = gClu;
   gMask = gAOMask;
+  gClu = gAOClu;
   gNoClip = true; // occlusion comes from the clay only, not the section plane
   for (int i = min(uGroupCount, 0); i < 4; i++) {
     float h = 0.15 + 0.6 * float(i);
@@ -620,6 +675,7 @@ float calcAO(vec3 p, vec3 n) {
   }
   gNoClip = false;
   gMask = m;
+  gClu = mc;
   return clamp(1.0 - 0.18 * occ, 0.0, 1.0);
 }
 bool boxHit(vec3 ro, vec3 rd, out float t0, out float t1) {
@@ -642,7 +698,10 @@ void main() {
   float nReach = uPixelAngle * t1 + 0.002;
   for (int k = 0; k < ${MAX_GRIDS}; k++) nReach = max(nReach, 0.25 * uCavH[k]);
   vec2 span, aoSpan;
-  uvec4 marchMask = rayMask(ro, rd, t, t1, nReach, span), aoMask = rayMask(ro, rd, t, t1, 4.0, aoSpan);
+  uint marchClu, aoClu;
+  uvec4 marchMask = rayMask(ro, rd, t, t1, nReach, span, marchClu), aoMask = rayMask(ro, rd, t, t1, 4.0, aoSpan, aoClu);
+  gClu = marchClu;
+  gAOClu = aoClu;
   gMask = marchMask;
   gAOMask = aoMask;
   bool hit = false;
@@ -699,6 +758,8 @@ void main() {
 `;
 
 export class SdfRenderer {
+  /** Bumped by every change to what it draws (the view redraws its image on a change). */
+  version = 0;
   readonly mesh: THREE.Mesh;
   private material: THREE.ShaderMaterial;
   private dataTex: THREE.DataTexture | null = null;
@@ -728,6 +789,9 @@ export class SdfRenderer {
       uCap: { value: new THREE.Color(0xc0634a) },
       uBoundsMin: { value: new THREE.Vector3() },
       uBoundsMax: { value: new THREE.Vector3() },
+      uCluCount: { value: 0 },
+      uCluMin: { value: range(MAX_CLUSTERS).map(() => new THREE.Vector4()) },
+      uCluMax: { value: range(MAX_CLUSTERS).map(() => new THREE.Vector4()) },
       uPixelAngle: { value: 0.0015 },
       uPixelSize: { value: 0 },
       uGroupCount: { value: 0 },
@@ -737,6 +801,7 @@ export class SdfRenderer {
       uSweepCount: { value: 0 },
       uSweepObj: { value: range(MAX_SWEEP_OBJS).map(() => 0) },
       uSweepData: { value: range(MAX_SWEEP_OBJS).map(() => 0) },
+      uCluSw: { value: new Int32Array(2 * MAX_CLUSTERS) }, // (an ivec2 array goes up as flat ints)
       uSweepGate: { value: 4 },
       // integer vector arrays must be flat Int32Arrays (three.js does not flatten them)
       uGroupRange: { value: new Int32Array(MAX_GROUPS * 4) },
@@ -794,6 +859,7 @@ export class SdfRenderer {
   }
 
   setStyle(opts: { flat?: boolean; cost?: boolean; clay?: number; cap?: number }) {
+    this.version++;
     const u = this.material.uniforms;
     if (opts.flat !== undefined) u.uFlat.value = opts.flat ? 1 : 0;
     if (opts.cost !== undefined) u.uFlat.value = opts.cost ? 2 : 0;
@@ -804,6 +870,7 @@ export class SdfRenderer {
   /** Reference-sheet pass: 0 shaded, 1 depth over [near, far] along the view (near
    *  white), 2 view-space normal (x right, y up, z toward the camera). */
   setPass(pass: 0 | 1 | 2, camera?: THREE.Camera, near = 0, far = 1) {
+    this.version++;
     const u = this.material.uniforms;
     u.uPass.value = pass;
     if (!camera) return;
@@ -816,6 +883,7 @@ export class SdfRenderer {
 
   /** After a lost GPU context: upload every texture again. */
   reupload() {
+    this.version++;
     if (this.dataTex) this.dataTex.needsUpdate = true;
     for (const u of Object.values(this.material.uniforms)) {
       const v = u.value as { isTexture?: boolean; needsUpdate?: boolean } | null;
@@ -826,6 +894,7 @@ export class SdfRenderer {
 
   /** Keep the side the plane normal points to (three.js clipping convention). */
   setClip(plane: THREE.Plane | null) {
+    this.version++;
     const u = this.material.uniforms;
     u.uClipOn.value = plane ? 1 : 0;
     if (plane) u.uClip.value.set(plane.normal.x, plane.normal.y, plane.normal.z, plane.constant);
@@ -834,6 +903,7 @@ export class SdfRenderer {
   /** `interactive`: while dragging, a profile whose table isn't built yet keeps its
    *  slot's previous table (a moment's stale preview); it is built on release. */
   setDoc(doc: SceneDoc, interactive = false) {
+    this.version++;
     const groups = compileGroups(doc).slice(0, MAX_GROUPS);
     this.groups = groups;
     const u = this.material.uniforms;
@@ -873,17 +943,9 @@ export class SdfRenderer {
     const shapes = this.updateSweeps(objs);
     // sweeps are evaluated once per map() call (see sweepAll); a sweep's slot in the
     // object rows is its index here, and its shape's texture slot goes alongside
-    const sweepObjs = u.uSweepObj.value as number[], sweepData = u.uSweepData.value as number[];
-    let ns = 0;
-    objs.forEach((o, i) => {
-      if (o.obj.type !== 'sweep' || !shapes.has(o)) return;
-      if (ns >= MAX_SWEEP_OBJS) { slots.set(o, MAX_SWEEP_OBJS - 1); return; }
-      sweepObjs[ns] = i; sweepData[ns] = shapes.get(o)!; slots.set(o, ns++);
-    });
-    u.uSweepCount.value = ns;
     // beyond this, a sweep's bounding sphere stands in for it: farther than any
     // caller needs it exactly (blends, occlusion samples, cut walls)
-    u.uSweepGate.value = 4 + Math.max(0, ...groups.map((g) => g.reach)) + 2 * Math.max(0, ...groups.map((g) => g.t));
+    u.uSweepGate.value = 1.2 + Math.max(0, ...groups.map((g) => g.reach)) + 2 * Math.max(0, ...groups.map((g) => g.t));
     // the layer program, by object and body index; each body's widest blend (culling reach)
     const prog: number[] = [];
     const ks = groups.map(() => 0);
@@ -902,9 +964,26 @@ export class SdfRenderer {
       (u.uK.value as number[])[i] = Math.max(k, groups[i].k);
       (u.uReach.value as number[])[i] = Math.max(k, groups[i].k, groups[i].reach);
     });
+    const cluster = this.clusters(objs, groups, prog);
+    // sweeps are evaluated once per map() call (see sweepAll), listed by cluster; a
+    // sweep's slot in the object rows is its place in the list
+    const sweepObjs = u.uSweepObj.value as number[], sweepData = u.uSweepData.value as number[];
+    const cluSw = u.uCluSw.value as Int32Array;
+    const sw = objs.map((o, i) => ({ o, i })).filter(({ o }) => o.obj.type === 'sweep' && shapes.has(o))
+      .sort((a, b) => (cluster.get(a.o) ?? 0) - (cluster.get(b.o) ?? 0) || a.i - b.i);
+    cluSw.fill(0);
+    let ns = 0;
+    for (const { o, i } of sw) {
+      if (ns >= MAX_SWEEP_OBJS) { slots.set(o, MAX_SWEEP_OBJS - 1); continue; }
+      const c = cluster.get(o) ?? 0;
+      if (cluSw[2 * c + 1] === 0) cluSw[2 * c] = ns;
+      sweepObjs[ns] = i; sweepData[ns] = shapes.get(o)!; slots.set(o, ns++);
+      cluSw[2 * c + 1] = ns;
+    }
+    u.uSweepCount.value = ns;
     u.uProgLen.value = Math.min(MAX_PROG, prog.length / 4);
     u.uProgRow.value = objs.length;
-    this.writeData(objs, groups, slots, prog);
+    this.writeData(objs, groups, slots, prog, cluster);
     this.bounds.makeEmpty();
     for (const g of groups) {
       if (g.bounds.min[0] > g.bounds.max[0]) continue; // a body of cuts only
@@ -921,6 +1000,7 @@ export class SdfRenderer {
 
   /** Cavity grids by document group index; null falls back to the analytic depth. */
   setGrids(grids: (CavityGrid | null)[]) {
+    this.version++;
     this.gridsByIndex = grids;
     this.bindGrids();
   }
@@ -974,7 +1054,64 @@ export class SdfRenderer {
     return this.groups;
   }
 
-  private writeData(objs: CompiledObject[], groups: CompiledGroup[], slots: Map<CompiledObject, number>, prog: number[]) {
+  /**
+   * Clusters: each top-level layer (a group, or an object on its own) with its world
+   * box and how far past it its objects can change the field (as rayMask grows an
+   * object's box, less the ray's own reach and the grid's smoothing). A ray that
+   * misses a cluster skips its objects, and map() jumps over a top-level group's
+   * steps (its open step gets the jump). A cluster holding a mask is never culled.
+   * Returns each object's cluster.
+   */
+  private clusters(objs: CompiledObject[], groups: CompiledGroup[], prog: number[]): Map<CompiledObject, number> {
+    const u = this.material.uniforms;
+    const of = new Map<CompiledObject, number>();
+    const lo: number[][] = [], hi: number[][] = [], grow: number[] = [], never: boolean[] = [];
+    const reach = u.uReach.value as number[], round = u.uRound.value as number[];
+    const n = prog.length / 4;
+    let depth = 0, cur = -1, open = -1;
+    const start = () => {
+      const c = Math.min(lo.length, MAX_CLUSTERS - 1);
+      if (c === lo.length) { lo.push([Infinity, Infinity, Infinity]); hi.push([-Infinity, -Infinity, -Infinity]); grow.push(0); never.push(false); }
+      return c;
+    };
+    for (let k = 0; k < n; k++) {
+      const op = prog[4 * k];
+      if (op === 1) { if (depth === 0) { cur = start(); open = k; } depth++; continue; }
+      if (op === 2) {
+        depth--;
+        if (depth === 0 && open >= 0) {
+          // the jump past the group, and its cluster (none when it has to stay: a mask)
+          prog[4 * open + 1] = k + 1;
+          prog[4 * open + 2] = never[cur] || (prog[4 * k + 1] & 4) ? 0 : cur + 1;
+          if (prog[4 * k + 1] & 4) never[cur] = true;
+          open = -1;
+        }
+        continue;
+      }
+      const c = depth === 0 ? start() : cur;
+      const o = objs[prog[4 * k + 1]];
+      of.set(o, c);
+      const gi = groups.findIndex((g) => g.shells.includes(o) || g.solids.includes(o) || g.subs.includes(o));
+      const b = o.worldBounds;
+      for (let a = 0; a < 3; a++) { lo[c][a] = Math.min(lo[c][a], b.min[a]); hi[c][a] = Math.max(hi[c][a], b.max[a]); }
+      const g = groups[gi];
+      // (openings and cuts reach past an object only inside its own body, which is
+      // inside the cluster: outside the cluster's box only blends reach)
+      grow[c] = Math.max(grow[c], (reach[gi] ?? 0) + (round[gi] ?? 0) + (g ? g.k : 0) + 0.05);
+      if (prog[4 * k + 2] & 4) never[c] = true;
+    }
+    // objects on no step (none expected) belong to every ray
+    objs.forEach((o) => { if (!of.has(o)) { const c = start(); never[c] = true; of.set(o, c); } });
+    lo.forEach((l, c) => {
+      const big = never[c] || !(l[0] <= hi[c][0]);
+      (u.uCluMin.value as THREE.Vector4[])[c].set(big ? -1e6 : l[0], big ? -1e6 : l[1], big ? -1e6 : l[2], grow[c]);
+      (u.uCluMax.value as THREE.Vector4[])[c].set(big ? 1e6 : hi[c][0], big ? 1e6 : hi[c][1], big ? 1e6 : hi[c][2], 0);
+    });
+    u.uCluCount.value = lo.length;
+    return of;
+  }
+
+  private writeData(objs: CompiledObject[], groups: CompiledGroup[], slots: Map<CompiledObject, number>, prog: number[], cluster: Map<CompiledObject, number>) {
     // the objects' rows, then the program's (ROWS steps a row)
     const n = Math.max(1, objs.length + Math.ceil(prog.length / 4 / ROWS));
     const data = new Float32Array(ROWS * 4 * n);
@@ -1018,7 +1155,7 @@ export class SdfRenderer {
       data[k6 + 2] = holeMask(o, g);
       data[k6 + 3] = groups.indexOf(g);
       const lb = o.localBounds, k8 = (i * ROWS + 8) * 4, k9 = (i * ROWS + 9) * 4;
-      data[k8] = lb.min[0]; data[k8 + 1] = lb.min[1]; data[k8 + 2] = lb.min[2];
+      data[k8] = lb.min[0]; data[k8 + 1] = lb.min[1]; data[k8 + 2] = lb.min[2]; data[k8 + 3] = cluster.get(o) ?? 0;
       data[k9] = lb.max[0]; data[k9 + 1] = lb.max[1]; data[k9 + 2] = lb.max[2];
     });
     if (!this.dataTex || this.dataTex.image.height !== n) {
@@ -1075,6 +1212,16 @@ export class SdfRenderer {
           put(4, i, g.Nb[3 * i], g.Nb[3 * i + 1], g.Nb[3 * i + 2], g.miter[i + 1] + 2 * g.hasJ[i + 1] + 4 * g.sharp[i + 1]);
         }
         for (let k = 0; k < sec.polyN; k++) put(3, k, sec.poly[2 * k], sec.poly[2 * k + 1], 0, 0);
+        // a bounding sphere per chunk of segments (their end points)
+        for (let c = 0; c * SWEEP_CHUNK < g.segs; c++) {
+          const i0 = c * SWEEP_CHUNK, i1 = Math.min(i0 + SWEEP_CHUNK, g.segs);
+          const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+          for (let i = i0; i <= i1; i++) for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], path.P[3 * i + a]); hi[a] = Math.max(hi[a], path.P[3 * i + a]); }
+          const cx = (lo[0] + hi[0]) / 2, cy = (lo[1] + hi[1]) / 2, cz = (lo[2] + hi[2]) / 2;
+          let r = 0;
+          for (let i = i0; i <= i1; i++) r = Math.max(r, Math.hypot(path.P[3 * i] - cx, path.P[3 * i + 1] - cy, path.P[3 * i + 2] - cz));
+          put(9, c, cx, cy, cz, r + 1e-4);
+        }
       }
       slot++;
     }
