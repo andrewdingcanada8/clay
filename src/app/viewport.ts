@@ -26,6 +26,22 @@ export type GizmoMode = 'translate' | 'rotate' | 'scale' | 'off';
 const MOVING_LEVELS = [0.35, 0.5, 0.7, 1];
 /** Settled resolution caps by safe level (raised by each GPU loss, see Viewport.safer). */
 const SAFE_CAPS = [Infinity, 1, 0.6, 0.4];
+/** The SDF quad draws on its own layer: into an offscreen image, then onto the canvas
+ *  under the other objects (see Viewport.drawFrame). */
+const SDF_LAYER = 1;
+/** A settled SDF frame is drawn in bands of rows, each about this long on the GPU,
+ *  so no single submission runs long enough for a phone to reset the graphics. */
+const BAND_MS = 30;
+const BLIT_FRAG = /* glsl */ `
+uniform sampler2D tColor;
+uniform sampler2D tDepth;
+varying vec2 vUv;
+void main() {
+  vec4 c = texture2D(tColor, vUv);
+  if (c.a < 0.5) discard; // nothing drawn here: the canvas's own background shows
+  gl_FragColor = vec4(c.rgb, 1.0);
+  gl_FragDepth = texture2D(tDepth, vUv).r;
+}`;
 
 /** One view for the reference sheet (see Viewport.captureViews). */
 export interface CaptureSpec {
@@ -81,6 +97,32 @@ export class Viewport {
   private dragStepped = false;
   private dragSmooth = true;
   private dragFrames = 0;
+  /** SDF images: the low-resolution one (moving, and first after a change), the
+   *  full one being drawn in bands (back) and the last finished one (front). */
+  private rt: { low: THREE.WebGLRenderTarget; back: THREE.WebGLRenderTarget; front: THREE.WebGLRenderTarget } | null = null;
+  private lowKey = '';
+  private frontKey = '';
+  private lastKey = '';
+  private band = { active: false, key: '', y: 0, rows: 0, at: 0, n: 0, start: 0 };
+  /** set after each band: the GPU has finished it once this signals */
+  private fence: WebGLSync | null = null;
+  /** rows per ms a band took last (learned; 0 until measured) */
+  private rowRate = 0;
+  private blit = (() => {
+    const mat = new THREE.ShaderMaterial({
+      uniforms: { tColor: { value: null }, tDepth: { value: null } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+      fragmentShader: BLIT_FRAG,
+      depthTest: true, depthWrite: true, depthFunc: THREE.AlwaysDepth,
+    });
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.frustumCulled = false;
+    const scene = new THREE.Scene();
+    scene.add(mesh);
+    return { scene, mat, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1) };
+  })();
 
   constructor(private host: HTMLElement) {
     // (no preserveDrawingBuffer: every reader of the canvas reads right after a render,
@@ -116,6 +158,8 @@ export class Viewport {
     this.wire = new THREE.MeshBasicMaterial({ color: 0x222222, wireframe: true, transparent: true, opacity: 0.25, clippingPlanes: this.clipPlanes });
     this.scene.add(this.result);
     this.scene.add(this.sdf.mesh);
+    this.sdf.mesh.layers.set(SDF_LAYER);
+    this.camera.layers.enable(SDF_LAYER);
     this.scene.add(this.ghost);
 
     this.gizmo = new TransformControls(this.camera, this.renderer.domElement);
@@ -143,9 +187,9 @@ export class Viewport {
         dlog('stall', { ms: now - lastDraw, ratio: this.renderer.getPixelRatio(), w: c.width, h: c.height, moving: this.moving, hidden: document.hidden });
       }
       lastDraw = 0;
-      if (this.orbit.update() || this.needsRender) {
+      if (this.orbit.update() || this.needsRender || this.band.active) {
         this.needsRender = false;
-        this.renderer.render(this.scene, this.camera);
+        this.drawFrame(now);
         lastDraw = now;
         if (this.moving && this.mode === 'sdf') this.adaptMoving(now);
       }
@@ -210,6 +254,8 @@ export class Viewport {
     old.domElement.remove();
     try { old.dispose(); } catch { /* already gone */ }
     this.renderer = r;
+    // (images of the old context are gone with it)
+    this.rt = null; this.lowKey = this.frontKey = ''; this.band.active = false; this.fence = null;
     this.orbit.disconnect(); this.orbit.connect(r.domElement);
     this.gizmo.disconnect(); this.gizmo.connect(r.domElement);
     this.setupTap();
@@ -274,9 +320,122 @@ export class Viewport {
       this.movingLevel--;
       dlog('moving-step-down', { dt, level: this.movingLevel });
       f.length = 0;
-      this.renderer.setPixelRatio(this.movingRatio());
-      this.resize();
+      this.invalidate();
     }
+  }
+
+  // ---------- drawing
+
+  /** What the SDF image shows: camera, scene, canvas size (any change redraws it). */
+  private sdfKey(): string {
+    const e = this.camera.matrixWorld.elements, p = this.camera.projectionMatrix.elements;
+    const c = this.renderer.domElement;
+    const bg = this.scene.background as THREE.Color | null;
+    let k = `${this.sdf.version}|${c.width}x${c.height}|${bg?.getHexString?.() ?? ''}|`;
+    for (let i = 0; i < 16; i++) k += `${e[i].toFixed(5)},${p[i].toFixed(5)},`;
+    return k;
+  }
+
+  private targets() {
+    const c = this.renderer.domElement, W = Math.max(1, c.width), H = Math.max(1, c.height);
+    const f = Math.min(1, this.movingRatio() / this.basePixelRatio);
+    const lw = Math.max(1, Math.round(W * f)), lh = Math.max(1, Math.round(H * f));
+    const make = (w: number, h: number, linear: boolean) => {
+      const t = new THREE.WebGLRenderTarget(w, h, { depthBuffer: true, depthTexture: new THREE.DepthTexture(w, h, THREE.UnsignedIntType) });
+      t.texture.minFilter = t.texture.magFilter = linear ? THREE.LinearFilter : THREE.NearestFilter;
+      t.texture.generateMipmaps = false;
+      return t;
+    };
+    if (!this.rt) this.rt = { low: make(lw, lh, true), back: make(W, H, false), front: make(W, H, false) };
+    const r = this.rt;
+    if (r.low.width !== lw || r.low.height !== lh) { r.low.setSize(lw, lh); this.lowKey = ''; }
+    if (r.back.width !== W || r.back.height !== H) { r.back.setSize(W, H); r.front.setSize(W, H); this.frontKey = ''; this.band.active = false; }
+    return r;
+  }
+
+  /** The SDF quad alone into target t (rows [y, y + rows) only, when given). */
+  private drawSdf(t: THREE.WebGLRenderTarget, y = 0, rows = t.height) {
+    // (cleared to transparent: the background is the canvas's, see present)
+    const layers = this.camera.layers.mask, bg = this.scene.background;
+    const clear = this.renderer.getClearColor(new THREE.Color()), clearA = this.renderer.getClearAlpha();
+    this.camera.layers.set(SDF_LAYER);
+    this.scene.background = null;
+    this.renderer.setClearColor(0x000000, 0);
+    t.scissor.set(0, y, t.width, rows);
+    t.scissorTest = rows < t.height;
+    this.renderer.setRenderTarget(t);
+    this.renderer.render(this.scene, this.camera);
+    this.renderer.setRenderTarget(null);
+    t.scissorTest = false;
+    this.renderer.setClearColor(clear, clearA);
+    this.scene.background = bg;
+    this.camera.layers.mask = layers;
+  }
+
+  /** Image t onto the canvas (color and depth), then everything else over it. */
+  private present(t: THREE.WebGLRenderTarget) {
+    const b = this.blit;
+    b.mat.uniforms.tColor.value = t.texture;
+    b.mat.uniforms.tDepth.value = t.depthTexture;
+    b.scene.background = this.scene.background;
+    this.renderer.render(b.scene, b.cam);
+    // (a colour background clears the canvas whatever autoClear says: none here)
+    const layers = this.camera.layers.mask, auto = this.renderer.autoClear, bg = this.scene.background;
+    this.camera.layers.disable(SDF_LAYER);
+    this.renderer.autoClear = false;
+    this.scene.background = null;
+    this.renderer.render(this.scene, this.camera);
+    this.scene.background = bg;
+    this.renderer.autoClear = auto;
+    this.camera.layers.mask = layers;
+  }
+
+  /**
+   * One frame. Mesh mode (or nothing to raymarch): drawn directly. SDF: while the
+   * view moves (or the camera still drifts) the low-resolution image, drawn whole;
+   * once it holds still, the full-resolution image in bands of rows over several
+   * frames (each sized from how long the last one took), shown when finished. Until
+   * then the low image stays up; a frame that only changes the other objects (the
+   * gizmo, the ground) reuses the finished image.
+   */
+  private drawFrame(now: number) {
+    if (this.mode !== 'sdf' || !this.sdf.mesh.visible) { this.band.active = false; this.renderer.render(this.scene, this.camera); return; }
+    this.camera.updateMatrixWorld();
+    const r = this.targets(), key = this.sdfKey(), drifting = key !== this.lastKey;
+    this.lastKey = key;
+    if (key === this.frontKey) { this.band.active = false; this.present(r.front); return; }
+    if (this.lowKey !== key) { this.drawSdf(r.low); this.lowKey = key; }
+    // (and come back next frame: once it holds still, the bands start)
+    if (this.moving || drifting) { this.band.active = false; this.present(r.low); this.needsRender = true; return; }
+    const H = r.back.height, b = this.band;
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
+    if (!b.active || b.key !== key) {
+      // a learned rate; else start small
+      Object.assign(b, { active: true, key, y: 0, rows: this.rowRate > 0 ? Math.round(this.rowRate * BAND_MS) : 32, at: 0, n: 0, start: now });
+      if (this.fence) { gl.deleteSync(this.fence); this.fence = null; }
+    } else if (this.fence) {
+      // the next band waits until the GPU has finished the last one (so work never
+      // piles up), and the rate comes from how long that took (to the nearest frame,
+      // so it errs slow: smaller bands)
+      if (gl.clientWaitSync(this.fence, 0, 0) === gl.TIMEOUT_EXPIRED) { this.present(r.low); return; }
+      gl.deleteSync(this.fence); this.fence = null;
+      this.rowRate = b.rows / Math.max(1, now - b.at);
+      b.rows = Math.round(Math.min(b.rows * 4, this.rowRate * BAND_MS));
+    }
+    b.rows = Math.max(8, Math.min(H - b.y, b.rows));
+    this.drawSdf(r.back, b.y, b.rows);
+    this.fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    gl.flush();
+    b.y += b.rows;
+    b.at = performance.now();
+    b.n++;
+    if (b.y >= H) {
+      [r.back, r.front] = [r.front, r.back];
+      this.frontKey = key;
+      b.active = false;
+      dlog('sharp', { bands: b.n, ms: now - b.start, rowsPerMs: this.rowRate, w: r.front.width, h: H });
+      this.present(r.front);
+    } else this.present(r.low);
   }
 
   private movingRatio() {
@@ -293,6 +452,11 @@ export class Viewport {
     const saved = this.cameraState();
     const hidden = [this.gizmo.getHelper(), this.ghost].filter((o) => o.visible);
     for (const o of hidden) o.visible = false;
+    // drawn at about twice the thumbnail's height, not the screen's: a single full
+    // frame of a heavy piece is what makes a phone reset its graphics
+    const ratio = this.renderer.getPixelRatio();
+    const small = Math.min(ratio, (2 * h) / Math.max(1, this.host.clientHeight));
+    if (small < ratio) { this.renderer.setPixelRatio(small); this.renderer.setSize(this.host.clientWidth, this.host.clientHeight); }
     const src = this.renderer.domElement;
     const cw = Math.min(src.width, (src.height * w) / h), ch = (cw * h) / w;
     // Fit the piece's box corners (not its bounding sphere, which leaves it small)
@@ -324,6 +488,7 @@ export class Viewport {
     out.width = w; out.height = h;
     out.getContext('2d')!.drawImage(src, (src.width - cw) / 2, (src.height - ch) / 2, cw, ch, 0, 0, w, h);
     for (const o of hidden) o.visible = true;
+    if (small < ratio) { this.renderer.setPixelRatio(ratio); this.resize(); }
     this.setCameraState(saved);
     return out.toDataURL('image/jpeg', 0.78);
   }
@@ -403,6 +568,7 @@ export class Viewport {
         const key = new THREE.DirectionalLight(0xffffff, 1.7);
         key.position.set(6, 10, 7);
         cam.add(key);
+        cam.layers.enable(SDF_LAYER);
         this.scene.add(cam);
         // depth range: the piece's box along the view (tighter than its bounding sphere)
         const camPos = cam.position, view = dir.clone().negate();
@@ -547,8 +713,9 @@ export class Viewport {
     }
     this.moving = on;
     this.frameTimes.length = 0;
-    if (on && this.mode === 'sdf') apply(this.movingRatio());
-    else this.settleTimer = window.setTimeout(() => apply(this.basePixelRatio), on ? 0 : 180);
+    // (SDF: the canvas keeps its resolution; the image drawn into it changes, see drawFrame)
+    apply(this.basePixelRatio);
+    this.invalidate();
   }
 
   setMode(mode: 'sdf' | 'mesh') {
@@ -617,8 +784,9 @@ export class Viewport {
     this.renderer.setSize(w, h);
     this.camera.aspect = w / Math.max(1, h);
     this.camera.updateProjectionMatrix();
-    // resizing clears the canvas: draw again now, or a blank frame shows
-    this.renderer.render(this.scene, this.camera);
+    // resizing clears the canvas: draw again now, or a blank frame shows (SDF: the
+    // low-resolution image; the full one follows in bands)
+    if (!this.contextLost) this.drawFrame(performance.now());
     this.invalidate();
   }
 
