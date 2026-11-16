@@ -22,7 +22,8 @@ const MAX_PROFILES = 8;
 const MAX_PINS = 32;
 const ROWS = 10; // texels per object in the data texture
 const TYPE_CODE: Record<string, number> = { sphere: 0, box: 1, cylinder: 2, cone: 3, torus: 4, capsule: 5, prism: 6, revolve: 7, sweep: 8 };
-const MAX_SWEEPS = 6;
+const MAX_SWEEPS = 6; // distinct sweep shapes (texture slots); copies of one share its slot
+const MAX_SWEEP_OBJS = 48; // sweep objects (copies included), each with its own distance
 /** Hole-mask bit marking a mask object (above the faces' bits): no opening, never culled. */
 const MASK_FLAG = 256;
 /** Layer program: most steps, and deepest group nesting. */
@@ -73,7 +74,8 @@ uniform int uObjCount;
 uniform int uProgLen; // the layer program (scene.CompiledIns), in uData from row uProgRow
 uniform int uProgRow;
 uniform int uSweepCount;
-uniform int uSweepObj[${MAX_SWEEPS}]; // object index of each sweep slot
+uniform int uSweepObj[${MAX_SWEEP_OBJS}]; // object index of each sweep object
+uniform int uSweepData[${MAX_SWEEP_OBJS}]; // its shape's texture slot
 uniform float uSweepGate;
 uniform ivec4 uGroupRange[${MAX_GROUPS}];   // shells start, solids start, subs start, end
 uniform ivec2 uPinRange[${MAX_GROUPS}];
@@ -284,10 +286,10 @@ float sdLocal(vec3 q, vec4 P, int type, int slot, float rr) {
   return profile(slot, vec2(length(q.xz), q.y), 0);
 }
 int gObjN = 0, gMapN = 0; // evaluation counters for the cost view (uFlat == 2)
-// Sweeps at the point map() is evaluating, by slot: (distance, distance with open
+// Sweeps at the point map() is evaluating, by sweep object: (distance, distance with open
 // ends running on), both in world units. Filled once per map() call by sweepAll,
 // so the long sweep code appears once in the shader instead of at every sdObj.
-vec2 gSw[${MAX_SWEEPS}];
+vec2 gSw[${MAX_SWEEP_OBJS}];
 float sdObj(int i, vec3 p) {
   gObjN++;
   vec4 meta = row(i, 6);
@@ -457,14 +459,14 @@ bool gNoClip = false;
 // Each nearby sweep, once per map() call (see gSw). Farther than the gate, its
 // bounding sphere stands in: every caller that wants it exact is nearer than that.
 void sweepAll(vec3 p) {
-  for (int k = min(uGroupCount, 0); k < ${MAX_SWEEPS}; k++) {
+  for (int k = min(uGroupCount, 0); k < ${MAX_SWEEP_OBJS}; k++) {
     if (k >= uSweepCount) break;
     int i = uSweepObj[k];
     float b = bound(i, p);
     if (!objOn(i) || b > uSweepGate) { gSw[k] = vec2(b); continue; }
     gObjN++;
     vec4 meta = row(i, 6);
-    gSw[k] = sdSweep(k, row(i, 3), row(i, 7), toLocal(i, p), int(meta.z)) * row(i, 4).w;
+    gSw[k] = sdSweep(uSweepData[k], row(i, 3), row(i, 7), toLocal(i, p), int(meta.z)) * row(i, 4).w;
   }
 }
 
@@ -733,7 +735,8 @@ export class SdfRenderer {
       uProgLen: { value: 0 },
       uProgRow: { value: 0 },
       uSweepCount: { value: 0 },
-      uSweepObj: { value: range(MAX_SWEEPS).map(() => 0) },
+      uSweepObj: { value: range(MAX_SWEEP_OBJS).map(() => 0) },
+      uSweepData: { value: range(MAX_SWEEP_OBJS).map(() => 0) },
       uSweepGate: { value: 4 },
       // integer vector arrays must be flat Int32Arrays (three.js does not flatten them)
       uGroupRange: { value: new Int32Array(MAX_GROUPS * 4) },
@@ -867,11 +870,16 @@ export class SdfRenderer {
     u.uGroupCount.value = groups.length;
     u.uObjCount.value = objs.length;
     const slots = this.updateProfiles(objs, groups, interactive);
-    this.updateSweeps(objs, slots);
-    // sweeps are evaluated once per map() call (see sweepAll)
-    const sweepObjs = u.uSweepObj.value as number[];
+    const shapes = this.updateSweeps(objs);
+    // sweeps are evaluated once per map() call (see sweepAll); a sweep's slot in the
+    // object rows is its index here, and its shape's texture slot goes alongside
+    const sweepObjs = u.uSweepObj.value as number[], sweepData = u.uSweepData.value as number[];
     let ns = 0;
-    objs.forEach((o, i) => { if (o.obj.type === 'sweep' && ns < MAX_SWEEPS && slots.get(o) === ns) sweepObjs[ns++] = i; });
+    objs.forEach((o, i) => {
+      if (o.obj.type !== 'sweep' || !shapes.has(o)) return;
+      if (ns >= MAX_SWEEP_OBJS) { slots.set(o, MAX_SWEEP_OBJS - 1); return; }
+      sweepObjs[ns] = i; sweepData[ns] = shapes.get(o)!; slots.set(o, ns++);
+    });
     u.uSweepCount.value = ns;
     // beyond this, a sweep's bounding sphere stands in for it: farther than any
     // caller needs it exactly (blends, occlusion samples, cut walls)
@@ -1033,14 +1041,19 @@ export class SdfRenderer {
   private sweepKeys: string[] = [];
 
   /** Sweep paths, frames and section outlines into the sweep texture (one slot per sweep). */
-  private updateSweeps(objs: CompiledObject[], slots: Map<CompiledObject, number>) {
+  /** Each sweep's texture slot: one per distinct shape (copies share theirs). */
+  private updateSweeps(objs: CompiledObject[]): Map<CompiledObject, number> {
     const W = MAX_PATH_POINTS;
+    const shapes = new Map<CompiledObject, number>(), byKey = new Map<string, number>();
     let slot = 0, changed = false;
     for (const o of objs) {
       if (o.obj.type !== 'sweep' || !o.sweep) continue;
-      if (slot >= MAX_SWEEPS) { slots.set(o, MAX_SWEEPS - 1); continue; }
-      slots.set(o, slot);
       const key = JSON.stringify(o.obj.params);
+      const had = byKey.get(key);
+      if (had !== undefined) { shapes.set(o, had); continue; }
+      if (slot >= MAX_SWEEPS) { shapes.set(o, MAX_SWEEPS - 1); continue; }
+      byKey.set(key, slot);
+      shapes.set(o, slot);
       if (this.sweepKeys[slot] !== key) {
         this.sweepKeys[slot] = key;
         changed = true;
@@ -1066,6 +1079,7 @@ export class SdfRenderer {
       slot++;
     }
     if (changed) this.sweepTex.needsUpdate = true;
+    return shapes;
   }
 
   private slotKeys: string[] = [];
