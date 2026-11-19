@@ -39,6 +39,9 @@ export class ProfileEditor {
   onSelect: (i: number) => void = () => {};
 
   private mode: CurveMode;
+  /** The other forms seen straight through the editor's plane: a guide only. */
+  private shadow: { mask: HTMLCanvasElement; r0: number; r1: number; y0: number; y1: number } | null = null;
+  private tinted: { color: string; canvas: HTMLCanvasElement } | null = null;
   /** graph x scale: stored x (0..1) times this is the shown distance in cm */
   private gx = 1;
 
@@ -58,6 +61,13 @@ export class ProfileEditor {
     }, { passive: false });
     new ResizeObserver(() => this.draw()).observe(canvas);
     this.fitExtent();
+    this.draw();
+  }
+
+  /** Show (or clear) the guide shadow: a mask covering [r0, r1] × [y0, y1] in curve units. */
+  setShadow(s: { mask: HTMLCanvasElement; r0: number; r1: number; y0: number; y1: number } | null) {
+    this.shadow = s;
+    this.tinted = null;
     this.draw();
   }
 
@@ -343,6 +353,23 @@ export class ProfileEditor {
       }
     }
     ctx.fillText(stepX === stepY ? `${step} cm grid` : `grid ${stepX} cm along · ${stepY} cm lift`, 6, h - 6);
+    if (this.shadow) {
+      // the mask filled with the text colour (redone when the theme changes)
+      const sh = this.shadow;
+      if (this.tinted?.color !== fg) {
+        const c = document.createElement('canvas');
+        c.width = sh.mask.width; c.height = sh.mask.height;
+        const cx = c.getContext('2d')!;
+        cx.fillStyle = fg; cx.fillRect(0, 0, c.width, c.height);
+        cx.globalCompositeOperation = 'destination-in';
+        cx.drawImage(sh.mask, 0, 0);
+        this.tinted = { color: fg, canvas: c };
+      }
+      const [ax, ay] = this.toScreen(sh.r0, sh.y1), [bx, by] = this.toScreen(sh.r1, sh.y0);
+      ctx.globalAlpha = 0.13;
+      ctx.drawImage(this.tinted.canvas, ax, ay, bx - ax, by - ay);
+      ctx.globalAlpha = 1;
+    }
 
     const { xy } = sampleCurve(this.pts, 16, { closed: this.closed, clampR: this.mirrored });
     if (k !== 'profile') {

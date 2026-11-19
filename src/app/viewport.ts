@@ -255,7 +255,7 @@ export class Viewport {
     try { old.dispose(); } catch { /* already gone */ }
     this.renderer = r;
     // (images of the old context are gone with it)
-    this.rt = null; this.lowKey = this.frontKey = ''; this.band.active = false; this.fence = null;
+    this.rt = null; this.lowKey = this.frontKey = ''; this.band.active = false; this.fence = null; this.shadow = null;
     this.orbit.disconnect(); this.orbit.connect(r.domElement);
     this.gizmo.disconnect(); this.gizmo.connect(r.domElement);
     this.setupTap();
@@ -274,6 +274,85 @@ export class Viewport {
     }, 1500);
     return true;
   }
+
+  /**
+   * The outline of `doc` seen straight along a plane's normal: for the 2D curve
+   * editors' guide shadow. The plane passes through `origin` with axes eu and ev
+   * (world vectors: one editor unit along each); the result is a mask (opaque where
+   * clay is) and the rectangle it covers, in editor units. Drawn by the raymarcher
+   * with an orthographic camera, in bands of rows like the settled view (each
+   * waiting for the GPU to finish the last), so a heavy scene can't stall the GPU.
+   */
+  async silhouette(doc: SceneDoc, origin: Vec3, eu: Vec3, ev: Vec3, maxPx = 512):
+    Promise<{ mask: HTMLCanvasElement; r0: number; r1: number; y0: number; y1: number } | null> {
+    if (this.contextLost || !doc.objects.length) return null;
+    const sdf = (this.shadow ??= (() => { const r = new SdfRenderer(); const sc = new THREE.Scene(); sc.add(r.mesh); return { r, sc }; })());
+    sdf.r.setDoc(doc);
+    sdf.r.setGrids([]);
+    const box = sdf.r.bounds;
+    if (box.isEmpty()) return null;
+    const lu = Math.hypot(...eu), lv = Math.hypot(...ev);
+    const right = new THREE.Vector3(...eu).divideScalar(lu), up = new THREE.Vector3(...ev).divideScalar(lv);
+    const z = new THREE.Vector3().crossVectors(right, up).normalize();
+    const o = new THREE.Vector3(...origin);
+    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity, w1 = -Infinity, w0 = Infinity;
+    for (let i = 0; i < 8; i++) {
+      const c = new THREE.Vector3(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z).sub(o);
+      const u = c.dot(right), v = c.dot(up), w = c.dot(z);
+      u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); w0 = Math.min(w0, w); w1 = Math.max(w1, w);
+    }
+    const pad = 0.02 * Math.max(u1 - u0, v1 - v0) + 0.5;
+    u0 -= pad; u1 += pad; v0 -= pad; v1 += pad;
+    const s = maxPx / Math.max(u1 - u0, v1 - v0);
+    const W = Math.max(1, Math.ceil((u1 - u0) * s)), H = Math.max(1, Math.ceil((v1 - v0) * s));
+    const cam = new THREE.OrthographicCamera(u0, u1, v1, v0, 0.5, w1 - w0 + 2);
+    cam.position.copy(o).addScaledVector(z, w1 + 1);
+    cam.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, up, z));
+    cam.updateMatrixWorld();
+    sdf.r.setPass(1, cam, 0, 1); // depth pass: never black where it hits
+    const t = new THREE.WebGLRenderTarget(W, H, { depthBuffer: true });
+    const renderer = this.renderer, gl = renderer.getContext() as WebGL2RenderingContext;
+    const clear = renderer.getClearColor(new THREE.Color()), clearA = renderer.getClearAlpha();
+    // rows per band: the view's learned rate, scaled to this width
+    let rows = this.rowRate > 0 ? Math.round(this.rowRate * BAND_MS * (this.renderer.domElement.width / W)) : 32;
+    const frame = () => new Promise<number>((res) => requestAnimationFrame(res));
+    try {
+      for (let y = 0; y < H;) {
+        if (renderer !== this.renderer || this.contextLost) return null;
+        rows = Math.max(8, Math.min(H - y, rows));
+        renderer.setClearColor(0x000000, 1);
+        t.scissor.set(0, y, W, rows);
+        t.scissorTest = true;
+        renderer.setRenderTarget(t);
+        renderer.render(sdf.sc, cam);
+        renderer.setRenderTarget(null);
+        renderer.setClearColor(clear, clearA);
+        const fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0)!;
+        gl.flush();
+        const t0 = performance.now();
+        let now = await frame();
+        while (!this.contextLost && gl.clientWaitSync(fence, 0, 0) === gl.TIMEOUT_EXPIRED) now = await frame();
+        gl.deleteSync(fence);
+        y += rows;
+        rows = Math.round(Math.min(rows * 4, (rows / Math.max(1, now - t0)) * BAND_MS));
+      }
+      const px = new Uint8Array(W * H * 4);
+      renderer.readRenderTargetPixels(t, 0, 0, W, H, px);
+      const mask = document.createElement('canvas');
+      mask.width = W; mask.height = H;
+      const mc = mask.getContext('2d')!, img = mc.createImageData(W, H);
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const a = px[((H - 1 - y) * W + x) * 4] > 0 ? 255 : 0; // (GL rows run bottom up)
+        const k = (y * W + x) * 4;
+        img.data[k] = img.data[k + 1] = img.data[k + 2] = 0; img.data[k + 3] = a;
+      }
+      mc.putImageData(img, 0, 0);
+      return { mask, r0: u0 / lu, r1: u1 / lu, y0: v0 / lv, y1: v1 / lv };
+    } finally {
+      t.dispose();
+    }
+  }
+  private shadow: { r: SdfRenderer; sc: THREE.Scene } | null = null;
 
   /** One step lower settled resolution, after a GPU loss (false: already lowest). */
   safer(): boolean {

@@ -9,7 +9,7 @@ import {
 import type { BuildResult } from '../engine/kernel';
 import type { CavityGrid } from '../engine/cavity';
 import { type Group, isCut } from '../engine/document';
-import type { Vec3 } from '../engine/math';
+import { type Vec3, eulerXYZ } from '../engine/math';
 import { classifyPoint, compileScene, sdfWorld } from '../engine/primitives';
 import { compileGroups, needsUnitGrid, wallReach } from '../engine/scene';
 import { depthFromGrids } from '../engine/sdfKernel';
@@ -17,7 +17,7 @@ import { examples } from '../examples';
 import { Builder } from './builder';
 import { type CurveMode, ProfileEditor } from './profileEditor';
 import type { ProfilePoint } from '../engine/profile';
-import { buildSweepPath } from '../engine/sweep';
+import { buildSweepPath, planePoint } from '../engine/sweep';
 import { HAND_LENGTH_CM } from './hand';
 import { type LibraryPart, PartStore, type Piece, type PieceFlag, PieceStore, type ViewState } from './pieces';
 import { partScale, placedId } from '../engine/parts';
@@ -851,7 +851,39 @@ function renderProfilePanel() {
   };
   smooth.addEventListener('input', () => ed.setSmooth(Number(smooth.value), false));
   smooth.addEventListener('change', () => ed.setSmooth(Number(smooth.value), true));
+  void curveShadow(o, f, ed);
 }
+
+/**
+ * The guide shadow behind a curve editor: every other form of the piece seen
+ * straight through the plane the curve is drawn on (a revolve's profile plane, a
+ * sweep's path plane), in the curve's own units. The object being edited (and its
+ * copies) is left out; hollowing doesn't change an outline, so the forms go solid.
+ * A sweep's section and lift have no fixed plane in the piece: no shadow there.
+ */
+async function curveShadow(o: SceneObject, f: CurveField, ed: ProfileEditor) {
+  if (f !== 'points' && f !== 'path') return;
+  const placed = placedObject(doc, o.id);
+  if (!placed) return;
+  const { position, rotation, scale } = placed.transform;
+  const R = eulerXYZ(...rotation);
+  // one curve unit along each of the plane's axes, in the world
+  const axis = (a: Vec3): Vec3 => {
+    const l: Vec3 = [a[0] * scale[0], a[1] * scale[1], a[2] * scale[2]];
+    return [R[0] * l[0] + R[1] * l[1] + R[2] * l[2], R[3] * l[0] + R[4] * l[1] + R[5] * l[2], R[6] * l[0] + R[7] * l[1] + R[8] * l[2]];
+  };
+  const plane = o.params.plane ?? 'xy';
+  const eu = axis(f === 'points' ? [1, 0, 0] : planePoint(plane, 1, 0, 0));
+  const ev = axis(f === 'points' ? [0, 1, 0] : planePoint(plane, 0, 1, 0));
+  const rest = cloneDoc(doc);
+  deleteLayer(rest, o.id);
+  for (const g of rest.groups) g.shell = false;
+  // (the panel is rebuilt after every edit: the shadow only changes with the rest)
+  const flat = expandDoc(rest), key = JSON.stringify([flat.objects, flat.groups, position, eu, ev]);
+  if (shadowCache?.key !== key) shadowCache = { key, s: await view.silhouette(flat, position, eu, ev) };
+  if (shadowCache.s && profileEditor === ed) ed.setShadow(shadowCache.s);
+}
+let shadowCache: { key: string; s: Awaited<ReturnType<typeof view.silhouette>> } | null = null;
 
 function renderAll() {
   renderTopbar();
