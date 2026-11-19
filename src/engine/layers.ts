@@ -12,8 +12,10 @@
 // flattenLayers places every object in the world and writes the tree as a small
 // program the kernels run exactly (scene.ProgIns): push a group, fold an object in,
 // pop the group (hollowing it) and fold it into its parent. Symmetry copies (an
-// object's or a group's) are made here; their ids are the original's plus `~s${k}`,
-// which picking maps back (parts.placedId).
+// object's or a group's) are made here; their ids are the original's plus `~s${k}`
+// (an object's own copies) or `~g${k}` (its group's copies), which picking maps back
+// (parts.placedId). The two kinds must differ: an object copy inside the original of
+// a group would otherwise share its id with the object in that group's first copy.
 
 import {
   DEFAULT_WALL, type Group, type LayerOp, type PartDef, type PinHole, type SceneDoc, type SceneObject, type Symmetry,
@@ -388,7 +390,7 @@ export function flattenLayers(src: SceneDoc, notes: string[] = []): SceneDoc {
     const own = fm ? [fm] : [];
     f({ ...ctx, xf, maps: [...own, ...ctx.maps] });
     // a copy: placed the same, then moved by its map (before the enclosing group copies' moves)
-    symMaps(g.sym, frame).forEach((m, k) => f({ ...ctx, xf, maps: [...own, m, ...ctx.maps], suffix: `${ctx.suffix}${PART_SEP}s${k + 1}` }));
+    symMaps(g.sym, frame).forEach((m, k) => f({ ...ctx, xf, maps: [...own, m, ...ctx.maps], suffix: `${ctx.suffix}${PART_SEP}g${k + 1}` }));
   };
   // the middle of a group's objects' centres, placed by xf (the group's own placement)
   const groupPivot = (gid: string, xf: Transform): Vec3 => {

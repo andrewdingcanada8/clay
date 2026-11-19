@@ -447,3 +447,35 @@ describe('flip and multi-plane mirror', () => {
     expect(f(-5, -1.5, 0)).toBeLessThan(0); // the cone to -x, still base down
   });
 });
+
+describe('symmetry copies inside symmetry copies', () => {
+  // the user's tabs: a group repeated 3 times round Y, holding a plate, a box cut
+  // mirrored across X and another box cut: each copy keeps one tab
+  const tabs = () => {
+    const d = emptyDoc();
+    const T = (x: number, y: number, z: number) => ({ position: [x, y, z] as [number, number, number], rotation: [0, 0, 0] as [number, number, number], scale: [1, 1, 1] as [number, number, number] });
+    const plate = makeObject('box', { params: { x: 24, y: 2, z: 24 }, transform: T(0, 0, 0) });
+    const side = makeObject('box', { mode: 'subtract', params: { x: 16, y: 10, z: 26.7 }, transform: T(12.76, 0, 0), sym: { kind: 'mirror', axis: 'x', count: 2, ref: null } });
+    const back = makeObject('box', { mode: 'subtract', params: { x: 16, y: 16, z: 16 }, transform: T(0, 0, 4.93) });
+    const g = d.groups[0];
+    g.shell = false;
+    g.sym = { kind: 'radial', axis: 'y', count: 3, ref: null };
+    g.children = [plate.id, side.id, back.id];
+    for (const o of [plate, side, back]) { o.groupId = g.id; d.objects.push(o); }
+    return d;
+  };
+  it('gives every placed copy its own id', () => {
+    const f = flattenLayers(tabs());
+    const ids = f.program!.filter((n) => n[0] === 'o').map((n) => n[1]);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+  it('keeps all three tabs', () => {
+    const g = compileGroups(expandDoc(tabs()));
+    const f = (x: number, z: number) => evalScene(g, approxDepth, x, 0, z);
+    for (const a of [0, 120, 240]) {
+      const t = (a * Math.PI) / 180;
+      expect(f(-8 * Math.sin(t), -8 * Math.cos(t))).toBeLessThan(0); // a tab here
+      expect(f(8 * Math.sin(t), 8 * Math.cos(t))).toBeGreaterThan(0); // and none opposite it
+    }
+  });
+});
