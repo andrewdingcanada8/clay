@@ -44,6 +44,7 @@ const ICON: Record<string, string> = {
   redo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 000 12h3"/></svg>',
   frame: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
   camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+  save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg>',
   sphere: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><circle cx="16" cy="16" r="11"/><ellipse cx="16" cy="16" rx="11" ry="4" opacity=".5"/></svg>',
   box: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 11l10-5 10 5v11l-10 5-10-5z"/><path d="M6 11l10 5 10-5M16 16v11" opacity=".6"/></svg>',
   cylinder: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="16" cy="8" rx="9" ry="3"/><path d="M7 8v16c0 1.7 4 3 9 3s9-1.3 9-3V8"/></svg>',
@@ -157,6 +158,7 @@ app.innerHTML = `
     <div class="topbar">
       <div class="brand">Clay <small id="piece-name">Untitled</small></div>
       <button class="icon-btn" id="btn-gallery" aria-label="Pieces">Pieces</button>
+      <button class="icon-btn" id="btn-save" aria-label="Save, with this view as the thumbnail" title="Save (this view becomes the thumbnail)">${ICON.save}</button>
       <button class="icon-btn" id="btn-capture" aria-label="Capture a reference sheet from this angle" title="Reference sheet from this angle">${ICON.camera}</button>
       <button class="icon-btn" id="btn-frame" aria-label="Frame model">${ICON.frame}</button>
       <button class="icon-btn" id="btn-undo" aria-label="Undo">${ICON.undo}</button>
@@ -706,7 +708,8 @@ function layersPanel() {
   const tool = (act: string, label: string, title: string, on = true) => `<button class="btn" data-act="${act}" title="${title}" ${on ? '' : 'disabled'}>${label}</button>`;
   const parent = id ? parentOf(doc, id) ?? '' : '';
   const sibs = childIds(doc, parent), at = id ? sibs.indexOf(id) : -1;
-  const canIn = at >= 0 && (doc.groups.some((g) => g.id === sibs[at - 1]) || doc.groups.some((g) => g.id === sibs[at + 1]));
+  // (like indenting a bullet: into the group shown just above it; the list shows the last layer first)
+  const canIn = at >= 0 && doc.groups.some((g) => g.id === sibs[at + 1]);
   let settings = '';
   if (l?.kind === 'group') {
     const g = l.g;
@@ -733,7 +736,7 @@ function layersPanel() {
     <div class="layer-tools">
       ${tool('layer-new', '+ Group', 'New empty group')}${tool('layer-wrap', 'Group', 'Put the selected layer in a new group', !!l)}${tool('layer-ungroup', 'Ungroup', 'Replace the group by its layers', l?.kind === 'group')}
       ${tool('layer-up', '↑', 'Move up', at >= 0 && at < sibs.length - 1)}${tool('layer-down', '↓', 'Move down', at > 0)}
-      ${tool('layer-out', '⇤ Out', 'Move out of its group', !!parent)}${tool('layer-in', 'In ⇥', 'Move into the group next to it', canIn)}
+      ${tool('layer-out', '⇤ Out', 'Move out of its group', !!parent)}${tool('layer-in', 'In ⇥', 'Move into the group just above it', canIn)}
       ${tool('duplicate', 'Duplicate', 'Duplicate', !!l)}${tool('delete', 'Delete', 'Delete', !!l)}
     </div>
     <p class="hint">Layers build bottom to top: Add joins what is below it in its group, Subtract carves it. A group joins its parent as it comes out (hollowed, if Shell is on). Tap a layer to select it; the Edit tab moves, shapes and mirrors it.</p></div>
@@ -799,7 +802,7 @@ const PLANE_AXES: Record<string, [string, string]> = { xy: ['X', 'Y'], xz: ['X',
 
 function curveSetup(o: SceneObject, f: CurveField): { mode: CurveMode; title: string; hint: string } {
   const p = o.params;
-  const base = 'Tap empty space to add a point, tap a point to select it. Drag near a point to move it, or anywhere else to move the selected one. Squares are sharp corners. Pinch or scroll to zoom, two fingers to pan.';
+  const base = 'Tap empty space to add a point, tap a point to select it. Drag near a point to move it, or anywhere else to move the selected one. Squares are sharp corners. Smoothness runs from sharp (left) through smooth (middle) to rounder (right), which bulges the curve at that point into a fuller arc. Pinch or scroll to zoom, two fingers to pan.';
   if (f === 'path') {
     const plane = p.plane ?? 'xy';
     return { mode: { kind: 'path', closed: !!p.closed, axes: PLANE_AXES[plane] }, title: `Path of ${o.name} · ${plane.toUpperCase()} plane`,
@@ -828,7 +831,7 @@ function renderProfilePanel() {
       <button class="btn primary" data-act="profile-done">Done</button></div>
     <canvas class="profile-canvas" id="profile-canvas"></canvas>
     <label class="field"><span>Smoothness</span>
-      <input type="range" id="profile-smooth" min="0" max="1" step="0.01" value="1" ${ui.profilePoint < 0 ? 'disabled' : ''}></label>
+      <input type="range" id="profile-smooth" min="0" max="2" step="0.01" value="1" ${ui.profilePoint < 0 ? 'disabled' : ''}></label>
     <div class="row">
       <button class="btn danger" data-act="profile-delete" disabled>Delete point</button>
     </div>
@@ -1087,9 +1090,7 @@ panel.addEventListener('click', (e) => {
         attach(doc2, copy, parent, childIds(doc2, parent).indexOf(id) + 1);
         const l = layerOf(doc2, copy)!;
         const h = l.kind === 'object' ? l.o : l.g;
-        h.name = `${h.name} copy`;
-        const t = h.transform ??= { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] };
-        t.position = [t.position[0] + 4, t.position[1], t.position[2]];
+        h.name = `${h.name} copy`; // (in place: nudging it would undo careful alignment)
       });
       selectObject(copy);
       break;
@@ -1194,13 +1195,14 @@ function layerTool(act: string) {
       case 'layer-ungroup': if (id) { select = d.groups.find((g) => g.id === id)?.children?.slice(-1)[0] ?? null; ungroup(d, id); } break;
       case 'layer-up': if (id && at < sibs.length - 1) attach(d, id, parent, at + 1); break;
       case 'layer-down': if (id && at > 0) attach(d, id, parent, at - 1); break;
-      case 'layer-out': if (id && parent) { const pp = parentOf(d, parent) ?? ''; moveLayer(d, id, pp, childIds(d, pp).indexOf(parent) + 1); } break;
+      // Like a bulleted list (which shows the last layer first): Out puts a layer just
+      // below its group, In puts it at the bottom of the group shown just above it, so
+      // in both it stays where it is in the list and only its indent changes.
+      case 'layer-out': if (id && parent) { const pp = parentOf(d, parent) ?? ''; moveLayer(d, id, pp, childIds(d, pp).indexOf(parent)); } break;
       case 'layer-in': {
         if (!id) break;
-        // into the group just below it (at its top), else the one just above (at its bottom)
-        const below = d.groups.find((g) => g.id === sibs[at - 1]), above = d.groups.find((g) => g.id === sibs[at + 1]);
-        if (below) { moveLayer(d, id, below.id); below.collapsed = false; }
-        else if (above) { moveLayer(d, id, above.id, 0); above.collapsed = false; }
+        const above = d.groups.find((g) => g.id === sibs[at + 1]);
+        if (above) { moveLayer(d, id, above.id, 0); above.collapsed = false; }
         break;
       }
     }
@@ -1327,6 +1329,7 @@ async function logGpuCrash() {
   } catch { /* no database here */ }
 }
 document.getElementById('btn-capture')!.addEventListener('click', () => { void captureSheet(); });
+document.getElementById('btn-save')!.addEventListener('click', () => { void savePiece(); });
 
 // ---------- reference sheet
 const LOOK_KEY = 'clay.sheetLook';
@@ -1551,7 +1554,7 @@ async function savePiece(quiet = false): Promise<boolean> {
   setCurrent({ id: p.id, name: p.name, saved: committed });
   try {
     await store.put(p);
-    if (!quiet) toast(`Saved "${p.name}"`);
+    if (!quiet) toast(`Saved "${p.name}" · this view is its thumbnail`);
     if (ui.showGallery) renderPanel();
     return true;
   } catch (e) {
@@ -1682,7 +1685,7 @@ function pieceCard(p: Piece) {
 
 function galleryPanel() {
   const pieces = store.list();
-  const saveLabel = current.id && !isDirty() ? 'Saved' : 'Save';
+  // (always on: saving again takes a new thumbnail from the current view)
   const body = ui.galleryTab === 'examples'
     ? `<p class="hint">Benchmark scenes. Opening one replaces the open piece; your changes are saved first.</p>${examplesPanel()}`
     : pieces.length
@@ -1691,7 +1694,7 @@ function galleryPanel() {
   return `<div class="section">
     <div class="row"><h3 style="margin-right:auto">Pieces</h3>
       <button class="btn" data-act="new-piece">New</button>
-      <button class="btn primary" data-act="save-piece" ${saveLabel === 'Saved' ? 'disabled' : ''}>${saveLabel}</button>
+      <button class="btn primary" data-act="save-piece">Save</button>
       <button class="btn" data-act="close-gallery">Close</button></div>
     ${seg<'mine' | 'examples'>('galleryTab', ui.galleryTab, [['mine', `My pieces (${pieces.length})`], ['examples', 'Examples']])}
     <p class="hint">${store.kind === 'cloud' ? 'Saved with this artifact, on any device you open it on. Claude can read flagged pieces.' : 'Saved in this browser only.'}</p>

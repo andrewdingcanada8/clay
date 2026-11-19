@@ -33,6 +33,11 @@
 }
 
 html, body { height: 100%; }
+/* An app, not a page: no text selection or press-and-hold callouts anywhere (a held
+   finger on the editor would select labels), except in fields you type into and on
+   images meant to be saved (cap-img). */
+* { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 body {
   margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.4 var(--font-body);
   overflow: hidden; -webkit-tap-highlight-color: transparent; overscroll-behavior: none;
@@ -48,6 +53,12 @@ body {
   pointer-events: none;
 }
 .topbar > * { pointer-events: auto; }
+/* phones: seven controls and the piece's name in one row */
+@media (max-width: 430px) {
+  .topbar { gap: 5px; }
+  .topbar .icon-btn { min-width: 36px; height: 36px; border-radius: 11px; }
+  .topbar #btn-gallery { padding-inline: 9px; }
+}
 .brand { font: 700 19px/1 var(--font-display); letter-spacing: -0.01em; margin-right: auto; display: flex; align-items: baseline; gap: 6px; }
 .brand small { font: 500 11px/1 var(--font-mono); color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
 .icon-btn {

@@ -5,7 +5,7 @@
 export interface ProfilePoint {
   r: number;
   y: number;
-  /** 0 = sharp corner, 1 = smooth (default). */
+  /** 0 = sharp corner, 1 = smooth (default), up to 2 = rounder (fuller arcs). */
   smooth?: number;
   /** legacy: same as smooth = 0 */
   corner?: boolean;
@@ -49,7 +49,23 @@ function catmullRom(
   return lerp(B1, B2, t1, t2);
 }
 
-/** Sample the profile curve. Returns points plus the control-span index of each segment. */
+/**
+ * Past smoothness 1 a point pulls its curve rounder: the spline's tangent there is
+ * lengthened (up to ROUND_GAIN more at 2), so spans bulge into fuller arcs instead
+ * of running straight between points. At 1 and below the curve is the plain spline.
+ */
+const ROUND_GAIN = 0.7;
+function rounder(p0: ProfilePoint, p1: ProfilePoint, p2: ProfilePoint, p3: ProfilePoint, s1: number, s2: number, t: number): [number, number] {
+  // the spline's own tangents at its ends (per unit t), lengthened
+  const e = 1e-4;
+  const a = catmullRom(p0, p1, p2, p3, e), b = catmullRom(p0, p1, p2, p3, 1 - e);
+  const k1 = 1 + ROUND_GAIN * Math.max(0, s1 - 1), k2 = 1 + ROUND_GAIN * Math.max(0, s2 - 1);
+  const T1 = [((a[0] - p1.r) / e) * k1, ((a[1] - p1.y) / e) * k1], T2 = [((p2.r - b[0]) / e) * k2, ((p2.y - b[1]) / e) * k2];
+  const t2 = t * t, t3 = t2 * t;
+  const h00 = 2 * t3 - 3 * t2 + 1, h10 = t3 - 2 * t2 + t, h01 = -2 * t3 + 3 * t2, h11 = t3 - t2;
+  return [h00 * p1.r + h10 * T1[0] + h01 * p2.r + h11 * T2[0], h00 * p1.y + h10 * T1[1] + h01 * p2.y + h11 * T2[1]];
+}
+
 /**
  * Sample the curve. Returns points plus the control-span index of each segment.
  * `closed`: the curve wraps from the last point back to the first (the start point
@@ -73,13 +89,15 @@ export function sampleCurve(points: ProfilePoint[], samplesPerSpan = SAMPLES_PER
     const m0 = { r: 2 * p1.r - p2.r, y: 2 * p1.y - p2.y }, m3 = { r: 2 * p2.r - p1.r, y: 2 * p2.y - p1.y };
     const mix = (m: ProfilePoint, q: ProfilePoint | undefined, k: number): ProfilePoint =>
       q ? { r: m.r + (q.r - m.r) * k, y: m.y + (q.y - m.y) * k } : m;
-    const p0 = mix(m0, at(i - 1), smoothOf(p1));
-    const p3 = mix(m3, at(i + 2), smoothOf(p2));
+    const s1 = smoothOf(p1), s2 = smoothOf(p2);
+    const p0 = mix(m0, at(i - 1), Math.min(1, s1));
+    const p3 = mix(m3, at(i + 2), Math.min(1, s2));
+    const round = s1 > 1 || s2 > 1;
     const straight = Math.hypot(p2.r - p1.r, p2.y - p1.y) < 1e-9;
     const S = straight ? 1 : samplesPerSpan;
     for (let s = 1; s <= S; s++) {
       if (closed && i === spans - 1 && s === S) break; // back at the start
-      const [r, y] = s === S ? [p2.r, p2.y] : catmullRom(p0, p1, p2, p3, s / S);
+      const [r, y] = s === S ? [p2.r, p2.y] : round ? rounder(p0, p1, p2, p3, s1, s2, s / S) : catmullRom(p0, p1, p2, p3, s / S);
       xy.push(R(r), y);
       span.push(i);
     }
