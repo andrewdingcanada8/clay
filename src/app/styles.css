@@ -53,12 +53,6 @@ body {
   pointer-events: none;
 }
 .topbar > * { pointer-events: auto; }
-/* phones: seven controls and the piece's name in one row */
-@media (max-width: 430px) {
-  .topbar { gap: 5px; }
-  .topbar .icon-btn { min-width: 36px; height: 36px; border-radius: 11px; }
-  .topbar #btn-gallery { padding-inline: 9px; }
-}
 .brand { font: 700 19px/1 var(--font-display); letter-spacing: -0.01em; margin-right: auto; display: flex; align-items: baseline; gap: 6px; }
 .brand small { font: 500 11px/1 var(--font-mono); color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
 .icon-btn {

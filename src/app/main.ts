@@ -44,7 +44,6 @@ const ICON: Record<string, string> = {
   redo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 000 12h3"/></svg>',
   frame: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
   camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
-  save: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg>',
   sphere: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><circle cx="16" cy="16" r="11"/><ellipse cx="16" cy="16" rx="11" ry="4" opacity=".5"/></svg>',
   box: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 11l10-5 10 5v11l-10 5-10-5z"/><path d="M6 11l10 5 10-5M16 16v11" opacity=".6"/></svg>',
   cylinder: '<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="16" cy="8" rx="9" ry="3"/><path d="M7 8v16c0 1.7 4 3 9 3s9-1.3 9-3V8"/></svg>',
@@ -158,7 +157,6 @@ app.innerHTML = `
     <div class="topbar">
       <div class="brand">Clay <small id="piece-name">Untitled</small></div>
       <button class="icon-btn" id="btn-gallery" aria-label="Pieces">Pieces</button>
-      <button class="icon-btn" id="btn-save" aria-label="Save, with this view as the thumbnail" title="Save (this view becomes the thumbnail)">${ICON.save}</button>
       <button class="icon-btn" id="btn-capture" aria-label="Capture a reference sheet from this angle" title="Reference sheet from this angle">${ICON.camera}</button>
       <button class="icon-btn" id="btn-frame" aria-label="Frame model">${ICON.frame}</button>
       <button class="icon-btn" id="btn-undo" aria-label="Undo">${ICON.undo}</button>
@@ -1329,7 +1327,6 @@ async function logGpuCrash() {
   } catch { /* no database here */ }
 }
 document.getElementById('btn-capture')!.addEventListener('click', () => { void captureSheet(); });
-document.getElementById('btn-save')!.addEventListener('click', () => { void savePiece(); });
 
 // ---------- reference sheet
 const LOOK_KEY = 'clay.sheetLook';
