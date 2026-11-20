@@ -511,7 +511,12 @@ float boxBound(int i, vec3 p) {
   vec3 q = toLocal(i, p);
   return length(max(max(row(i, 8).xyz - q, q - row(i, 9).xyz), 0.0)) * row(i, 4).w;
 }
+// lowest set bit's index (x != 0; findLSB needs ES 3.1); powers of two are exact in float
+int lowBit(uint x) { return int(log2(float(x & (~x + 1u))) + 0.5); }
 void sweepAll(vec3 p) {
+  // the bounds first, marking the sweeps within the gate; then one pass per marked
+  // sweep (the long sweep code runs only as often as the most any pixel needs)
+  uvec2 todo = uvec2(0u);
   for (int c = min(uGroupCount, 0); c < ${MAX_CLUSTERS}; c++) {
     if (c >= uCluCount) break;
     if (((gClu >> uint(c)) & 1u) == 0u) continue;
@@ -520,9 +525,17 @@ void sweepAll(vec3 p) {
       int i = uSweepObj[k];
       float b = bound(i, p);
       if (!objOn(i) || b > uSweepGate || (b = max(b, boxBound(i, p))) > uSweepGate) { gSw[k] = vec2(b); continue; }
-      gObjN++;
-      gSw[k] = sdSweep(uSweepData[k], row(i, 3), row(i, 7), toLocal(i, p), int(row(i, 6).z)) * row(i, 4).w;
+      if (k < 32) todo.x |= 1u << uint(k); else todo.y |= 1u << uint(k - 32);
     }
+  }
+  for (int n = min(uGroupCount, 0); n < ${MAX_SWEEP_OBJS}; n++) {
+    if (todo == uvec2(0u)) break;
+    int k;
+    if (todo.x != 0u) { k = lowBit(todo.x); todo.x &= todo.x - 1u; }
+    else { k = 32 + lowBit(todo.y); todo.y &= todo.y - 1u; }
+    int i = uSweepObj[k];
+    gObjN++;
+    gSw[k] = sdSweep(uSweepData[k], row(i, 3), row(i, 7), toLocal(i, p), int(row(i, 6).z)) * row(i, 4).w;
   }
 }
 
