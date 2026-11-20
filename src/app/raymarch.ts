@@ -667,12 +667,13 @@ float map(vec3 p) {
   return s;
 }
 
-vec3 calcNormal(vec3 p, float e) {
-  // looped so the compiler emits map() once here (keeps the shader small)
+vec3 calcNormal(vec3 p, float e, float d0) {
+  // forward differences from the field at the hit (known): three more field
+  // evaluations instead of four; looped so map() is emitted once here
   vec3 n = vec3(0.0);
-  for (int i = min(uGroupCount, 0); i < 4; i++) {
-    vec3 k = 0.5773 * (2.0 * vec3((((i + 3) >> 1) & 1), ((i >> 1) & 1), (i & 1)) - 1.0);
-    n += k * map(p + k * e);
+  for (int i = min(uGroupCount, 0); i < 3; i++) {
+    vec3 k = vec3(i == 0, i == 1, i == 2);
+    n[i] = map(p + k * e) - d0;
   }
   return normalize(n);
 }
@@ -769,7 +770,7 @@ void main() {
   // texel so texel boundaries don't show as facets
   float ne = max(0.0008, uPixelAngle * t * 0.5);
   if (kind == 2 && gCavH > 0.0) ne = max(ne, 0.25 * gCavH);
-  vec3 n = calcNormal(p, ne);
+  vec3 n = calcNormal(p, ne, d);
   if (dot(n, rd) > 0.0) n = -n;
   if (uPass == 1) {
     float z = dot(p - uCamPos, uCamDir);
