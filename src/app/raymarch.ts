@@ -20,7 +20,7 @@ const MAX_GROUPS = 8;
 const MAX_GRIDS = 4;
 const MAX_PROFILES = 8;
 const MAX_PINS = 32;
-const ROWS = 10; // texels per object in the data texture
+const ROWS = 16; // texels per object in the data texture (10 used; a power of two for the program's)
 const TYPE_CODE: Record<string, number> = { sphere: 0, box: 1, cylinder: 2, cone: 3, torus: 4, capsule: 5, prism: 6, revolve: 7, sweep: 8 };
 const MAX_SWEEPS = 6; // distinct sweep shapes (texture slots); copies of one share its slot
 const MAX_SWEEP_OBJS = 64; // sweep objects (copies included), each with its own distance
@@ -154,16 +154,16 @@ bool bit(int mask, int n) { return ((mask >> n) & 1) == 1; }
 // Regular n-gon frustum along Y: P = (n, bottom radius, half height, top radius).
 // Signed distance to the side plane at angle 'a' (outward normal), from (u, y)
 // where u is the coordinate along that normal.
-float frustumSide(float u, float y, vec4 P) {
-  float c = cos(3.14159265 / P.x);
-  float ap1 = P.y * c, ap2 = P.w * c, h = 2.0 * P.z;
-  return ((u - ap1) * h + (y + P.z) * (ap1 - ap2)) / length(vec2(h, ap1 - ap2));
+// E: the object's row 7 = (edge rounding, cos(pi/n), tan(pi/n), 1 / slant length of a
+// side's apothem line), constants worked out on the CPU (see writeData)
+float frustumSide(float u, float y, vec4 P, vec4 E) {
+  float ap1 = P.y * E.y, ap2 = P.w * E.y, h = 2.0 * P.z;
+  return ((u - ap1) * h + (y + P.z) * (ap1 - ap2)) * E.w;
 }
-float sdFrustum(vec3 q, vec4 P) {
-  float an = 3.14159265 / P.x;
-  // side normals point at angles (2k+1)*an; b = angle from the nearest one
-  float b = mod(atan(q.z, q.x), 2.0 * an) - an;
-  float side = frustumSide(length(q.xz) * cos(b), q.y, P);
+// (rho, b): distance from the axis, angle from the nearest side normal (side normals
+// point at angles (2k+1)*pi/n)
+float sdFrustum(vec3 q, vec4 P, vec4 E, float rho, float b) {
+  float side = frustumSide(rho * cos(b), q.y, P, E);
   return max(side, abs(q.y) - P.z);
 }
 
@@ -295,29 +295,33 @@ vec2 sdSweep(int slot, vec4 P, vec4 M, vec3 q, int holeMask) {
 }
 
 // a regular n-gon frustum with every edge rounded by rr (primitives.prismFrustum.roundedSdf)
-float sdFrustumRound(vec3 q, vec4 P, float rr) {
-  float an = 3.14159265 / P.x, hh = P.z, h = 2.0 * hh;
-  float ap1 = P.y * cos(an), ap2 = P.w * cos(an), cosT = h / length(vec2(h, ap1 - ap2));
+float sdFrustumRound(vec3 q, vec4 P, vec4 E, float rho, float b) {
+  float rr = E.x, hh = P.z, h = 2.0 * hh;
+  float ap1 = P.y * E.y, ap2 = P.w * E.y, cosT = h * E.w;
   float a1 = ap1 - rr / cosT, a2 = ap2 - rr / cosT;
   float yAx = a1 > a2 ? -hh + a1 / (a1 - a2) * h : hh;
   float y0 = -hh + rr, y1 = min(hh - rr, yAx);
   float ap = max(0.0, a1 + (a2 - a1) * (clamp(q.y, y0, y1) + hh) / h);
-  float b = mod(atan(q.z, q.x), 2.0 * an) - an, rho = length(q.xz);
   float ex = rho * cos(b) - ap, py = abs(rho * sin(b));
-  float side = sign(ex) * length(vec2(ex, py - min(py, ap * tan(an)))) * cosT;
+  float side = sign(ex) * length(vec2(ex, py - min(py, ap * E.z))) * cosT;
   float cap = max(y0 - q.y, q.y - y1);
   return min(max(side, cap), 0.0) + length(max(vec2(side, cap), 0.0)) - rr;
 }
-// rr: edge rounding (prisms; boxes carry theirs in P.w)
-float sdLocal(vec3 q, vec4 P, int type, int slot, float rr) {
+// E: row 7 (prisms: see frustumSide; boxes carry their rounding in P.w)
+float sdLocal(vec3 q, vec4 P, int type, int slot, vec4 E) {
+  float rho = length(q.xz); // (most types: worked out once)
   if (type == 0) return length(q) - P.x;
   if (type == 1) return sdBox(q, P.xyz - P.w) - P.w;
-  if (type == 2) return extrude(length(q.xz) - P.x, q.y, P.y);
-  if (type == 3) return sdCone2(vec2(length(q.xz), q.y), P.x, P.y);
-  if (type == 4) return length(vec2(length(q.xz) - P.x, q.y)) - P.y;
+  if (type == 2) return extrude(rho - P.x, q.y, P.y);
+  if (type == 3) return sdCone2(vec2(rho, q.y), P.x, P.y);
+  if (type == 4) return length(vec2(rho - P.x, q.y)) - P.y;
   if (type == 5) return length(vec3(q.x, q.y - clamp(q.y, -P.y, P.y), q.z)) - P.x;
-  if (type == 6) return rr > 0.0 ? sdFrustumRound(q, P, rr) : sdFrustum(q, P);
-  return profile(slot, vec2(length(q.xz), q.y), 0);
+  if (type == 6) {
+    float an = 3.14159265 / P.x;
+    float b = mod(atan(q.z, q.x), 2.0 * an) - an;
+    return E.x > 0.0 ? sdFrustumRound(q, P, E, rho, b) : sdFrustum(q, P, E, rho, b);
+  }
+  return profile(slot, vec2(rho, q.y), 0);
 }
 int gObjN = 0, gMapN = 0; // evaluation counters for the cost view (uFlat == 2)
 // Sweeps at the point map() is evaluating, by sweep object: (distance, distance with open
@@ -328,7 +332,7 @@ float sdObj(int i, vec3 p) {
   gObjN++;
   vec4 meta = row(i, 6);
   if (int(meta.x) == 8) return gSw[int(meta.y)].x;
-  return sdLocal(toLocal(i, p), row(i, 3), int(meta.x), int(meta.y), row(i, 7).x) * row(i, 4).w;
+  return sdLocal(toLocal(i, p), row(i, 3), int(meta.x), int(meta.y), row(i, 7)) * row(i, 4).w;
 }
 // lower bound from the object's bounding sphere
 float bound(int i, vec3 p) { vec4 b = row(i, 5); return length(p - b.xyz) - b.w; }
@@ -391,7 +395,7 @@ float holeDepth(int i, vec3 p) {
   vec4 P = row(i, 3), S = row(i, 4), meta = row(i, 6);
   int type = int(meta.x), slot = int(meta.y), mask = int(meta.z);
   float d = 1e5;
-  if (type == 0 || type == 4 || type == 5) return bit(mask, 0) ? 1e5 : -sdLocal(q, P, type, slot, 0.0) * S.w;
+  if (type == 0 || type == 4 || type == 5) return bit(mask, 0) ? 1e5 : -sdLocal(q, P, type, slot, vec4(0.0)) * S.w;
   if (type == 1) {
     if (!bit(mask, 0)) d = min(d, (P.x - q.x) * S.x);
     if (!bit(mask, 1)) d = min(d, (P.x + q.x) * S.x);
@@ -416,11 +420,12 @@ float holeDepth(int i, vec3 p) {
     if (!bit(mask, 0)) d = min(d, (P.z - q.y) * S.y);
     if (!bit(mask, 1)) d = min(d, (P.z + q.y) * S.y);
     float n = P.x;
+    vec4 E = row(i, 7);
     for (int k = 0; k < 12; k++) {
       if (float(k) >= n) break;
       if (bit(mask, 2 + k)) continue;
       float a = 6.2831853 * (float(k) - 0.5) / n;
-      d = min(d, -frustumSide(dot(q.xz, vec2(cos(a), sin(a))), q.y, P) * min(S.x, S.z));
+      d = min(d, -frustumSide(dot(q.xz, vec2(cos(a), sin(a))), q.y, P, E) * min(S.x, S.z));
     }
     return d;
   }
@@ -606,7 +611,7 @@ float map(vec3 p) {
   int needU = -1;
   for (int n = 0; n < ${MAX_PROG}; n++) {
     if (pc >= uProgLen) break;
-    vec4 ins = texelFetch(uData, ivec2(pc % ${ROWS}, uProgRow + pc / ${ROWS}), 0);
+    vec4 ins = texelFetch(uData, ivec2(pc & ${ROWS - 1}, uProgRow + (pc >> ${Math.log2(ROWS)})), 0);
     // Run past the object steps that can't change the fold here: objects off this
     // ray, and objects whose bound shows the fold would keep its values (see 'need'
     // below: with the bound standing in, the smooth min/max returns g and f exactly).
@@ -621,11 +626,16 @@ float map(vec3 p) {
       }
       pc++;
       if (pc >= uProgLen) break;
-      ins = texelFetch(uData, ivec2(pc % ${ROWS}, uProgRow + pc / ${ROWS}), 0);
+      ins = texelFetch(uData, ivec2(pc & ${ROWS - 1}, uProgRow + (pc >> ${Math.log2(ROWS)})), 0);
     }
     if (pc >= uProgLen) break;
     pc++;
     int op = int(ins.x + 0.5);
+    // what the step folds into the open group: v with blend kv, as a mask (fm), a
+    // cut (fs) or an add (solid: not into the shell surface f); kindV: its kind
+    float v = 0.0, kv = 0.0;
+    bool fm = false, fs = false, fsolid = false;
+    int kindV = -1;
     if (op == 0) {
       int i = int(ins.y + 0.5), fl = int(ins.z + 0.5);
       float k = ins.w;
@@ -635,18 +645,8 @@ float map(vec3 p) {
       // (the shell surface is never below the body, so the body's test covers it for
       // cuts; a mask's distance is the field wherever it trims, so it is always exact)
       bool need = msk || (sub ? b < 0.5 + k - g : b < max(solid ? g : f, 0.0) + 0.5 + k);
-      float d = need ? sdShell(i, p) : b;
-      if (msk) {
-        if (d > g) kd = -1;
-        g = -smin(-g, -d, k); f = -smin(-f, -d, k);
-      } else if (sub) {
-        if (-d > g) kd = -1;
-        g = -smin(-g, d, k); f = -smin(-f, d, k);
-      } else {
-        if (d < g) kd = -1;
-        g = smin(g, d, k);
-        if (!solid) f = smin(f, d, k);
-      }
+      v = need ? sdShell(i, p) : b;
+      kv = k; fm = msk; fs = sub && !msk; fsolid = solid && !msk && !sub;
     } else if (op == 1) {
       // a top-level group the ray can't reach: as if empty (never a mask; see setDoc)
       int c = int(ins.z + 0.5) - 1;
@@ -664,16 +664,18 @@ float map(vec3 p) {
         if (-cav > gv) { gv = -cav; kind = u; }
       }
       if (sp > 0) { sp--; g = G[sp]; f = F[sp]; kd = K[sp]; }
-      if ((fl & 4) == 4) {
-        if (gv > g) kd = kind;
-        g = -smin(-g, -gv, k); f = -smin(-f, -gv, k);
-      } else if ((fl & 1) == 1) {
-        if (-gv > g) kd = -1;
-        g = -smin(-g, gv, k); f = -smin(-f, gv, k);
-      } else {
-        if (gv < g) kd = kind;
-        g = smin(g, gv, k); f = smin(f, gv, k);
-      }
+      v = gv; kv = k; kindV = kind;
+      fm = (fl & 4) == 4; fs = !fm && (fl & 1) == 1;
+    }
+    if (op != 1) {
+      // one fold for objects and groups: a mask is a smooth max with v, a cut one
+      // with -v, an add a smooth min with v (negated in and out: exact)
+      bool mx = fm || fs;
+      float a = mx ? -g : g, w = fm ? -v : v;
+      if (w < a) kd = fs ? -1 : kindV;
+      float r = smin(a, w, kv);
+      g = mx ? -r : r;
+      if (!fsolid) { float rf = smin(mx ? -f : f, w, kv); f = mx ? -rf : rf; }
     }
   }
   if (needU < 0) break;
@@ -1177,7 +1179,15 @@ export class SdfRenderer {
         case 'box': data[k3] = q.x! / 2; data[k3 + 1] = q.y! / 2; data[k3 + 2] = q.z! / 2; data[k3 + 3] = o.round; break;
         case 'cylinder': case 'cone': case 'capsule': data[k3] = q.r!; data[k3 + 1] = q.h! / 2; break;
         case 'torus': data[k3] = q.R!; data[k3 + 1] = q.r!; break;
-        case 'prism': data[k3] = Math.min(12, Math.max(3, Math.round(q.n!))); data[k3 + 1] = q.r!; data[k3 + 2] = q.h! / 2; data[k3 + 3] = q.r2 ?? q.r!; data[(i * ROWS + 7) * 4] = o.round; break;
+        case 'prism': {
+          const n = Math.min(12, Math.max(3, Math.round(q.n!))), r2 = q.r2 ?? q.r!;
+          data[k3] = n; data[k3 + 1] = q.r!; data[k3 + 2] = q.h! / 2; data[k3 + 3] = r2;
+          // constants of the side planes (see frustumSide in the shader)
+          const k7 = (i * ROWS + 7) * 4, c = Math.cos(Math.PI / n);
+          data[k7] = o.round; data[k7 + 1] = c; data[k7 + 2] = Math.tan(Math.PI / n);
+          data[k7 + 3] = 1 / Math.hypot(q.h!, (q.r! - r2) * c);
+          break;
+        }
         case 'sweep': {
           const { path, sec } = o.sweep!;
           data[k3] = SECTION_CODE[sec.kind]; data[k3 + 1] = sec.hw; data[k3 + 2] = sec.hd;
