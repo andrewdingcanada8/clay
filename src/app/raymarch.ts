@@ -607,6 +607,23 @@ float map(vec3 p) {
   for (int n = 0; n < ${MAX_PROG}; n++) {
     if (pc >= uProgLen) break;
     vec4 ins = texelFetch(uData, ivec2(pc % ${ROWS}, uProgRow + pc / ${ROWS}), 0);
+    // Run past the object steps that can't change the fold here: objects off this
+    // ray, and objects whose bound shows the fold would keep its values (see 'need'
+    // below: with the bound standing in, the smooth min/max returns g and f exactly).
+    // A tight loop, so the step's long body below runs only for steps that matter.
+    for (int s = 0; s < ${MAX_PROG}; s++) {
+      if (int(ins.x + 0.5) != 0) break;
+      int i = int(ins.y + 0.5), fl = int(ins.z + 0.5);
+      if (objOn(i)) {
+        if ((fl & 4) == 4) break; // a mask: always exact
+        float b = bound(i, p), k = ins.w;
+        if ((fl & 1) == 1 ? b < 0.5 + k - g : b < max((fl & 2) == 2 ? g : f, 0.0) + 0.5 + k) break;
+      }
+      pc++;
+      if (pc >= uProgLen) break;
+      ins = texelFetch(uData, ivec2(pc % ${ROWS}, uProgRow + pc / ${ROWS}), 0);
+    }
+    if (pc >= uProgLen) break;
     pc++;
     int op = int(ins.x + 0.5);
     if (op == 0) {
