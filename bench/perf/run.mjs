@@ -75,7 +75,10 @@ for (const name of names) {
     };
     // what the user sees: the settled (full) frame and the moving frame, each whole
     const draw = (moving) => v.benchFrame(moving);
-    place(0); draw(false); draw(true); // warm-up (shader compile, uploads, targets)
+    // per-edit work a build does once the field is at rest (a bake): its own series
+    place(0);
+    const tp = performance.now(); v.benchPrepare?.(); const prepareMs = performance.now() - tp;
+    draw(false); draw(true); // warm-up (shader compile, uploads, targets)
     const ms = [], msMove = [];
     for (let run = 0; run < runs; run++) for (let i = 0; i < frames; i++) {
       place((2 * Math.PI * i) / frames);
@@ -108,13 +111,13 @@ for (const name of names) {
     cx.putImageData(img, 0, 0);
     v.scene.background = bg; v.renderer.setClearColor(clear, clearA);
     for (const o of [...hide, ...helpers]) o.visible = true;
-    return { ms, msMove, w: W, h: H, covered: n, mapsPerPx: n ? maps / n : 0, maxMaps, objsPerMap: maps ? objs / maps : 0, objsPerPx: n ? objs / n : 0, png: cv.toDataURL('image/png') };
+    return { ms, msMove, prepareMs, w: W, h: H, covered: n, mapsPerPx: n ? maps / n : 0, maxMaps, objsPerMap: maps ? objs / maps : 0, objsPerPx: n ? objs / n : 0, png: cv.toDataURL('image/png') };
   }, { view: sc.view, frames, runs });
   fs.writeFileSync(path.join(runDir, `${name}.png`), Buffer.from(r.png.split(',')[1], 'base64'));
   const mean = r.ms.reduce((a, b) => a + b, 0) / r.ms.length;
   const meanMove = r.msMove.reduce((a, b) => a + b, 0) / r.msMove.length;
   results.scenes[name] = {
-    group: sc.group, msMean: +mean.toFixed(1), msP95: +pct(r.ms, 0.95).toFixed(1), msMax: +Math.max(...r.ms).toFixed(1), fps: +(1000 / mean).toFixed(3), msMove: +meanMove.toFixed(1), fpsMove: +(1000 / meanMove).toFixed(3),
+    group: sc.group, msMean: +mean.toFixed(1), msP95: +pct(r.ms, 0.95).toFixed(1), msMax: +Math.max(...r.ms).toFixed(1), fps: +(1000 / mean).toFixed(3), prepareMs: +r.prepareMs.toFixed(0), msMove: +meanMove.toFixed(1), fpsMove: +(1000 / meanMove).toFixed(3),
     w: r.w, h: r.h, coveredPx: r.covered, mapsPerPx: +r.mapsPerPx.toFixed(2), maxMaps: r.maxMaps, objsPerMap: +r.objsPerMap.toFixed(2), objsPerPx: +r.objsPerPx.toFixed(1), settleMs, ms: r.ms.map((x) => +x.toFixed(1)),
   };
   console.log(`${name.padEnd(16)} ${mean.toFixed(0).padStart(6)} ms  moving ${meanMove.toFixed(0).padStart(5)} ms  p95 ${pct(r.ms, 0.95).toFixed(0).padStart(6)}  fps ${(1000 / mean).toFixed(3)}  maps/px ${r.mapsPerPx.toFixed(1)}  objs/map ${r.objsPerMap.toFixed(2)}  settle ${settleMs} ms`);

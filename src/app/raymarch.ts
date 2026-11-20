@@ -46,7 +46,7 @@ const range = (n: number) => Array.from({ length: n }, (_, i) => i);
 
 
 
-const FRAG = /* glsl */ `
+export const FRAG = /* glsl */ `
 precision highp float;
 precision highp int;
 precision highp sampler3D;
@@ -78,6 +78,22 @@ uniform int uProgLen; // the layer program (scene.CompiledIns), in uData from ro
 uniform int uProgRow;
 uniform int uSweepCount;
 uniform int uCluCount;
+// the baked field (bake.ts): a bake pass writes map() at voxel centres of layer uBakeZ;
+// the settled pass may start each ray where the baked field says the surface is
+uniform vec3 uBakeO;
+uniform float uBakeH;
+uniform float uBakeZ;
+uniform int uStartOn;
+uniform sampler2D uStartT;
+uniform float uStartBack;
+uniform highp sampler3D uBakeTex;
+uniform vec3 uBakeSize;
+// occlusion from the baked field (settled pass with a bake): the same four taps
+float bakedField(vec3 p) {
+  vec3 q = clamp((p - uBakeO) / uBakeSize, 0.0, 1.0);
+  vec3 n = vec3(textureSize(uBakeTex, 0));
+  return texture(uBakeTex, (q * (n - 1.0) + 0.5) / n).r;
+}
 uniform vec4 uCluMin[${MAX_CLUSTERS}]; // a top-level layer's world box; w: how far it reaches past it
 uniform vec4 uCluMax[${MAX_CLUSTERS}];
 uniform int uSweepObj[${MAX_SWEEP_OBJS}]; // object index of each sweep object
@@ -685,6 +701,14 @@ bool boxHit(vec3 ro, vec3 rd, out float t0, out float t1) {
   t0 = max(max(lo.x, lo.y), lo.z); t1 = min(min(hi.x, hi.y), hi.z);
   return t1 > max(t0, 0.0);
 }
+#ifdef SDF_BAKE
+// bake: the field at the voxel centres of layer uBakeZ (no clip plane, no culling)
+void main() {
+  gNoClip = true;
+  vec3 p = uBakeO + vec3(gl_FragCoord.xy - 0.5, uBakeZ) * uBakeH;
+  pc_fragColor = vec4(map(p), 0.0, 0.0, 1.0);
+}
+#else
 void main() {
   vec4 a = uInvProjView * vec4(vNdc, -1.0, 1.0);
   vec4 b = uInvProjView * vec4(vNdc, 1.0, 1.0);
@@ -693,6 +717,14 @@ void main() {
   float t0, t1;
   if (uGroupCount == 0 || !boxHit(ro, rd, t0, t1)) discard;
   float t = max(t0, 0.0);
+  // the baked field already found where (or whether) this ray meets the surface:
+  // rays that miss stop here, before any per-ray setup
+  float tStart = 0.0;
+  if (uStartOn == 1) {
+    float ts = texelFetch(uStartT, ivec2(gl_FragCoord.xy), 0).r;
+    if (ts < 0.0) discard;
+    tStart = ts - uStartBack;
+  }
   // normal samples reach up to max(pixel footprint, quarter texel) from the hit;
   // occlusion samples up to 1.95 along the normal, and see objects within that again
   float nReach = uPixelAngle * t1 + 0.002;
@@ -712,6 +744,7 @@ void main() {
   }
   // every surface lies inside the boxes the ray crosses: march only that stretch
   if (uObjCount <= 128) { t = max(t, span.x); t1 = min(t1, span.y); }
+  if (uStartOn == 1) t = max(t, tStart);
   float d = 1e5, eps = 0.0;
   bool done = false;
   for (int i = 0; i < 200; i++) {
@@ -749,19 +782,29 @@ void main() {
   vec3 key = normalize(-rd + vec3(0.35, 0.65, 0.2));
   float dif = clamp(dot(n, key), 0.0, 1.0);
   float hemi = 0.55 + 0.45 * n.y;
-  float ao = calcAO(p, n);
+  float ao;
+  if (uStartOn == 1) {
+    float occ = 0.0, sca = 1.0;
+    for (int i = 0; i < 4; i++) { float h = 0.15 + 0.6 * float(i); occ += (h - bakedField(p + n * h)) * sca; sca *= 0.75; }
+    ao = clamp(1.0 - 0.18 * occ, 0.0, 1.0);
+  } else ao = calcAO(p, n);
   vec3 col = base * (0.38 + 0.22 * hemi + 0.62 * dif) * (0.55 + 0.45 * ao);
   col += 0.06 * pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 3.0);
   pc_fragColor = vec4(pow(col, vec3(1.0 / 1.15)), 1.0);
   if (uFlat == 2) pc_fragColor = vec4(float(min(gMapN, 255)) / 255.0, float(min(gObjN >> 8, 255)) / 255.0, float(gObjN & 255) / 255.0, 1.0);
 }
+#endif
 `;
 
 export class SdfRenderer {
   /** Bumped by every change to what it draws (the view redraws its image on a change). */
   version = 0;
   readonly mesh: THREE.Mesh;
-  private material: THREE.ShaderMaterial;
+  readonly material: THREE.ShaderMaterial;
+  /** Bumped by changes to the field itself (not the camera, clip or style): the bake follows it. */
+  fieldVersion = 0;
+  /** The last setDoc was mid-drag: nothing heavy (the bake waits for release). */
+  interactive = false;
   private dataTex: THREE.DataTexture | null = null;
   private groups: CompiledGroup[] = [];
   private profiles = new Map<string, ProfileTex>();
@@ -779,6 +822,14 @@ export class SdfRenderer {
       uSweep: { value: this.sweepTex },
       uClip: { value: new THREE.Vector4(0, 0, -1, 0) },
       uClipOn: { value: 0 },
+      uBakeO: { value: new THREE.Vector3() },
+      uBakeH: { value: 1 },
+      uBakeZ: { value: 0 },
+      uStartOn: { value: 0 },
+      uStartT: { value: null },
+      uStartBack: { value: 1 },
+      uBakeTex: { value: null },
+      uBakeSize: { value: new THREE.Vector3(1, 1, 1) },
       uFlat: { value: 0 },
       uPass: { value: 0 },
       uCamPos: { value: new THREE.Vector3() },
@@ -884,6 +935,7 @@ export class SdfRenderer {
   /** After a lost GPU context: upload every texture again. */
   reupload() {
     this.version++;
+    this.fieldVersion++;
     if (this.dataTex) this.dataTex.needsUpdate = true;
     for (const u of Object.values(this.material.uniforms)) {
       const v = u.value as { isTexture?: boolean; needsUpdate?: boolean } | null;
@@ -904,6 +956,8 @@ export class SdfRenderer {
    *  slot's previous table (a moment's stale preview); it is built on release. */
   setDoc(doc: SceneDoc, interactive = false) {
     this.version++;
+    this.fieldVersion++;
+    this.interactive = interactive;
     const groups = compileGroups(doc).slice(0, MAX_GROUPS);
     this.groups = groups;
     const u = this.material.uniforms;
@@ -1001,6 +1055,7 @@ export class SdfRenderer {
   /** Cavity grids by document group index; null falls back to the analytic depth. */
   setGrids(grids: (CavityGrid | null)[]) {
     this.version++;
+    this.fieldVersion++;
     this.gridsByIndex = grids;
     this.bindGrids();
   }

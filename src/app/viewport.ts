@@ -18,6 +18,7 @@ import { type CompiledGroup, approxDepth, traceScene } from '../engine/scene';
 import type { Vec3 } from '../engine/math';
 import { HandReference } from './hand';
 import { SdfRenderer } from './raymarch';
+import { FieldBake } from './bake';
 import { dlog, dlogInfo } from './debugLog';
 
 export type GizmoMode = 'translate' | 'rotate' | 'scale' | 'off';
@@ -104,8 +105,14 @@ export class Viewport {
   private frontKey = '';
   private lastKey = '';
   private band = { active: false, key: '', y: 0, rows: 0, at: 0, n: 0, start: 0 };
+  /** the start depths the current bands use (null: march from the camera) */
+  private bandStart: THREE.WebGLRenderTarget | null = null;
   /** set after each band: the GPU has finished it once this signals */
   private fence: WebGLSync | null = null;
+  /** The field baked into a 3D texture once per edit (bake.ts). */
+  private bake: FieldBake;
+  /** Where each settled ray starts (from the baked field), full resolution. */
+  private startRT: THREE.WebGLRenderTarget | null = null;
   /** rows per ms a band took last (learned; 0 until measured) */
   private rowRate = 0;
   private blit = (() => {
@@ -160,6 +167,7 @@ export class Viewport {
     this.scene.add(this.sdf.mesh);
     this.sdf.mesh.layers.set(SDF_LAYER);
     this.camera.layers.enable(SDF_LAYER);
+    this.bake = new FieldBake(this.sdf);
     this.scene.add(this.ghost);
 
     this.gizmo = new TransformControls(this.camera, this.renderer.domElement);
@@ -187,7 +195,7 @@ export class Viewport {
         dlog('stall', { ms: now - lastDraw, ratio: this.renderer.getPixelRatio(), w: c.width, h: c.height, moving: this.moving, hidden: document.hidden });
       }
       lastDraw = 0;
-      if (this.orbit.update() || this.needsRender || this.band.active) {
+      if (this.orbit.update() || this.needsRender || this.band.active || this.bakePending()) {
         this.needsRender = false;
         this.drawFrame(now);
         lastDraw = now;
@@ -256,6 +264,7 @@ export class Viewport {
     this.renderer = r;
     // (images of the old context are gone with it)
     this.rt = null; this.lowKey = this.frontKey = ''; this.band.active = false; this.fence = null; this.shadow = null;
+    this.bake.reset(); this.startRT = null; this.bandStart = null;
     this.orbit.disconnect(); this.orbit.connect(r.domElement);
     this.gizmo.disconnect(); this.gizmo.connect(r.domElement);
     this.setupTap();
@@ -361,14 +370,22 @@ export class Viewport {
    * once). Every display path a change adds has to come through here, so the
    * harness always times what the user sees.
    */
+  /** For the harness: finish any per-edit work now (the bake), waited on. Returns ms. */
+  benchPrepare(): number {
+    if (this.mode !== 'sdf') return 0;
+    const ms = this.bake.bakeNow(this.renderer);
+    const gl = this.renderer.getContext(), px = new Uint8Array(4);
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    return ms;
+  }
+
   benchFrame(moving: boolean) {
     this.camera.updateMatrixWorld();
     if (this.mode !== 'sdf' || !this.sdf.mesh.visible) { this.renderer.render(this.scene, this.camera); }
     else {
       const r = this.targets();
-      const t = moving ? r.low : r.back;
-      this.drawSdf(t);
-      this.present(t);
+      if (moving) { this.drawLow(r.low); this.present(r.low); }
+      else { this.drawSdf(r.back, 0, r.back.height, this.startDepths()); this.present(r.back); }
     }
     const gl = this.renderer.getContext(), px = new Uint8Array(4);
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
@@ -434,14 +451,15 @@ export class Viewport {
     const e = this.camera.matrixWorld.elements, p = this.camera.projectionMatrix.elements;
     const c = this.renderer.domElement;
     const bg = this.scene.background as THREE.Color | null;
-    let k = `${this.sdf.version}|${c.width}x${c.height}|${bg?.getHexString?.() ?? ''}|`;
+    let k = `${this.sdf.version}|${this.bake.ready ? 'b' : 'x'}|${c.width}x${c.height}|${bg?.getHexString?.() ?? ''}|`;
     for (let i = 0; i < 16; i++) k += `${e[i].toFixed(5)},${p[i].toFixed(5)},`;
     return k;
   }
 
   private targets() {
     const c = this.renderer.domElement, W = Math.max(1, c.width), H = Math.max(1, c.height);
-    const f = Math.min(1, this.movingRatio() / this.basePixelRatio);
+    // (once the field is baked, moving frames are cheap enough for full resolution)
+    const f = this.bake.ready ? 1 : Math.min(1, this.movingRatio() / this.basePixelRatio);
     const lw = Math.max(1, Math.round(W * f)), lh = Math.max(1, Math.round(H * f));
     const make = (w: number, h: number, linear: boolean) => {
       const t = new THREE.WebGLRenderTarget(w, h, { depthBuffer: true, depthTexture: new THREE.DepthTexture(w, h, THREE.UnsignedIntType) });
@@ -457,7 +475,42 @@ export class Viewport {
   }
 
   /** The SDF quad alone into target t (rows [y, y + rows) only, when given). */
-  private drawSdf(t: THREE.WebGLRenderTarget, y = 0, rows = t.height) {
+  /** The bake has work to do (the field changed and is at rest, the view still). */
+  private bakePending() {
+    return this.mode === 'sdf' && !this.moving && !this.sdf.interactive && !this.bake.ready && !this.sdf.bounds.isEmpty();
+  }
+
+  /** The baked-field march into t: mode 0 shades (moving image), 1 writes where each ray meets the surface. */
+  private drawMarch(t: THREE.WebGLRenderTarget, mode: 0 | 1) {
+    this.bake.marchMat.uniforms.uMode.value = mode;
+    const clear = this.renderer.getClearColor(new THREE.Color()), clearA = this.renderer.getClearAlpha();
+    this.renderer.setClearColor(0x000000, mode ? 1 : 0);
+    if (mode) this.renderer.setClearColor(new THREE.Color(-1, -1, -1), -1);
+    this.renderer.setRenderTarget(t);
+    this.renderer.render(this.bake.marchScene, this.camera);
+    this.renderer.setRenderTarget(null);
+    this.renderer.setClearColor(clear, clearA);
+  }
+
+  /** The image drawn while moving: the baked field when it is ready, else the exact field. */
+  private drawLow(t: THREE.WebGLRenderTarget) {
+    if (this.bake.ready) this.drawMarch(t, 0); else this.drawSdf(t);
+  }
+
+  /** Where each settled ray starts, from the baked field (null: no bake yet). */
+  private startDepths(): THREE.WebGLRenderTarget | null {
+    if (!this.bake.ready) return null;
+    const c = this.renderer.domElement;
+    if (!this.startRT || this.startRT.width !== c.width || this.startRT.height !== c.height) {
+      this.startRT?.dispose();
+      this.startRT = new THREE.WebGLRenderTarget(c.width, c.height, { type: THREE.HalfFloatType, depthBuffer: false });
+      this.startRT.texture.minFilter = this.startRT.texture.magFilter = THREE.NearestFilter;
+    }
+    this.drawMarch(this.startRT, 1);
+    return this.startRT;
+  }
+
+  private drawSdf(t: THREE.WebGLRenderTarget, y = 0, rows = t.height, start: THREE.WebGLRenderTarget | null = null) {
     // (cleared to transparent: the background is the canvas's, see present)
     const layers = this.camera.layers.mask, bg = this.scene.background;
     const clear = this.renderer.getClearColor(new THREE.Color()), clearA = this.renderer.getClearAlpha();
@@ -466,8 +519,11 @@ export class Viewport {
     this.renderer.setClearColor(0x000000, 0);
     t.scissor.set(0, y, t.width, rows);
     t.scissorTest = rows < t.height;
+    const u = this.sdf.material.uniforms;
+    if (start) { u.uStartOn.value = 1; u.uStartT.value = start.texture; u.uStartBack.value = 0.5 * this.bake.voxel; u.uBakeO.value.copy(this.bake.originVec); }
     this.renderer.setRenderTarget(t);
     this.renderer.render(this.scene, this.camera);
+    u.uStartOn.value = 0;
     this.renderer.setRenderTarget(null);
     t.scissorTest = false;
     this.renderer.setClearColor(clear, clearA);
@@ -504,10 +560,12 @@ export class Viewport {
   private drawFrame(now: number) {
     if (this.mode !== 'sdf' || !this.sdf.mesh.visible) { this.band.active = false; this.renderer.render(this.scene, this.camera); return; }
     this.camera.updateMatrixWorld();
+    // the bake advances while the view and the field are still (one GPU-paced batch a frame)
+    if (this.bakePending() || this.bake.busy) this.bake.step(this.renderer, now);
     const r = this.targets(), key = this.sdfKey(), drifting = key !== this.lastKey;
     this.lastKey = key;
     if (key === this.frontKey) { this.band.active = false; this.present(r.front); return; }
-    if (this.lowKey !== key) { this.drawSdf(r.low); this.lowKey = key; }
+    if (this.lowKey !== key) { this.drawLow(r.low); this.lowKey = key; }
     // (and come back next frame: once it holds still, the bands start)
     if (this.moving || drifting) { this.band.active = false; this.present(r.low); this.needsRender = true; return; }
     const H = r.back.height, b = this.band;
@@ -515,6 +573,7 @@ export class Viewport {
     if (!b.active || b.key !== key) {
       // a learned rate; else start small
       Object.assign(b, { active: true, key, y: 0, rows: this.rowRate > 0 ? Math.round(this.rowRate * BAND_MS) : 32, at: 0, n: 0, start: now });
+      this.bandStart = this.startDepths();
       if (this.fence) { gl.deleteSync(this.fence); this.fence = null; }
     } else if (this.fence) {
       // the next band waits until the GPU has finished the last one (so work never
@@ -526,7 +585,7 @@ export class Viewport {
       b.rows = Math.round(Math.min(b.rows * 4, this.rowRate * BAND_MS));
     }
     b.rows = Math.max(8, Math.min(H - b.y, b.rows));
-    this.drawSdf(r.back, b.y, b.rows);
+    this.drawSdf(r.back, b.y, b.rows, this.bandStart);
     this.fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
     gl.flush();
     b.y += b.rows;
