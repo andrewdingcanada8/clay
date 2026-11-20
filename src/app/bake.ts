@@ -74,10 +74,10 @@ void main() {
     t += max(d * 0.9, 0.5 * eps);
     if (t > t1) break;
   }
-  if (uMode == 1) { fragColor = vec4(hit ? t : -1.0); return; }
-  if (!hit) discard;
-  // a little closer: two secant steps on the interpolated field
+  if (!hit) { if (uMode == 1) { fragColor = vec4(-1.0); return; } discard; }
+  // a little closer: two steps on the interpolated field
   for (int i = 0; i < 2; i++) { t += sdf(ro + rd * t, kind); }
+  if (uMode == 1) { fragColor = vec4(t); return; }
   vec3 p = ro + rd * t;
   vec4 clip = uProjView * vec4(p, 1.0);
   gl_FragDepth = clamp((clip.z / clip.w) * 0.5 + 0.5, 0.0, 1.0);

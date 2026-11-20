@@ -520,7 +520,7 @@ export class Viewport {
     t.scissor.set(0, y, t.width, rows);
     t.scissorTest = rows < t.height;
     const u = this.sdf.material.uniforms;
-    if (start) { u.uStartOn.value = 1; u.uStartT.value = start.texture; u.uStartBack.value = 0; u.uBakeO.value.copy(this.bake.originVec); }
+    if (start) { u.uStartOn.value = 1; u.uStartT.value = start.texture; u.uStartBack.value = 0.1 * this.bake.voxel; u.uBakeO.value.copy(this.bake.originVec); }
     this.renderer.setRenderTarget(t);
     this.renderer.render(this.scene, this.camera);
     u.uStartOn.value = 0;
