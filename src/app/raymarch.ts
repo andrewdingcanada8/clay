@@ -19,7 +19,6 @@ import { type CompiledGroup, OPENING_EPS, compileGroups } from '../engine/scene'
 const MAX_GROUPS = 8;
 const MAX_GRIDS = 4;
 const MAX_PROFILES = 8;
-const MAX_PINS = 32;
 const ROWS = 16; // texels per object in the data texture (10 used; a power of two for the program's)
 const TYPE_CODE: Record<string, number> = { sphere: 0, box: 1, cylinder: 2, cone: 3, torus: 4, capsule: 5, prism: 6, revolve: 7, sweep: 8 };
 const MAX_SWEEPS = 6; // distinct sweep shapes (texture slots); copies of one share its slot
@@ -30,6 +29,7 @@ const MASK_FLAG = 256;
 const MAX_PROG = 512;
 const MAX_CLUSTERS = 32; // top-level layers, each culled per ray as a whole (see rayMask)
 const MAX_DEPTH = 12;
+const MAX_LOOP = 4096; // a constant bound for loops over a run of objects (they break first)
 // sweep texture rows per slot (indexed by path vertex / segment unless noted):
 // 0 point + length so far, 1 segment direction + length, 2/4 section normal square
 // to the segment at its start/end + flags of the vertex there (1 miter, 2 round
@@ -76,7 +76,6 @@ uniform int uGroupCount;
 uniform int uObjCount;
 uniform int uProgLen; // the layer program (scene.CompiledIns), in uData from row uProgRow
 uniform int uProgRow;
-uniform int uSweepCount;
 uniform int uCluCount;
 uniform vec4 uCluMin[${MAX_CLUSTERS}]; // a top-level layer's world box; w: how far it reaches past it
 uniform vec4 uCluMax[${MAX_CLUSTERS}];
@@ -85,9 +84,6 @@ uniform int uSweepData[${MAX_SWEEP_OBJS}]; // its shape's texture slot
 uniform float uSweepGate;
 uniform ivec2 uCluSw[${MAX_CLUSTERS}]; // each cluster's range in the sweep list
 uniform ivec4 uGroupRange[${MAX_GROUPS}];   // shells start, solids start, subs start, end
-uniform ivec2 uPinRange[${MAX_GROUPS}];
-uniform vec4 uGroupC[${MAX_GROUPS}];
-uniform vec4 uGroupE[${MAX_GROUPS}];
 uniform float uT[${MAX_GROUPS}];
 uniform float uK[${MAX_GROUPS}];
 uniform float uReach[${MAX_GROUPS}]; // scene.CompiledGroup.reach: every fold its objects pass through
@@ -95,10 +91,7 @@ uniform int uCutsBound[${MAX_GROUPS}]; // scene.CompiledGroup.cutsBound
 uniform float uRound[${MAX_GROUPS}]; // rounds the rims of the group's cuts
 uniform int uHollow[${MAX_GROUPS}];
 uniform int uUseGrid[${MAX_GRIDS}];
-uniform int uUseRound[${MAX_GRIDS}]; // the grid's second channel: a compound rounding
-uniform float uRoundR[${MAX_GRIDS}];
 uniform float uCavH[${MAX_GRIDS}];
-uniform vec4 uPins[${MAX_PINS * 2}];
 ${range(MAX_GRIDS).map((i) => `uniform sampler3D uCav${i}; uniform vec3 uCavO${i}; uniform vec3 uCavS${i}; uniform float uCavC${i};`).join('\n')}
 ${range(MAX_PROFILES).map((i) => `uniform sampler2D uProf${i};`).join('\n')}
 // per profile slot: first and last texel centres, texture size
@@ -119,17 +112,6 @@ float sdCone2(vec2 q, float r, float hh) {
   bool inside = q.y > -hh && q.y < hh && q.x < r * (hh - q.y) / (2.0 * hh);
   return inside ? -d : d;
 }
-float sdPin(vec3 p, vec3 a, vec3 b, float r) {
-  vec3 ba = b - a, pa = p - a;
-  float baba = dot(ba, ba), paba = dot(pa, ba);
-  float x = length(pa * baba - ba * paba) - r * baba;
-  float y = abs(paba - baba * 0.5) - baba * 0.5;
-  float x2 = x * x, y2 = y * y * baba;
-  float d = (max(x, y) < 0.0) ? -min(x2, y2) : (((x > 0.0) ? x2 : 0.0) + ((y > 0.0) ? y2 : 0.0));
-  return sign(d) * sqrt(abs(d)) / baba;
-}
-// (the coordinates are worked out once; only the fetch is picked by slot, since
-// sampler arrays can't be indexed at run time)
 float profile(int slot, vec2 q, int ch) {
   if (slot < 0 || slot >= ${MAX_PROFILES}) return 1e5;
   vec2 lo = uProfLo[slot], hi = uProfHi[slot], sz = uProfSz[slot];
@@ -467,21 +449,6 @@ vec2 cubic(sampler3D tex, vec3 f, vec3 dims) {
 }
 float cubicR(sampler3D tex, vec3 f, vec3 dims) { return cubic(tex, f, dims).r; }
 
-// Compound rounding from grid k: what to add to the sharp body's field Gs (engine/round);
-// trilinear, and tricubic near the rounded surface (smooth, no texel facets). Outside
-// the grid, -r: still a lower bound on the distance.
-float roundCorr(int k, vec3 p, float Gs) {
-${range(MAX_GRIDS).map((i) => `  if (k == ${i}) {
-    vec3 dims = vec3(textureSize(uCav${i}, 0));
-    vec3 tc = (p - uCavO${i}) * uCavS${i} + 0.5 / dims;
-    if (any(lessThan(tc, vec3(0.0))) || any(greaterThan(tc, vec3(1.0)))) return -uRoundR[${i}];
-    float c = texture(uCav${i}, tc).g;
-    if (abs(Gs + c) < 2.0 * uCavH[${i}]) c = cubic(uCav${i}, tc * dims - 0.5, dims).g;
-    return c;
-  }`).join('\n')}
-  return 0.0;
-}
-
 // Cavity depth from grid k: the analytic base depth A plus the grid's correction
 // (trilinear far from the inner wall, tricubic near it). A must match scene.baseDepth.
 float gridDepth(int k, vec3 p, float wall, float A) {
@@ -534,7 +501,9 @@ void sweepAll(vec3 p) {
     if (c >= uCluCount) break;
     if (((gClu >> uint(c)) & 1u) == 0u) continue;
     ivec2 r = uCluSw[c];
-    for (int k = r.x; k < r.y; k++) {
+    for (int n = 0; n < ${MAX_SWEEP_OBJS}; n++) {
+      int k = r.x + n;
+      if (k >= r.y) break;
       int i = uSweepObj[k];
       float b = bound(i, p);
       if (!objOn(i) || b > uSweepGate || (b = max(b, boxBound(i, p))) > uSweepGate) { gSw[k] = vec2(b); continue; }
@@ -569,7 +538,9 @@ float unitDepth(int g, vec3 p, float fs) {
   float tau = useGrid ? 0.5 * uCavH[min(g, ${MAX_GRIDS - 1})] : 0.02;
   float t1 = -1e5, t2 = -1e5, lb = -fs - 0.25 * kb * float(R.y - R.x - 1);
   float kS = max(kA, kb);
-  for (int i = R.x; i < R.y; i++) {
+  for (int n = 0; n < ${MAX_LOOP}; n++) {
+    int i = R.x + n;
+    if (i >= R.y) break;
     if (!objOn(i)) continue;
     if (int(row(i, 6).z) == 0 && -bound(i, p) < max(lb, t1) - kS) continue;
     float d = sdCached(i, p);
@@ -585,8 +556,9 @@ float unitDepth(int g, vec3 p, float fs) {
   }
   float D = -smin(-t1, -t2, kS);
   // a closed cut's surface bounds the depth too, unless a layer is added above a cut (see scene.baseDepth)
-  for (int i = R.z; i < R.w; i++) {
-    if (uCutsBound[g] == 0) break;
+  for (int n = 0; n < ${MAX_LOOP}; n++) {
+    int i = R.z + n;
+    if (i >= R.w || uCutsBound[g] == 0) break;
     if (!objOn(i) || int(row(i, 6).z) != 0) continue;
     float b = bound(i, p);
     D = min(D, b < D + 0.5 ? sdObj(i, p) : b);
@@ -863,16 +835,12 @@ export class SdfRenderer {
       uObjCount: { value: 0 },
       uProgLen: { value: 0 },
       uProgRow: { value: 0 },
-      uSweepCount: { value: 0 },
       uSweepObj: { value: range(MAX_SWEEP_OBJS).map(() => 0) },
       uSweepData: { value: range(MAX_SWEEP_OBJS).map(() => 0) },
       uCluSw: { value: new Int32Array(2 * MAX_CLUSTERS) }, // (an ivec2 array goes up as flat ints)
       uSweepGate: { value: 4 },
       // integer vector arrays must be flat Int32Arrays (three.js does not flatten them)
       uGroupRange: { value: new Int32Array(MAX_GROUPS * 4) },
-      uPinRange: { value: new Int32Array(MAX_GROUPS * 2) },
-      uGroupC: { value: range(MAX_GROUPS).map(() => new THREE.Vector4()) },
-      uGroupE: { value: range(MAX_GROUPS).map(() => new THREE.Vector4()) },
       uT: { value: range(MAX_GROUPS).map(() => 0.5) },
       uK: { value: range(MAX_GROUPS).map(() => 0) },
       uReach: { value: range(MAX_GROUPS).map(() => 0) },
@@ -880,10 +848,7 @@ export class SdfRenderer {
       uHollow: { value: range(MAX_GROUPS).map(() => 0) },
       uCutsBound: { value: range(MAX_GROUPS).map(() => 1) },
       uUseGrid: { value: range(MAX_GRIDS).map(() => 0) },
-      uUseRound: { value: range(MAX_GRIDS).map(() => 0) },
-      uRoundR: { value: range(MAX_GRIDS).map(() => 0) },
       uCavH: { value: range(MAX_GRIDS).map(() => 0) },
-      uPins: { value: range(MAX_PINS * 2).map(() => new THREE.Vector4()) },
     };
     for (const i of range(MAX_GRIDS)) {
       u[`uCav${i}`] = { value: null };
@@ -975,9 +940,6 @@ export class SdfRenderer {
     const u = this.material.uniforms;
     const objs: CompiledObject[] = [];
     const ranges = u.uGroupRange.value as Int32Array;
-    const pinRanges = u.uPinRange.value as Int32Array;
-    const pins = u.uPins.value as THREE.Vector4[];
-    let pinCount = 0;
     groups.forEach((g, k) => {
       const a = objs.length;
       objs.push(...g.shells);
@@ -986,17 +948,6 @@ export class SdfRenderer {
       const c = objs.length;
       objs.push(...g.subs);
       ranges.set([a, b, c, objs.length], 4 * k);
-      const p0 = pinCount;
-      for (const p of g.pins) {
-        if (pinCount >= MAX_PINS) break;
-        pins[2 * pinCount].set(p.ax, p.ay, p.az, p.r);
-        pins[2 * pinCount + 1].set(p.bx, p.by, p.bz, 0);
-        pinCount++;
-      }
-      pinRanges.set([p0, pinCount], 2 * k);
-      const gb = g.bounds;
-      (u.uGroupC.value as THREE.Vector4[])[k].set((gb.min[0] + gb.max[0]) / 2, (gb.min[1] + gb.max[1]) / 2, (gb.min[2] + gb.max[2]) / 2, 0);
-      (u.uGroupE.value as THREE.Vector4[])[k].set((gb.max[0] - gb.min[0]) / 2 + 0.05, (gb.max[1] - gb.min[1]) / 2 + 0.05, (gb.max[2] - gb.min[2]) / 2 + 0.05, 0);
       (u.uT.value as number[])[k] = g.t;
       (u.uK.value as number[])[k] = g.k;
       (u.uRound.value as number[])[k] = g.rim;
@@ -1046,7 +997,6 @@ export class SdfRenderer {
       sweepObjs[ns] = i; sweepData[ns] = shapes.get(o)!; slots.set(o, ns++);
       cluSw[2 * c + 1] = ns;
     }
-    u.uSweepCount.value = ns;
     u.uProgLen.value = Math.min(MAX_PROG, prog.length / 4);
     u.uProgRow.value = objs.length;
     this.writeData(objs, groups, slots, prog, cluster);
@@ -1099,8 +1049,6 @@ export class SdfRenderer {
       }
       u[`uCav${k}`].value = this.gridTex[k];
       (u.uUseGrid.value as number[])[k] = c && !c.noCavity ? 1 : 0;
-      (u.uUseRound.value as number[])[k] = c?.round ? 1 : 0;
-      (u.uRoundR.value as number[])[k] = c?.roundR ?? 0;
       if (g) attachGrid(g, c); // CPU picking sees the rounding too
       (u.uCavH.value as number[])[k] = c ? c.h : 0;
       if (c) {
