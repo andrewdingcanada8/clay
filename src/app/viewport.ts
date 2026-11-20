@@ -370,6 +370,43 @@ export class Viewport {
    * once). Every display path a change adds has to come through here, so the
    * harness always times what the user sees.
    */
+  /**
+   * The device benchmark (main.runDeviceBench): frame the scene as the harness does,
+   * at pixel ratio 1, run prepare (the bake), then time `frames` settled and moving
+   * frames round an orbit through benchFrame. Puts the pixel ratio back.
+   */
+  benchDevice(frames: number, prepare: () => number, frame: (moving: boolean) => void) {
+    const box = this.bounds();
+    const ratio = this.renderer.getPixelRatio();
+    const helpers = [this.gizmo.getHelper(), this.ghost].filter((o) => o.visible);
+    for (const o of helpers) o.visible = false;
+    this.renderer.setPixelRatio(1); this.resize();
+    const c = box ? box.getCenter(new THREE.Vector3()) : new THREE.Vector3();
+    const R = box ? box.getSize(new THREE.Vector3()).length() / 2 : 10;
+    const dir = new THREE.Vector3(-0.55, 0.45, 0.7).normalize();
+    const fov = this.camera.fov * DEG, dist = (R / Math.sin(Math.min(fov, fov * this.camera.aspect) / 2)) * 0.78;
+    const place = (a: number) => {
+      const off = dir.clone().multiplyScalar(dist);
+      this.orbit.target.copy(c);
+      this.camera.position.set(c.x + off.x * Math.cos(a) - off.z * Math.sin(a), c.y + off.y, c.z + off.x * Math.sin(a) + off.z * Math.cos(a));
+      this.camera.lookAt(c); this.camera.updateMatrixWorld();
+    };
+    place(0);
+    const t0 = performance.now(); prepare(); const prepareMs = performance.now() - t0;
+    frame(false); frame(true);
+    const settledMs: number[] = [], movingMs: number[] = [];
+    for (let i = 0; i < frames; i++) {
+      place((2 * Math.PI * i) / frames);
+      let t = performance.now(); frame(false); settledMs.push(performance.now() - t);
+      t = performance.now(); frame(true); movingMs.push(performance.now() - t);
+    }
+    const gl = this.renderer.getContext();
+    const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
+    for (const o of helpers) o.visible = true;
+    this.renderer.setPixelRatio(ratio); this.resize();
+    return { settledMs, movingMs, prepareMs, w, h };
+  }
+
   /** For the harness: finish any per-edit work now (the bake), waited on. Returns ms. */
   benchPrepare(): number {
     if (this.mode !== 'sdf') return 0;

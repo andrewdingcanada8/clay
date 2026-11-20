@@ -1,6 +1,7 @@
 import './debugLog'; // first: catches errors from everything after it
 import './styles.css';
 import { dlog, dlogInfo } from './debugLog';
+import benchScene from '../../bench/perf/scenes/composite.json';
 import * as THREE from 'three';
 import {
   type LayerOp, type ObjectMode, type PrimitiveType, type Quality, type SceneDoc, type SceneObject, type Symmetry, type Transform,
@@ -784,7 +785,9 @@ function viewPanel() {
     ].filter(Boolean).join('\n')) : 'building…'}</div></div>`}
     <div class="section"><h3>Frame rate</h3>
       <p class="hint">Turns the camera once around the piece and times every frame on this device.</p>
-      <button class="btn" data-act="measure-fps" ${ui.fps === 'measuring…' ? 'disabled' : ''}>Measure</button>
+      <div class="row"><button class="btn" data-act="measure-fps" ${ui.fps === 'measuring…' ? 'disabled' : ''}>Measure this piece</button>
+      <button class="btn" data-act="device-bench" ${ui.fps === 'measuring…' ? 'disabled' : ''}>Run the benchmark scene</button></div>
+      <p class="hint">The benchmark scene is the performance test (a bit of everything); its timings are saved for Claude to compare with the test machine. Your piece comes back afterwards.</p>
       ${ui.fps ? `<div class="stats">${escapeHtml(ui.fps)}</div>` : ''}</div>
     <div class="row"><button class="btn danger" data-act="new">New empty scene</button></div>`;
 }
@@ -1116,6 +1119,7 @@ panel.addEventListener('click', (e) => {
     case 'close-gallery': ui.showGallery = false; renderPanel(); break;
     case 'new-piece': newPiece(); break;
     case 'measure-fps': measureFps(); break;
+    case 'device-bench': void runDeviceBench(); break;
     case 'save-piece': savePiece(); break;
     case 'new':
       update((doc2) => { Object.assign(doc2, emptyDoc(), { kernel: doc2.kernel }); });
@@ -1710,6 +1714,41 @@ function measureFps() {
     ui.fps = [line('moving', view.benchOrbit(24, true)), line('settled', view.benchOrbit(8, false))].join('\n');
     renderPanel();
   }, 60);
+}
+
+/**
+ * The benchmark scene timed on this device the way bench/perf/run.mjs times it in the
+ * test browser (same scene, framing, orbit, pixel ratio 1, Viewport.benchFrame), saved
+ * to the database (benchRuns) for the hill climb's device series. The open piece is
+ * put back afterwards and nothing is saved to it.
+ */
+async function runDeviceBench() {
+  ui.fps = 'measuring…';
+  renderPanel();
+  const keep = cloneDoc(doc), keepCam = view.cameraState();
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  try {
+    doc = loadable(cloneDoc((benchScene as unknown as { doc: SceneDoc }).doc));
+    sync(false);
+    await wait(300);
+    for (let i = 0; i < 1200 && (busy || document.querySelector('.chip.busy')); i++) await wait(250);
+    const v = view as unknown as { benchPrepare(): number; benchFrame(m: boolean): void };
+    const out = view.benchDevice(8, () => v.benchPrepare(), (m) => v.benchFrame(m));
+    const entry = { at: Date.now(), scene: 'composite', ...out, ...view.gpuReport() };
+    const med = (a: number[]) => [...a].sort((x, y) => x - y)[a.length >> 1];
+    ui.fps = `settled ${med(out.settledMs).toFixed(0)} ms · moving ${med(out.movingMs).toFixed(0)} ms · bake ${out.prepareMs.toFixed(0)} ms\n${out.w}×${out.h} px · saved`;
+    try {
+      const claude = (window as unknown as { claude?: { use(n: string): Promise<unknown> } }).claude;
+      const db = claude?.use ? (await claude.use('db')) as { collection(p: string): { doc(id: string): { set(d: unknown): Promise<unknown> } } } | null : null;
+      if (db) await db.collection('benchRuns').doc(`b${entry.at}`).set(entry); else ui.fps = ui.fps.replace('saved', 'not saved (no database here)');
+    } catch { ui.fps = ui.fps.replace('saved', 'not saved'); }
+    dlog('device-bench', { settled: med(out.settledMs), moving: med(out.movingMs), bake: out.prepareMs });
+  } finally {
+    doc = keep;
+    sync(false);
+    view.setCameraState(keepCam);
+    renderPanel();
+  }
 }
 
 function closeCards() {

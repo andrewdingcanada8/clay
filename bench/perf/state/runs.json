@@ -1,0 +1,107 @@
+[
+ {
+  "dir": "2026-11-20T19-44-27-973Z-noise1",
+  "label": "baseline",
+  "kept": true,
+  "note": "baseline build, run 1 of 5"
+ },
+ {
+  "dir": "2026-11-20T19-45-47-216Z-noise2",
+  "label": "baseline #2",
+  "kept": false,
+  "note": "noise"
+ },
+ {
+  "dir": "2026-11-20T19-49-30-610Z-noise3",
+  "label": "baseline #3",
+  "kept": false,
+  "note": "noise"
+ },
+ {
+  "dir": "2026-11-20T19-53-07-706Z-noise4",
+  "label": "baseline #4",
+  "kept": false,
+  "note": "noise"
+ },
+ {
+  "dir": "2026-11-20T19-56-32-765Z-noise5",
+  "label": "baseline #5",
+  "kept": false,
+  "note": "noise"
+ },
+ {
+  "dir": "2026-11-20T19-50-48-446Z-bake1",
+  "label": "bake v1",
+  "kept": false,
+  "note": "superseded by v2 (same idea)"
+ },
+ {
+  "dir": "2026-11-20T19-54-26-450Z-bake2",
+  "label": "bake v2 (early miss exit, baked AO)",
+  "kept": false
+ },
+ {
+  "dir": "2026-11-20T19-57-53-167Z-bake3",
+  "label": "bake v3 (half-voxel start)",
+  "kept": true
+ },
+ {
+  "dir": "2026-11-20T20-10-30-998Z-bake4-cells",
+  "label": "per-cell object masks",
+  "kept": false
+ },
+ {
+  "dir": "2026-11-20T20-14-39-391Z-n3",
+  "label": "3-sample normals",
+  "kept": true,
+  "note": ""
+ },
+ {
+  "dir": "2026-11-20T20-16-37-315Z-newton",
+  "label": "Newton refinement",
+  "kept": false,
+  "note": ""
+ },
+ {
+  "dir": "2026-11-20T20-18-50-921Z-bakeonly",
+  "label": "baked image only (quality probe)",
+  "kept": false,
+  "note": "fails gates: 3% diff, IoU 0.9885"
+ },
+ {
+  "dir": "2026-11-20T20-21-08-487Z-back0",
+  "label": "start at the baked hit",
+  "kept": true,
+  "note": ""
+ },
+ {
+  "dir": "2026-11-20T20-23-03-185Z-window",
+  "label": "windowed masks (no fallback)",
+  "kept": false,
+  "note": ""
+ },
+ {
+  "dir": "2026-11-20T20-24-51-089Z-window2",
+  "label": "windowed masks + fallback",
+  "kept": true,
+  "note": ""
+ },
+ {
+  "dir": "2026-11-20T20-26-30-650Z-secant",
+  "label": "refined start, no back-off",
+  "kept": false,
+  "note": "IoU 0.9990 borderline"
+ },
+ {
+  "dir": "2026-11-20T20-27-42-568Z-secant-back",
+  "label": "refined start, back 0.25 voxel",
+  "kept": false,
+  "note": ""
+ },
+ {
+  "dir": "2026-11-20T20-29-05-353Z-secant-back01",
+  "label": "refined start, back 0.1 voxel",
+  "kept": true,
+  "note": ""
+ }
+]

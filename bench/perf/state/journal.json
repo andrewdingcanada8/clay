@@ -5,8 +5,115 @@
   "title": "Baseline and harness",
   "hyp": "Freeze the evaluator; measure the incumbent.",
   "change": "bench/perf: scene generator (composite + stress + scaling), run.mjs (orbit timing, cost counters, stills), compare.py (image gates)",
-  "result": "",
+  "result": "Composite settled 5.67 s/frame (\u03c3\u22481.5%, 5 runs), moving 1.53 s; 11.8 field evaluations per covered pixel, 9.2 objects per evaluation.",
   "verdict": "info",
   "commit": ""
+ },
+ {
+  "id": 2,
+  "t": 1795205598749,
+  "title": "Attribution (switch-off experiments, earlier build)",
+  "hyp": "Find what dominates before changing anything.",
+  "change": "variants without sweeps / normals / AO",
+  "result": "Sweeps \u2248 half the frame; normals \u2248 25%; AO \u2248 30%; per-object loops make 4 pieces 2.5\u00d7 slower per pixel even off screen.",
+  "verdict": "info"
+ },
+ {
+  "id": 3,
+  "t": 1795205598749,
+  "title": "Bake the field into a 3D texture once per edit (H3) + start the exact pass from it (H4)",
+  "hyp": "The field is static between edits: pay it once, not per pixel per frame.",
+  "change": "bake.ts: FRAG with SDF_BAKE fills a half-float 3D texture (192 along the longest side) in GPU-paced batches; moving frames march it; settled rays start at the baked hit; misses stop at once; occlusion from the texture.",
+  "result": "Settled 5.67 \u2192 3.58 s (1.58\u00d7), moving 1.53 s \u2192 43 ms (35\u00d7, now full resolution). Images: 0.07% diff, 16 missed px, IoU 0.9995. Bake \u2248 9.7 s headless per edit.",
+  "verdict": "kept",
+  "commit": "b557386"
+ },
+ {
+  "id": 4,
+  "t": 1795205598749,
+  "title": "Attribution of the settled pass on the baked build",
+  "hyp": "Where does the remaining 3.6 s go?",
+  "change": "variants: skip everything after the start depth / no ray masks / no normals",
+  "result": "Fixed cost 0.19 s; normals 1.3 s (4 exact evaluations); the rest is the exact march (~6 evaluations). Ray masks help (removing them: 8 s). Cost \u221d exact evaluations at hit pixels.",
+  "verdict": "info"
+ },
+ {
+  "id": 5,
+  "t": 1795205598749,
+  "title": "Per-cell object masks for the settled pass (H2-lite)",
+  "hyp": "Near the surface only nearby objects matter: a 16\u00b3 grid of 128-bit masks cuts objects per evaluation.",
+  "change": "masks in the data texture, map() wraps the program with the cell's mask, capped at U",
+  "result": "Slower: 7.47 s (objects/eval 11.3 \u2192 8.9 only; boxes grown by blend + openings cover most cells; the wrapper slowed the shader). A first build failed to link (the program inlined 9\u00d7).",
+  "verdict": "rejected"
+ },
+ {
+  "id": 6,
+  "t": 1795206615146,
+  "title": "Three-sample normals at the hit (H8)",
+  "hyp": "Forward differences reuse the field at the hit: 3 evaluations instead of 4.",
+  "change": "calcNormal(p, e, d0)",
+  "result": "Settled 3.58 \u2192 3.23 s; diff 0.25%, IoU 0.9995.",
+  "verdict": "kept",
+  "commit": "3334b06"
+ },
+ {
+  "id": 7,
+  "t": 1795206615165,
+  "title": "Newton refinement from the baked hit",
+  "hyp": "Step by d / cos(angle to the baked surface): fewer exact steps.",
+  "change": "6 Newton steps both ways, capped at 1.5 voxels",
+  "result": "Evaluations/px 8.7 \u2192 5.9 but slower (3.96 s) and 55 missed px. The software renderer punishes the extra code shape; proxy caveat noted.",
+  "verdict": "rejected",
+  "commit": ""
+ },
+ {
+  "id": 8,
+  "t": 1795206615184,
+  "title": "Quality probe: the baked image alone",
+  "hyp": "How close is the cheap baked image to the exact one?",
+  "change": "settled = baked march",
+  "result": "40 ms (140\u00d7 faster) but fails gates: 3% diff, IoU 0.9885 \u2014 a 1 px silhouette fringe and faint stripes from trilinear normals. Exact normals and silhouettes are what the exact pass is for.",
+  "verdict": "info",
+  "commit": ""
+ },
+ {
+  "id": 9,
+  "t": 1795206615202,
+  "title": "Start the exact march at the baked hit (no back-off)",
+  "hyp": "Ahead of the true surface it marches on (silhouettes exact); behind it, the hit is within a quarter voxel.",
+  "change": "uStartBack = 0",
+  "result": "3.23 \u2192 3.12 s; images unchanged.",
+  "verdict": "kept",
+  "commit": "3334b06"
+ },
+ {
+  "id": 10,
+  "t": 1795206615219,
+  "title": "Object masks for the stretch of ray round the baked hit (no fallback)",
+  "hyp": "Every exact evaluation is within a few voxels of the baked hit: mask only objects near that stretch.",
+  "change": "rayMask over [ts\u22122h, ts+3h], march ends there",
+  "result": "1.33 s (4.3\u00d7) but 424 missed px: rays grazing an edge the bake rounded over must go on to what's behind.",
+  "verdict": "rejected",
+  "commit": ""
+ },
+ {
+  "id": 11,
+  "t": 1795206615236,
+  "title": "Windowed masks with a fallback to the rest of the ray",
+  "hyp": "Same, but a ray leaving the window without a hit widens its mask and carries on (same loop, no extra inlining).",
+  "change": "rayMask re-run past the window",
+  "result": "3.12 \u2192 1.52 s (3.74\u00d7); objects/eval 11.3 \u2192 6.2; images unchanged (16 missed, IoU 0.9995).",
+  "verdict": "kept",
+  "commit": "bc9aa07"
+ },
+ {
+  "id": 12,
+  "t": 1795206615253,
+  "title": "Refine the baked start depth (two steps on the baked field)",
+  "hyp": "The start pass stopped at a quarter voxel; two more steps put the exact march closer.",
+  "change": "start pass refines; back-off 0 / 0.1 / 0.25 voxel tried: 1.25 s (34 missed) / 1.37 s (29) / 1.41 s (23)",
+  "result": "Kept 0.1 voxel: 1.52 \u2192 1.37 s (4.1\u00d7); IoU 0.9991.",
+  "verdict": "kept",
+  "commit": "f8b6396"
  }
 ]

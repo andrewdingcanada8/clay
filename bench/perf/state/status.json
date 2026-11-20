@@ -1,0 +1,4 @@
+{
+ "text": "Settled frame 4.1\u00d7 the baseline (5.67 \u2192 1.37 s, headless), moving frames 35\u00d7 (full resolution, from the baked field). Every settled pixel now does ~6.5 exact field evaluations of ~6 objects each, only round the baked hit. Exact-field agent still working on the cost of each evaluation. Next: fewer objects per evaluation (finer pruning near the hit), cheaper sweeps, then the scaling sweep and stress scenes.",
+ "noise": "Noise: 5 baseline runs of the composite scene, 5552\u20135777 ms (\u03c3 \u2248 1.5%). A change must beat the incumbent by > 3% and hold on a confirmation run."
+}

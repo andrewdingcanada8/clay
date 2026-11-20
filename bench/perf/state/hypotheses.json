@@ -12,24 +12,24 @@
   "title": "Per-cell pruned step lists (Lipschitz pruning) built on release",
   "area": "architecture",
   "expect": "5\u201320\u00d7 per evaluation, exact",
-  "status": "untested",
-  "evidence": ""
+  "status": "refuted",
+  "evidence": "coarse 16\u00b3 masks: objects/eval only 11\u21929 and slower; needs tighter bounds or finer cells"
  },
  {
   "id": "H3",
   "title": "Bake the whole field into a 3D distance texture on release; march the texture",
   "area": "architecture",
   "expect": "30\u2013100\u00d7, approx (refine near hit)",
-  "status": "untested",
-  "evidence": ""
+  "status": "kept",
+  "evidence": "bake: moving 35\u00d7, settled part of 1.58\u00d7"
  },
  {
   "id": "H4",
   "title": "Two-level march: baked/bound field far, exact field near the surface",
   "area": "architecture",
   "expect": "2\u20135\u00d7 steps",
-  "status": "untested",
-  "evidence": ""
+  "status": "kept",
+  "evidence": "exact pass starts at the baked hit: misses free"
  },
  {
   "id": "H5",
@@ -60,24 +60,24 @@
   "title": "Normals: fewer or cheaper field evaluations at the hit",
   "area": "shading",
   "expect": "~20%",
-  "status": "untested",
-  "evidence": ""
+  "status": "kept",
+  "evidence": "3-sample normals: \u221210% settled"
  },
  {
   "id": "H9",
   "title": "AO: fewer taps, hit-local mask, or from baked field",
   "area": "shading",
   "expect": "~25%",
-  "status": "untested",
-  "evidence": ""
+  "status": "kept",
+  "evidence": "AO from the baked texture in the settled pass"
  },
  {
   "id": "H10",
   "title": "Remove runtime-indexed local arrays (gSw[64], G/F/K stacks)",
   "area": "shader",
   "expect": "1.2\u20132\u00d7 on Apple GPUs",
-  "status": "untested",
-  "evidence": ""
+  "status": "testing",
+  "evidence": "exact-field agent"
  },
  {
   "id": "H11",
@@ -92,8 +92,8 @@
   "title": "Sweeps evaluated lazily, only where the program needs them",
   "area": "sweep",
   "expect": "2\u20134\u00d7 near the surface",
-  "status": "untested",
-  "evidence": ""
+  "status": "testing",
+  "evidence": "exact-field agent"
  },
  {
   "id": "H13",
@@ -116,8 +116,8 @@
   "title": "Per-pixel rayMask twice per pixel; tile culling instead",
   "area": "culling",
   "expect": "10\u201320%",
-  "status": "untested",
-  "evidence": ""
+  "status": "kept",
+  "evidence": "per-pixel masks over the stretch round the baked hit: objects/eval 11.3 \u2192 6.2, settled 2\u00d7"
  },
  {
   "id": "H16",
@@ -132,8 +132,8 @@
   "title": "Relaxed sphere tracing / looser epsilon far away",
   "area": "march",
   "expect": "1.2\u20131.5\u00d7 steps",
-  "status": "untested",
-  "evidence": ""
+  "status": "refuted",
+  "evidence": "Newton steps: fewer evaluations but slower in the software proxy and more misses"
  },
  {
   "id": "H18",
@@ -212,24 +212,24 @@
   "title": "The bottleneck isn't the field (whole-frame profile)",
   "area": "profile",
   "expect": "diagnostic",
-  "status": "untested",
-  "evidence": ""
+  "status": "confirmed",
+  "evidence": "cost \u221d exact evaluations at hit pixels; fixed cost small"
  },
  {
   "id": "H28",
   "title": "Single map() call site (march + normals + AO share one loop)",
   "area": "shader",
   "expect": "1.5\u20133\u00d7 (code size, spills)",
-  "status": "untested",
-  "evidence": ""
+  "status": "testing",
+  "evidence": "exact-field agent"
  },
  {
   "id": "H29",
   "title": "Loops ANGLE can't prove finite get volatile stores; rewrite loop forms",
   "area": "shader",
   "expect": "small\u2013medium on iOS",
-  "status": "untested",
-  "evidence": ""
+  "status": "testing",
+  "evidence": "exact-field agent"
  },
  {
   "id": "H30",
