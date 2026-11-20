@@ -651,33 +651,7 @@ float map(vec3 p) {
   return s;
 }
 
-vec3 calcNormal(vec3 p, float e) {
-  // looped so the compiler emits map() once here (keeps the shader small)
-  vec3 n = vec3(0.0);
-  for (int i = min(uGroupCount, 0); i < 4; i++) {
-    vec3 k = 0.5773 * (2.0 * vec3((((i + 3) >> 1) & 1), ((i >> 1) & 1), (i & 1)) - 1.0);
-    n += k * map(p + k * e);
-  }
-  return normalize(n);
-}
 uvec4 gAOMask;
-float calcAO(vec3 p, vec3 n) {
-  float occ = 0.0, sca = 1.0;
-  uvec4 m = gMask;
-  uint mc = gClu;
-  gMask = gAOMask;
-  gClu = gAOClu;
-  gNoClip = true; // occlusion comes from the clay only, not the section plane
-  for (int i = min(uGroupCount, 0); i < 4; i++) {
-    float h = 0.15 + 0.6 * float(i);
-    float d = map(p + n * h);
-    occ += (h - d) * sca; sca *= 0.75;
-  }
-  gNoClip = false;
-  gMask = m;
-  gClu = mc;
-  return clamp(1.0 - 0.18 * occ, 0.0, 1.0);
-}
 bool boxHit(vec3 ro, vec3 rd, out float t0, out float t1) {
   vec3 inv = 1.0 / rd;
   vec3 a = (uBoundsMin - ro) * inv, b = (uBoundsMax - ro) * inv;
@@ -713,31 +687,66 @@ void main() {
   // every surface lies inside the boxes the ray crosses: march only that stretch
   if (uObjCount <= 128) { t = max(t, span.x); t1 = min(t1, span.y); }
   float d = 1e5, eps = 0.0;
-  bool done = false;
-  for (int i = 0; i < 200; i++) {
-    d = map(ro + rd * t);
-    eps = clamp((uPixelAngle * t + uPixelSize) * 0.35, 0.0008, 0.008);
-    if (d < eps) { hit = true; break; }
-    t += max(d * 0.92, eps * 0.5);
-    if (t > t1) { done = true; break; }
+  // One loop calls map() for the march, then the 4 normal taps, then the 4 occlusion
+  // taps, so the (long, inlined) field appears once in the shader.
+  // phase 0: marching (step i); 1-4: normal taps; 5-8: occlusion taps
+  int phase = 0, i = 0, kind = 0;
+  vec3 p = vec3(0.0), n = vec3(0.0);
+  float ne = 0.0, occ = 0.0, sca = 1.0;
+  for (int it = min(uGroupCount, 0); it < 208; it++) {
+    vec3 q;
+    if (phase == 0) q = ro + rd * t;
+    else if (phase <= 4) {
+      int j = phase - 1;
+      q = p + 0.5773 * (2.0 * vec3((((j + 3) >> 1) & 1), ((j >> 1) & 1), (j & 1)) - 1.0) * ne;
+    } else q = p + n * (0.15 + 0.6 * float(phase - 5));
+    float m = map(q);
+    if (phase == 0) {
+      d = m;
+      eps = clamp((uPixelAngle * t + uPixelSize) * 0.35, 0.0008, 0.008);
+      bool done = false;
+      if (d < eps) hit = true;
+      else {
+        t += max(d * 0.92, eps * 0.5);
+        if (t > t1) done = true;
+      }
+      i++;
+      if (!hit && !done && i < 200) continue;
+      // A ray running just alongside a flat face (seen edge-on) creeps along it in
+      // tiny steps and can use up its steps before touching it: it is a hit.
+      if (!hit && !done && d < 8.0 * eps) hit = true;
+      // cost view: map() calls and object evaluations for this pixel, no shading
+      if (uFlat == 2 && !hit) { pc_fragColor = vec4(float(min(gMapN, 255)) / 255.0, float(min(gObjN >> 8, 255)) / 255.0, float(gObjN & 255) / 255.0, 1.0); return; }
+      if (!hit) discard;
+      p = ro + rd * t;
+      vec4 clip = uProjView * vec4(p, 1.0);
+      gl_FragDepth = clamp((clip.z / clip.w) * 0.5 + 0.5, 0.0, 1.0);
+      if (uFlat == 1) { pc_fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+      kind = gKind; // set by the last map() call, at p
+      // the inner wall comes from an interpolated grid: take its normal over half a
+      // texel so texel boundaries don't show as facets
+      ne = max(0.0008, uPixelAngle * t * 0.5);
+      if (kind == 2 && gCavH > 0.0) ne = max(ne, 0.25 * gCavH);
+      phase = 1;
+    } else if (phase <= 4) {
+      int j = phase - 1;
+      n += 0.5773 * (2.0 * vec3((((j + 3) >> 1) & 1), ((j >> 1) & 1), (j & 1)) - 1.0) * m;
+      phase++;
+      if (phase < 5) continue;
+      n = normalize(n);
+      if (dot(n, rd) > 0.0) n = -n;
+      if (uPass != 0) break;
+      // occlusion: the wider mask, and the clay only (not the section plane)
+      gMask = gAOMask;
+      gClu = gAOClu;
+      gNoClip = true;
+    } else {
+      float h = 0.15 + 0.6 * float(phase - 5);
+      occ += (h - m) * sca; sca *= 0.75;
+      phase++;
+      if (phase == 9) break;
+    }
   }
-  // A ray running just alongside a flat face (seen edge-on) creeps along it in
-  // tiny steps and can use up its steps before touching it: it is a hit.
-  if (!hit && !done && d < 8.0 * eps) hit = true;
-  // cost view: map() calls and object evaluations for this pixel, no shading
-  if (uFlat == 2 && !hit) { pc_fragColor = vec4(float(min(gMapN, 255)) / 255.0, float(min(gObjN >> 8, 255)) / 255.0, float(gObjN & 255) / 255.0, 1.0); return; }
-  if (!hit) discard;
-  vec3 p = ro + rd * t;
-  vec4 clip = uProjView * vec4(p, 1.0);
-  gl_FragDepth = clamp((clip.z / clip.w) * 0.5 + 0.5, 0.0, 1.0);
-  if (uFlat == 1) { pc_fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
-  int kind = gKind; // set by the last map() call, at p
-  // the inner wall comes from an interpolated grid: take its normal over half a
-  // texel so texel boundaries don't show as facets
-  float ne = max(0.0008, uPixelAngle * t * 0.5);
-  if (kind == 2 && gCavH > 0.0) ne = max(ne, 0.25 * gCavH);
-  vec3 n = calcNormal(p, ne);
-  if (dot(n, rd) > 0.0) n = -n;
   if (uPass == 1) {
     float z = dot(p - uCamPos, uCamDir);
     float v = 1.0 - clamp((z - uDepthRange.x) / max(uDepthRange.y - uDepthRange.x, 1e-4), 0.0, 1.0);
@@ -749,7 +758,7 @@ void main() {
   vec3 key = normalize(-rd + vec3(0.35, 0.65, 0.2));
   float dif = clamp(dot(n, key), 0.0, 1.0);
   float hemi = 0.55 + 0.45 * n.y;
-  float ao = calcAO(p, n);
+  float ao = clamp(1.0 - 0.18 * occ, 0.0, 1.0);
   vec3 col = base * (0.38 + 0.22 * hemi + 0.62 * dif) * (0.55 + 0.45 * ao);
   col += 0.06 * pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 3.0);
   pc_fragColor = vec4(pow(col, vec3(1.0 / 1.15)), 1.0);
