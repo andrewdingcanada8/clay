@@ -612,71 +612,81 @@ float map(vec3 p) {
   for (int n = 0; n < ${MAX_PROG}; n++) {
     if (pc >= uProgLen) break;
     vec4 ins = texelFetch(uData, ivec2(pc & ${ROWS - 1}, uProgRow + (pc >> ${Math.log2(ROWS)})), 0);
-    // Run past the object steps that can't change the fold here: objects off this
-    // ray, and objects whose bound shows the fold would keep its values (see 'need'
-    // below: with the bound standing in, the smooth min/max returns g and f exactly).
-    // A tight loop, so the step's long body below runs only for steps that matter.
+    // The cheap steps run in this tight loop: object steps that can't change the fold
+    // here (off this ray, or the bound shows the smooth min/max would return g and f
+    // exactly: see 'need'), group opens, and group ends that hollow nothing. It stops
+    // at an object the fold needs exactly or a hollow body's end, which the long body
+    // below handles, so that body runs only for the steps that matter.
     for (int s = 0; s < ${MAX_PROG}; s++) {
-      if (int(ins.x + 0.5) != 0) break;
-      int i = int(ins.y + 0.5), fl = int(ins.z + 0.5);
-      if (objOn(i)) {
-        if ((fl & 4) == 4) break; // a mask: always exact
-        float b = bound(i, p), k = ins.w;
-        if ((fl & 1) == 1 ? b < 0.5 + k - g : b < max((fl & 2) == 2 ? g : f, 0.0) + 0.5 + k) break;
+      int op = int(ins.x + 0.5);
+      if (op == 0) {
+        int i = int(ins.y + 0.5), fl = int(ins.z + 0.5);
+        if (objOn(i)) {
+          // (the shell surface is never below the body, so the body's test covers it
+          // for cuts; a mask's distance is the field wherever it trims: always exact)
+          if ((fl & 4) == 4) break;
+          float b = bound(i, p), k = ins.w;
+          if ((fl & 1) == 1 ? b < 0.5 + k - g : b < max((fl & 2) == 2 ? g : f, 0.0) + 0.5 + k) break;
+        }
+        pc++;
+      } else if (op == 1) {
+        // a top-level group the ray can't reach: as if empty (never a mask; see setDoc)
+        int c = int(ins.z + 0.5) - 1;
+        if (c >= 0 && ((gClu >> uint(c)) & 1u) == 0u) pc = int(ins.y + 0.5);
+        else {
+          if (sp < ${MAX_DEPTH}) { G[sp] = g; F[sp] = f; K[sp] = kd; sp++; }
+          g = 1e5; f = 1e5; kd = -1;
+          pc++;
+        }
+      } else {
+        int fl = int(ins.y + 0.5), u = int(ins.z + 0.5) - 1;
+        if (u >= 0 && uHollow[u] == 1 && f < ${OPENING_EPS.toFixed(3)}) break;
+        float gv = g;
+        int kind = kd;
+        if (sp > 0) { sp--; g = G[sp]; f = F[sp]; kd = K[sp]; }
+        // the group folds into its parent (as below)
+        bool fm = (fl & 4) == 4, fs = !fm && (fl & 1) == 1, mx = fm || fs;
+        float a = mx ? -g : g, w = fm ? -gv : gv;
+        if (w < a) kd = fs ? -1 : kind;
+        float r = smin(a, w, ins.w), rf = smin(mx ? -f : f, w, ins.w);
+        g = mx ? -r : r; f = mx ? -rf : rf;
+        pc++;
       }
-      pc++;
       if (pc >= uProgLen) break;
       ins = texelFetch(uData, ivec2(pc & ${ROWS - 1}, uProgRow + (pc >> ${Math.log2(ROWS)})), 0);
     }
     if (pc >= uProgLen) break;
     pc++;
-    int op = int(ins.x + 0.5);
     // what the step folds into the open group: v with blend kv, as a mask (fm), a
     // cut (fs) or an add (solid: not into the shell surface f); kindV: its kind
-    float v = 0.0, kv = 0.0;
+    float v = 0.0, kv = ins.w;
     bool fm = false, fs = false, fsolid = false;
     int kindV = -1;
-    if (op == 0) {
+    if (int(ins.x + 0.5) == 0) {
+      // an object the fold needs exactly
       int i = int(ins.y + 0.5), fl = int(ins.z + 0.5);
-      float k = ins.w;
-      if (!objOn(i)) continue;
-      bool sub = (fl & 1) == 1, solid = (fl & 2) == 2, msk = (fl & 4) == 4;
-      float b = bound(i, p);
-      // (the shell surface is never below the body, so the body's test covers it for
-      // cuts; a mask's distance is the field wherever it trims, so it is always exact)
-      bool need = msk || (sub ? b < 0.5 + k - g : b < max(solid ? g : f, 0.0) + 0.5 + k);
-      v = need ? sdShell(i, p) : b;
-      kv = k; fm = msk; fs = sub && !msk; fsolid = solid && !msk && !sub;
-    } else if (op == 1) {
-      // a top-level group the ray can't reach: as if empty (never a mask; see setDoc)
-      int c = int(ins.z + 0.5) - 1;
-      if (c >= 0 && ((gClu >> uint(c)) & 1u) == 0u) { pc = int(ins.y + 0.5); continue; }
-      if (sp < ${MAX_DEPTH}) { G[sp] = g; F[sp] = f; K[sp] = kd; sp++; }
-      g = 1e5; f = 1e5; kd = -1;
+      v = sdShell(i, p);
+      fm = (fl & 4) == 4; fs = !fm && (fl & 1) == 1; fsolid = !fm && !fs && (fl & 2) == 2;
     } else {
+      // a hollow body's end: back for its depth first
       int fl = int(ins.y + 0.5), u = int(ins.z + 0.5) - 1;
-      float k = ins.w;
+      if (ready != pc) { needU = u; pc--; break; }
       float gv = g;
       int kind = kd;
-      if (u >= 0 && uHollow[u] == 1 && f < ${OPENING_EPS.toFixed(3)}) {
-        if (ready != pc) { needU = u; pc--; break; } // back for the depth
-        float cav = max(f - ${OPENING_EPS.toFixed(3)}, uT[u] - cavD);
-        if (-cav > gv) { gv = -cav; kind = u; }
-      }
+      float cav = max(f - ${OPENING_EPS.toFixed(3)}, uT[u] - cavD);
+      if (-cav > gv) { gv = -cav; kind = u; }
       if (sp > 0) { sp--; g = G[sp]; f = F[sp]; kd = K[sp]; }
-      v = gv; kv = k; kindV = kind;
+      v = gv; kindV = kind;
       fm = (fl & 4) == 4; fs = !fm && (fl & 1) == 1;
     }
-    if (op != 1) {
-      // one fold for objects and groups: a mask is a smooth max with v, a cut one
-      // with -v, an add a smooth min with v (negated in and out: exact)
-      bool mx = fm || fs;
-      float a = mx ? -g : g, w = fm ? -v : v;
-      if (w < a) kd = fs ? -1 : kindV;
-      float r = smin(a, w, kv);
-      g = mx ? -r : r;
-      if (!fsolid) { float rf = smin(mx ? -f : f, w, kv); f = mx ? -rf : rf; }
-    }
+    // one fold for objects and groups: a mask is a smooth max with v, a cut one
+    // with -v, an add a smooth min with v (negated in and out: exact)
+    bool mx = fm || fs;
+    float a = mx ? -g : g, w = fm ? -v : v;
+    if (w < a) kd = fs ? -1 : kindV;
+    float r = smin(a, w, kv);
+    g = mx ? -r : r;
+    if (!fsolid) { float rf = smin(mx ? -f : f, w, kv); f = mx ? -rf : rf; }
   }
   if (needU < 0) break;
   cavD = unitDepth(needU, p, f);
