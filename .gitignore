@@ -6,3 +6,6 @@ bench/out/*.json.tmp
 bench/perf/ref/
 bench/perf/results/*/
 !bench/perf/results/*/result.json
+.claude/worktrees/
+bench/perf/dashboard/data.json
+bench/perf/dashboard/stills/
