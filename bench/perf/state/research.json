@@ -1,0 +1,108 @@
+[
+ {
+  "title": "Lipschitz Pruning (Barbier et al., Eurographics 2025) \u2014 code: github.com/wbrbr/LipschitzPruning",
+  "url": "https://github.com/wbrbr/LipschitzPruning",
+  "takeaway": "Per-cell active-node lists from one evaluation at the cell centre: a smooth-min branch can be dropped when |a\u2212b| > 2R + k; cells far from the surface keep only a constant bound. 4\u00b3\u2192256\u00b3 hierarchy; ~6 nodes per near-surface cell; 9.4 s \u2192 29 ms on thousands of primitives.",
+  "feeds": [
+   "H2",
+   "H16",
+   "H30"
+  ]
+ },
+ {
+  "title": "Accelerating SDFs with proxy + continuous-LOD nodes (Hubert-Brierre et al., CGF 2025)",
+  "url": "https://perso.liris.cnrs.fr/eric.galin/Articles/2025-lod.pdf",
+  "takeaway": "Bounding proxies and LOD nodes inside the tree, used under a distance-dependent error gate; up to \u00d7400 on big trees. For Clay: proxies per group, coarse polyline for far sweeps.",
+  "feeds": [
+   "H26",
+   "H13"
+  ]
+ },
+ {
+  "title": "Claybook (Aaltonen, GDC 2018) \u2014 SDF in volume textures",
+  "url": "",
+  "takeaway": "The field is baked into volume textures with mips and traced cone-style; edits re-bake locally. Clay's field is static between releases, so a bake is paid once per edit.",
+  "feeds": [
+   "H3",
+   "H4",
+   "H9"
+  ]
+ },
+ {
+  "title": "Dreams (Media Molecule, Evans SIGGRAPH 2015)",
+  "url": "",
+  "takeaway": "Evaluate the edit list per brick only where the surface passes, cull edits per brick; display from the cache, not by re-evaluating the full list per pixel.",
+  "feeds": [
+   "H2",
+   "H3",
+   "H1"
+  ]
+ },
+ {
+  "title": "Enhanced sphere tracing (Keinert et al. 2014)",
+  "url": "",
+  "takeaway": "Over-relaxed steps (\u03c9\u22481.2\u20131.6) with fallback cut steps 20\u201340% on smooth fields.",
+  "feeds": [
+   "H17"
+  ]
+ },
+ {
+  "title": "ANGLE \u2192 Metal translation (ANGLE source)",
+  "url": "https://github.com/google/angle",
+  "takeaway": "mediump is fp32 on Metal; dynamic array indexing is clamped and shared globals live in a struct passed by reference; loops ANGLE can't prove finite get a volatile store per iteration.",
+  "feeds": [
+   "H10",
+   "H19",
+   "H29"
+  ]
+ },
+ {
+  "title": "Apple: Optimize Metal performance for Apple silicon (WWDC)",
+  "url": "https://developer.apple.com/videos/",
+  "takeaway": "Peak register use sets occupancy (A15/A16); specialising an uber-shader cut a pass 58 \u2192 12.5 ms by removing spills; 32-wide SIMD groups.",
+  "feeds": [
+   "H5",
+   "H10",
+   "H20",
+   "H28"
+  ]
+ },
+ {
+  "title": "three.js docs: uniforms vs defines",
+  "url": "https://threejs.org/docs/",
+  "takeaway": "Uniform changes never recompile; defines do and are cached per define set \u2014 use defines only for structural changes on release.",
+  "feeds": [
+   "H5",
+   "H22"
+  ]
+ },
+ {
+  "title": "WebKit GPU watchdog / context loss",
+  "url": "https://webkit.org/",
+  "takeaway": "No documented timeout; long command buffers are killed. Flush per band, keep each submission < ~50\u2013100 ms. No timer queries on iOS: use fences over repeated draws.",
+  "feeds": [
+   "H24",
+   "H25"
+  ]
+ },
+ {
+  "title": "Internal audit of raymarch.ts (this repo)",
+  "url": "",
+  "takeaway": "map() inlined 3\u00d7, each with 3 sdObj and 4 sdLocal sites (~230 texture-sample sites); sweepAll evaluates sweeps the program then discards; rayMask twice per pixel; sdCached misses so unitDepth re-evaluates; dead uniforms.",
+  "feeds": [
+   "H12",
+   "H28",
+   "H15",
+   "H14",
+   "H10"
+  ]
+ },
+ {
+  "title": "Agentic hill-climbing brief (autoresearch, FunSearch, AlphaEvolve, EUREKA, FrameForge)",
+  "url": "https://muse.ai/s/agentic-hill-climbing-research-gb6xppcokusxw/8MggctaQirtovRN3aG7Y8YHXH3s4gKxUgHrXNSLYeWA",
+  "takeaway": "A frozen evaluator, one scalar under hard floors, keep only past the noise band with a confirmation run, journal every attempt; track scaling exponent b and N_max, steps/ray and evals/step apart; anti-cheat gates.",
+  "feeds": [
+   "H27"
+  ]
+ }
+]

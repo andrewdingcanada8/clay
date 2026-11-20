@@ -1,0 +1,165 @@
+{
+ "name": "sweeps-8",
+ "group": "scaling",
+ "note": "8 radial sweep ribs on a hollow revolve",
+ "doc": {
+  "version": 2,
+  "groups": [
+   {
+    "id": "g1",
+    "name": "Body",
+    "thickness": 0.6,
+    "children": [
+     "o2",
+     "o3"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.6
+   }
+  ],
+  "objects": [
+   {
+    "id": "o2",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 6,
+       "y": -12,
+       "smooth": 0
+      },
+      {
+       "r": 9,
+       "y": -7
+      },
+      {
+       "r": 8.5,
+       "y": 0
+      },
+      {
+       "r": 4.5,
+       "y": 7
+      },
+      {
+       "r": 6,
+       "y": 12,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": [
+     "top"
+    ]
+   },
+   {
+    "id": "o3",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 6.4,
+       "y": -11.4,
+       "smooth": 0
+      },
+      {
+       "r": 9.5,
+       "y": -7
+      },
+      {
+       "r": 9,
+       "y": 0
+      },
+      {
+       "r": 5,
+       "y": 7
+      },
+      {
+       "r": 6.3,
+       "y": 11.2,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.2,
+     "d": 1.2
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "solid",
+    "groupId": "g1",
+    "holes": [],
+    "sym": {
+     "kind": "radial",
+     "ref": "o2",
+     "axis": "y",
+     "count": 8
+    }
+   }
+  ],
+  "pins": [],
+  "shell": {
+   "enabled": true
+  },
+  "kernel": "sdf",
+  "sdfExactDistance": true,
+  "meshMethod": "offset",
+  "root": [
+   "g1"
+  ]
+ }
+}

@@ -354,6 +354,30 @@ export class Viewport {
   }
   private shadow: { r: SdfRenderer; sc: THREE.Scene } | null = null;
 
+  /**
+   * For the benchmark harness (bench/perf): draw exactly the frame the view would
+   * show now, synchronously and whole, and wait for the GPU. moving: the image drawn
+   * while the camera moves; settled: the full-resolution image (all its bands at
+   * once). Every display path a change adds has to come through here, so the
+   * harness always times what the user sees.
+   */
+  benchFrame(moving: boolean) {
+    this.camera.updateMatrixWorld();
+    if (this.mode !== 'sdf' || !this.sdf.mesh.visible) { this.renderer.render(this.scene, this.camera); }
+    else {
+      const r = this.targets();
+      const t = moving ? r.low : r.back;
+      this.drawSdf(t);
+      this.present(t);
+    }
+    const gl = this.renderer.getContext(), px = new Uint8Array(4);
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    // (the view's own images are stale now: draw them again next frame)
+    this.lowKey = this.frontKey = '';
+    this.band.active = false;
+    this.invalidate();
+  }
+
   /** One step lower settled resolution, after a GPU loss (false: already lowest). */
   safer(): boolean {
     if (this.safeLevel >= SAFE_CAPS.length - 1) return false;

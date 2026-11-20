@@ -3,3 +3,6 @@ dist
 dist-single
 bench/out/*.json.tmp
 .tmp/
+bench/perf/ref/
+bench/perf/results/*/
+!bench/perf/results/*/result.json

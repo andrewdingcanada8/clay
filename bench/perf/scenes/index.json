@@ -1,0 +1,72 @@
+[
+ {
+  "name": "composite",
+  "group": "headline",
+  "note": "Everything at once: hollow revolve with radial ribs, blends, a torus, a prism foot, a cut inside a hollow group with an add above it, a nested hollow spout with a custom-section lifted sweep, a drilled hole, a handle, tabs with symmetry inside symmetry, a mask, and a second piece."
+ },
+ {
+  "name": "sweeps-8",
+  "group": "scaling",
+  "note": "8 radial sweep ribs on a hollow revolve"
+ },
+ {
+  "name": "sweeps-16",
+  "group": "scaling",
+  "note": "16 radial sweep ribs on a hollow revolve"
+ },
+ {
+  "name": "sweeps-32",
+  "group": "scaling",
+  "note": "32 radial sweep ribs on a hollow revolve"
+ },
+ {
+  "name": "sweeps-64",
+  "group": "scaling",
+  "note": "64 radial sweep ribs on a hollow revolve"
+ },
+ {
+  "name": "pieces-1",
+  "group": "scaling",
+  "note": "1 copies of the composite piece in a grid"
+ },
+ {
+  "name": "pieces-4",
+  "group": "scaling",
+  "note": "4 copies of the composite piece in a grid"
+ },
+ {
+  "name": "pieces-9",
+  "group": "scaling",
+  "note": "9 copies of the composite piece in a grid"
+ },
+ {
+  "name": "blend-heavy",
+  "group": "stress",
+  "note": "12 spheres, capsules and tori in one group with a big blend"
+ },
+ {
+  "name": "shell-heavy",
+  "group": "stress",
+  "note": "Nested hollow groups with openings, and cuts above them"
+ },
+ {
+  "name": "csg-chain",
+  "group": "stress",
+  "note": "30 alternating add and cut steps along a bar"
+ },
+ {
+  "name": "custom-section",
+  "group": "stress",
+  "note": "Sweeps with polygon sections, miters and sharp corners"
+ },
+ {
+  "name": "grazing",
+  "group": "stress",
+  "note": "Thin walls and flat faces seen edge-on (long marches)"
+ },
+ {
+  "name": "close-up",
+  "group": "stress",
+  "note": "The composite piece filling the screen"
+ }
+]

@@ -1,0 +1,6609 @@
+{
+ "name": "pieces-9",
+ "group": "scaling",
+ "note": "9 copies of the composite piece in a grid",
+ "doc": {
+  "version": 2,
+  "groups": [
+   {
+    "id": "g1",
+    "name": "Piece",
+    "thickness": 0.6,
+    "children": [
+     "g2",
+     "oc",
+     "od",
+     "ge",
+     "gi"
+    ],
+    "op": "add",
+    "shell": false,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   },
+   {
+    "id": "g2",
+    "name": "Body",
+    "thickness": 0.6,
+    "children": [
+     "o3",
+     "o4",
+     "o5",
+     "o6",
+     "o7",
+     "o8",
+     "g9"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.8
+   },
+   {
+    "id": "g9",
+    "name": "Spout",
+    "thickness": 0.5,
+    "children": [
+     "oa",
+     "ob"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.6
+   },
+   {
+    "id": "ge",
+    "name": "Tabs",
+    "thickness": 0.5,
+    "children": [
+     "of",
+     "og",
+     "oh"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      -9.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "sym": {
+     "kind": "radial",
+     "ref": "o3",
+     "axis": "y",
+     "count": 3
+    }
+   },
+   {
+    "id": "gi",
+    "name": "Mask",
+    "thickness": 0.6,
+    "children": [
+     "oj"
+    ],
+    "op": "mask",
+    "shell": false,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   },
+   {
+    "id": "gk",
+    "name": "Piece",
+    "thickness": 0.6,
+    "children": [
+     "gl",
+     "ov",
+     "ow",
+     "gx",
+     "g11"
+    ],
+    "op": "add",
+    "shell": false,
+    "transform": {
+     "position": [
+      34,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   },
+   {
+    "id": "gl",
+    "name": "Body",
+    "thickness": 0.6,
+    "children": [
+     "om",
+     "on",
+     "oo",
+     "op",
+     "oq",
+     "or",
+     "gs"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.8
+   },
+   {
+    "id": "gs",
+    "name": "Spout",
+    "thickness": 0.5,
+    "children": [
+     "ot",
+     "ou"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.6
+   },
+   {
+    "id": "gx",
+    "name": "Tabs",
+    "thickness": 0.5,
+    "children": [
+     "oy",
+     "oz",
+     "o10"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      -9.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "sym": {
+     "kind": "radial",
+     "ref": "om",
+     "axis": "y",
+     "count": 3
+    }
+   },
+   {
+    "id": "g11",
+    "name": "Mask",
+    "thickness": 0.6,
+    "children": [
+     "o12"
+    ],
+    "op": "mask",
+    "shell": false,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   },
+   {
+    "id": "g13",
+    "name": "Piece",
+    "thickness": 0.6,
+    "children": [
+     "g14",
+     "o1e",
+     "o1f",
+     "g1g",
+     "g1k"
+    ],
+    "op": "add",
+    "shell": false,
+    "transform": {
+     "position": [
+      68,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   },
+   {
+    "id": "g14",
+    "name": "Body",
+    "thickness": 0.6,
+    "children": [
+     "o15",
+     "o16",
+     "o17",
+     "o18",
+     "o19",
+     "o1a",
+     "g1b"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.8
+   },
+   {
+    "id": "g1b",
+    "name": "Spout",
+    "thickness": 0.5,
+    "children": [
+     "o1c",
+     "o1d"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.6
+   },
+   {
+    "id": "g1g",
+    "name": "Tabs",
+    "thickness": 0.5,
+    "children": [
+     "o1h",
+     "o1i",
+     "o1j"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      -9.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "sym": {
+     "kind": "radial",
+     "ref": "o15",
+     "axis": "y",
+     "count": 3
+    }
+   },
+   {
+    "id": "g1k",
+    "name": "Mask",
+    "thickness": 0.6,
+    "children": [
+     "o1l"
+    ],
+    "op": "mask",
+    "shell": false,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   },
+   {
+    "id": "g1m",
+    "name": "Piece",
+    "thickness": 0.6,
+    "children": [
+     "g1n",
+     "o1x",
+     "o1y",
+     "g1z",
+     "g23"
+    ],
+    "op": "add",
+    "shell": false,
+    "transform": {
+     "position": [
+      0,
+      0,
+      34
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   },
+   {
+    "id": "g1n",
+    "name": "Body",
+    "thickness": 0.6,
+    "children": [
+     "o1o",
+     "o1p",
+     "o1q",
+     "o1r",
+     "o1s",
+     "o1t",
+     "g1u"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.8
+   },
+   {
+    "id": "g1u",
+    "name": "Spout",
+    "thickness": 0.5,
+    "children": [
+     "o1v",
+     "o1w"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.6
+   },
+   {
+    "id": "g1z",
+    "name": "Tabs",
+    "thickness": 0.5,
+    "children": [
+     "o20",
+     "o21",
+     "o22"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      -9.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "sym": {
+     "kind": "radial",
+     "ref": "o1o",
+     "axis": "y",
+     "count": 3
+    }
+   },
+   {
+    "id": "g23",
+    "name": "Mask",
+    "thickness": 0.6,
+    "children": [
+     "o24"
+    ],
+    "op": "mask",
+    "shell": false,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   },
+   {
+    "id": "g25",
+    "name": "Piece",
+    "thickness": 0.6,
+    "children": [
+     "g26",
+     "o2g",
+     "o2h",
+     "g2i",
+     "g2m"
+    ],
+    "op": "add",
+    "shell": false,
+    "transform": {
+     "position": [
+      34,
+      0,
+      34
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   },
+   {
+    "id": "g26",
+    "name": "Body",
+    "thickness": 0.6,
+    "children": [
+     "o27",
+     "o28",
+     "o29",
+     "o2a",
+     "o2b",
+     "o2c",
+     "g2d"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.8
+   },
+   {
+    "id": "g2d",
+    "name": "Spout",
+    "thickness": 0.5,
+    "children": [
+     "o2e",
+     "o2f"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.6
+   },
+   {
+    "id": "g2i",
+    "name": "Tabs",
+    "thickness": 0.5,
+    "children": [
+     "o2j",
+     "o2k",
+     "o2l"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      -9.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "sym": {
+     "kind": "radial",
+     "ref": "o27",
+     "axis": "y",
+     "count": 3
+    }
+   },
+   {
+    "id": "g2m",
+    "name": "Mask",
+    "thickness": 0.6,
+    "children": [
+     "o2n"
+    ],
+    "op": "mask",
+    "shell": false,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   },
+   {
+    "id": "g2o",
+    "name": "Piece",
+    "thickness": 0.6,
+    "children": [
+     "g2p",
+     "o2z",
+     "o30",
+     "g31",
+     "g35"
+    ],
+    "op": "add",
+    "shell": false,
+    "transform": {
+     "position": [
+      68,
+      0,
+      34
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   },
+   {
+    "id": "g2p",
+    "name": "Body",
+    "thickness": 0.6,
+    "children": [
+     "o2q",
+     "o2r",
+     "o2s",
+     "o2t",
+     "o2u",
+     "o2v",
+     "g2w"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.8
+   },
+   {
+    "id": "g2w",
+    "name": "Spout",
+    "thickness": 0.5,
+    "children": [
+     "o2x",
+     "o2y"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.6
+   },
+   {
+    "id": "g31",
+    "name": "Tabs",
+    "thickness": 0.5,
+    "children": [
+     "o32",
+     "o33",
+     "o34"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      -9.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "sym": {
+     "kind": "radial",
+     "ref": "o2q",
+     "axis": "y",
+     "count": 3
+    }
+   },
+   {
+    "id": "g35",
+    "name": "Mask",
+    "thickness": 0.6,
+    "children": [
+     "o36"
+    ],
+    "op": "mask",
+    "shell": false,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   },
+   {
+    "id": "g37",
+    "name": "Piece",
+    "thickness": 0.6,
+    "children": [
+     "g38",
+     "o3i",
+     "o3j",
+     "g3k",
+     "g3o"
+    ],
+    "op": "add",
+    "shell": false,
+    "transform": {
+     "position": [
+      0,
+      0,
+      68
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   },
+   {
+    "id": "g38",
+    "name": "Body",
+    "thickness": 0.6,
+    "children": [
+     "o39",
+     "o3a",
+     "o3b",
+     "o3c",
+     "o3d",
+     "o3e",
+     "g3f"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.8
+   },
+   {
+    "id": "g3f",
+    "name": "Spout",
+    "thickness": 0.5,
+    "children": [
+     "o3g",
+     "o3h"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.6
+   },
+   {
+    "id": "g3k",
+    "name": "Tabs",
+    "thickness": 0.5,
+    "children": [
+     "o3l",
+     "o3m",
+     "o3n"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      -9.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "sym": {
+     "kind": "radial",
+     "ref": "o39",
+     "axis": "y",
+     "count": 3
+    }
+   },
+   {
+    "id": "g3o",
+    "name": "Mask",
+    "thickness": 0.6,
+    "children": [
+     "o3p"
+    ],
+    "op": "mask",
+    "shell": false,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   },
+   {
+    "id": "g3q",
+    "name": "Piece",
+    "thickness": 0.6,
+    "children": [
+     "g3r",
+     "o41",
+     "o42",
+     "g43",
+     "g47"
+    ],
+    "op": "add",
+    "shell": false,
+    "transform": {
+     "position": [
+      34,
+      0,
+      68
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   },
+   {
+    "id": "g3r",
+    "name": "Body",
+    "thickness": 0.6,
+    "children": [
+     "o3s",
+     "o3t",
+     "o3u",
+     "o3v",
+     "o3w",
+     "o3x",
+     "g3y"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.8
+   },
+   {
+    "id": "g3y",
+    "name": "Spout",
+    "thickness": 0.5,
+    "children": [
+     "o3z",
+     "o40"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.6
+   },
+   {
+    "id": "g43",
+    "name": "Tabs",
+    "thickness": 0.5,
+    "children": [
+     "o44",
+     "o45",
+     "o46"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      -9.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "sym": {
+     "kind": "radial",
+     "ref": "o3s",
+     "axis": "y",
+     "count": 3
+    }
+   },
+   {
+    "id": "g47",
+    "name": "Mask",
+    "thickness": 0.6,
+    "children": [
+     "o48"
+    ],
+    "op": "mask",
+    "shell": false,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   },
+   {
+    "id": "g49",
+    "name": "Piece",
+    "thickness": 0.6,
+    "children": [
+     "g4a",
+     "o4k",
+     "o4l",
+     "g4m",
+     "g4q"
+    ],
+    "op": "add",
+    "shell": false,
+    "transform": {
+     "position": [
+      68,
+      0,
+      68
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   },
+   {
+    "id": "g4a",
+    "name": "Body",
+    "thickness": 0.6,
+    "children": [
+     "o4b",
+     "o4c",
+     "o4d",
+     "o4e",
+     "o4f",
+     "o4g",
+     "g4h"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.8
+   },
+   {
+    "id": "g4h",
+    "name": "Spout",
+    "thickness": 0.5,
+    "children": [
+     "o4i",
+     "o4j"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.6
+   },
+   {
+    "id": "g4m",
+    "name": "Tabs",
+    "thickness": 0.5,
+    "children": [
+     "o4n",
+     "o4o",
+     "o4p"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      -9.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "sym": {
+     "kind": "radial",
+     "ref": "o4b",
+     "axis": "y",
+     "count": 3
+    }
+   },
+   {
+    "id": "g4q",
+    "name": "Mask",
+    "thickness": 0.6,
+    "children": [
+     "o4r"
+    ],
+    "op": "mask",
+    "shell": false,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   }
+  ],
+  "objects": [
+   {
+    "id": "o3",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 6,
+       "y": -12,
+       "smooth": 0
+      },
+      {
+       "r": 9,
+       "y": -7
+      },
+      {
+       "r": 8.5,
+       "y": 0
+      },
+      {
+       "r": 4.5,
+       "y": 7
+      },
+      {
+       "r": 6,
+       "y": 12,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g2",
+    "holes": [
+     "top"
+    ]
+   },
+   {
+    "id": "o4",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 6.4,
+       "y": -11.4,
+       "smooth": 0
+      },
+      {
+       "r": 9.5,
+       "y": -7
+      },
+      {
+       "r": 9,
+       "y": 0
+      },
+      {
+       "r": 5,
+       "y": 7
+      },
+      {
+       "r": 6.3,
+       "y": 11.2,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.4,
+     "d": 1.4,
+     "cap": "round"
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "solid",
+    "groupId": "g2",
+    "holes": [],
+    "sym": {
+     "kind": "radial",
+     "ref": "o3",
+     "axis": "y",
+     "count": 8
+    }
+   },
+   {
+    "id": "o5",
+    "name": "Torus",
+    "type": "torus",
+    "params": {
+     "R": 5.2,
+     "r": 0.9
+    },
+    "transform": {
+     "position": [
+      0,
+      6.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g2",
+    "holes": []
+   },
+   {
+    "id": "o6",
+    "name": "Prism",
+    "type": "prism",
+    "params": {
+     "n": 6,
+     "r": 6.6,
+     "r2": 6.2,
+     "h": 1.6
+    },
+    "transform": {
+     "position": [
+      0,
+      -12.4,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g2",
+    "holes": []
+   },
+   {
+    "id": "o7",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 3,
+     "y": 4,
+     "z": 6
+    },
+    "transform": {
+     "position": [
+      0,
+      -1,
+      8.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g2",
+    "holes": []
+   },
+   {
+    "id": "o8",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 1.4
+    },
+    "transform": {
+     "position": [
+      0,
+      -1,
+      9.2
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g2",
+    "holes": []
+   },
+   {
+    "id": "oa",
+    "name": "Cone",
+    "type": "cone",
+    "params": {
+     "r": 2.2,
+     "h": 7
+    },
+    "transform": {
+     "position": [
+      -9,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      55
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g9",
+    "holes": []
+   },
+   {
+    "id": "ob",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": -8,
+       "y": 5,
+       "smooth": 0
+      },
+      {
+       "r": -11,
+       "y": 7
+      },
+      {
+       "r": -14,
+       "y": 10,
+       "smooth": 0
+      }
+     ],
+     "section": "custom",
+     "w": 2.2,
+     "d": 1.6,
+     "shape": [
+      {
+       "r": -1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 0.8,
+       "y": 0.6
+      },
+      {
+       "r": 0,
+       "y": 1.1
+      },
+      {
+       "r": -0.8,
+       "y": 0.6
+      }
+     ],
+     "lift": [
+      {
+       "r": 0,
+       "y": 0
+      },
+      {
+       "r": 0.5,
+       "y": 0.8
+      },
+      {
+       "r": 1,
+       "y": 0
+      }
+     ],
+     "join": "miter"
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g9",
+    "holes": []
+   },
+   {
+    "id": "oc",
+    "name": "Cylinder",
+    "type": "cylinder",
+    "params": {
+     "r": 0.9,
+     "h": 6
+    },
+    "transform": {
+     "position": [
+      7.5,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      90
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "od",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 8,
+       "y": 6,
+       "smooth": 0
+      },
+      {
+       "r": 12,
+       "y": 5
+      },
+      {
+       "r": 13,
+       "y": 0
+      },
+      {
+       "r": 11,
+       "y": -5
+      },
+      {
+       "r": 8.5,
+       "y": -6,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.8,
+     "d": 1.8
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "of",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 8,
+       "y": -0.6,
+       "smooth": 0
+      },
+      {
+       "r": 11.5,
+       "y": -0.4
+      },
+      {
+       "r": 11.5,
+       "y": 0.4
+      },
+      {
+       "r": 8,
+       "y": 0.6,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "ge",
+    "holes": []
+   },
+   {
+    "id": "og",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 16,
+     "y": 6,
+     "z": 26
+    },
+    "transform": {
+     "position": [
+      12.5,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "ge",
+    "holes": [],
+    "sym": {
+     "kind": "mirror",
+     "ref": null,
+     "axis": "x",
+     "count": 2
+    }
+   },
+   {
+    "id": "oh",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 16,
+     "y": 6,
+     "z": 16
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "ge",
+    "holes": []
+   },
+   {
+    "id": "oj",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 40,
+     "y": 27,
+     "z": 40
+    },
+    "transform": {
+     "position": [
+      0,
+      0.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "gi",
+    "holes": []
+   },
+   {
+    "id": "om",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 6,
+       "y": -12,
+       "smooth": 0
+      },
+      {
+       "r": 9,
+       "y": -7
+      },
+      {
+       "r": 8.5,
+       "y": 0
+      },
+      {
+       "r": 4.5,
+       "y": 7
+      },
+      {
+       "r": 6,
+       "y": 12,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "gl",
+    "holes": [
+     "top"
+    ]
+   },
+   {
+    "id": "on",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 6.4,
+       "y": -11.4,
+       "smooth": 0
+      },
+      {
+       "r": 9.5,
+       "y": -7
+      },
+      {
+       "r": 9,
+       "y": 0
+      },
+      {
+       "r": 5,
+       "y": 7
+      },
+      {
+       "r": 6.3,
+       "y": 11.2,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.4,
+     "d": 1.4,
+     "cap": "round"
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "solid",
+    "groupId": "gl",
+    "holes": [],
+    "sym": {
+     "kind": "radial",
+     "ref": "om",
+     "axis": "y",
+     "count": 8
+    }
+   },
+   {
+    "id": "oo",
+    "name": "Torus",
+    "type": "torus",
+    "params": {
+     "R": 5.2,
+     "r": 0.9
+    },
+    "transform": {
+     "position": [
+      0,
+      6.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "gl",
+    "holes": []
+   },
+   {
+    "id": "op",
+    "name": "Prism",
+    "type": "prism",
+    "params": {
+     "n": 6,
+     "r": 6.6,
+     "r2": 6.2,
+     "h": 1.6
+    },
+    "transform": {
+     "position": [
+      0,
+      -12.4,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "gl",
+    "holes": []
+   },
+   {
+    "id": "oq",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 3,
+     "y": 4,
+     "z": 6
+    },
+    "transform": {
+     "position": [
+      0,
+      -1,
+      8.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "gl",
+    "holes": []
+   },
+   {
+    "id": "or",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 1.4
+    },
+    "transform": {
+     "position": [
+      0,
+      -1,
+      9.2
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "gl",
+    "holes": []
+   },
+   {
+    "id": "ot",
+    "name": "Cone",
+    "type": "cone",
+    "params": {
+     "r": 2.2,
+     "h": 7
+    },
+    "transform": {
+     "position": [
+      -9,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      55
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "gs",
+    "holes": []
+   },
+   {
+    "id": "ou",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": -8,
+       "y": 5,
+       "smooth": 0
+      },
+      {
+       "r": -11,
+       "y": 7
+      },
+      {
+       "r": -14,
+       "y": 10,
+       "smooth": 0
+      }
+     ],
+     "section": "custom",
+     "w": 2.2,
+     "d": 1.6,
+     "shape": [
+      {
+       "r": -1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 0.8,
+       "y": 0.6
+      },
+      {
+       "r": 0,
+       "y": 1.1
+      },
+      {
+       "r": -0.8,
+       "y": 0.6
+      }
+     ],
+     "lift": [
+      {
+       "r": 0,
+       "y": 0
+      },
+      {
+       "r": 0.5,
+       "y": 0.8
+      },
+      {
+       "r": 1,
+       "y": 0
+      }
+     ],
+     "join": "miter"
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "gs",
+    "holes": []
+   },
+   {
+    "id": "ov",
+    "name": "Cylinder",
+    "type": "cylinder",
+    "params": {
+     "r": 0.9,
+     "h": 6
+    },
+    "transform": {
+     "position": [
+      7.5,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      90
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "gk",
+    "holes": []
+   },
+   {
+    "id": "ow",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 8,
+       "y": 6,
+       "smooth": 0
+      },
+      {
+       "r": 12,
+       "y": 5
+      },
+      {
+       "r": 13,
+       "y": 0
+      },
+      {
+       "r": 11,
+       "y": -5
+      },
+      {
+       "r": 8.5,
+       "y": -6,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.8,
+     "d": 1.8
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "gk",
+    "holes": []
+   },
+   {
+    "id": "oy",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 8,
+       "y": -0.6,
+       "smooth": 0
+      },
+      {
+       "r": 11.5,
+       "y": -0.4
+      },
+      {
+       "r": 11.5,
+       "y": 0.4
+      },
+      {
+       "r": 8,
+       "y": 0.6,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "gx",
+    "holes": []
+   },
+   {
+    "id": "oz",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 16,
+     "y": 6,
+     "z": 26
+    },
+    "transform": {
+     "position": [
+      12.5,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "gx",
+    "holes": [],
+    "sym": {
+     "kind": "mirror",
+     "ref": null,
+     "axis": "x",
+     "count": 2
+    }
+   },
+   {
+    "id": "o10",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 16,
+     "y": 6,
+     "z": 16
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "gx",
+    "holes": []
+   },
+   {
+    "id": "o12",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 40,
+     "y": 27,
+     "z": 40
+    },
+    "transform": {
+     "position": [
+      0,
+      0.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g11",
+    "holes": []
+   },
+   {
+    "id": "o15",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 6,
+       "y": -12,
+       "smooth": 0
+      },
+      {
+       "r": 9,
+       "y": -7
+      },
+      {
+       "r": 8.5,
+       "y": 0
+      },
+      {
+       "r": 4.5,
+       "y": 7
+      },
+      {
+       "r": 6,
+       "y": 12,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g14",
+    "holes": [
+     "top"
+    ]
+   },
+   {
+    "id": "o16",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 6.4,
+       "y": -11.4,
+       "smooth": 0
+      },
+      {
+       "r": 9.5,
+       "y": -7
+      },
+      {
+       "r": 9,
+       "y": 0
+      },
+      {
+       "r": 5,
+       "y": 7
+      },
+      {
+       "r": 6.3,
+       "y": 11.2,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.4,
+     "d": 1.4,
+     "cap": "round"
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "solid",
+    "groupId": "g14",
+    "holes": [],
+    "sym": {
+     "kind": "radial",
+     "ref": "o15",
+     "axis": "y",
+     "count": 8
+    }
+   },
+   {
+    "id": "o17",
+    "name": "Torus",
+    "type": "torus",
+    "params": {
+     "R": 5.2,
+     "r": 0.9
+    },
+    "transform": {
+     "position": [
+      0,
+      6.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g14",
+    "holes": []
+   },
+   {
+    "id": "o18",
+    "name": "Prism",
+    "type": "prism",
+    "params": {
+     "n": 6,
+     "r": 6.6,
+     "r2": 6.2,
+     "h": 1.6
+    },
+    "transform": {
+     "position": [
+      0,
+      -12.4,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g14",
+    "holes": []
+   },
+   {
+    "id": "o19",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 3,
+     "y": 4,
+     "z": 6
+    },
+    "transform": {
+     "position": [
+      0,
+      -1,
+      8.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g14",
+    "holes": []
+   },
+   {
+    "id": "o1a",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 1.4
+    },
+    "transform": {
+     "position": [
+      0,
+      -1,
+      9.2
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g14",
+    "holes": []
+   },
+   {
+    "id": "o1c",
+    "name": "Cone",
+    "type": "cone",
+    "params": {
+     "r": 2.2,
+     "h": 7
+    },
+    "transform": {
+     "position": [
+      -9,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      55
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1b",
+    "holes": []
+   },
+   {
+    "id": "o1d",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": -8,
+       "y": 5,
+       "smooth": 0
+      },
+      {
+       "r": -11,
+       "y": 7
+      },
+      {
+       "r": -14,
+       "y": 10,
+       "smooth": 0
+      }
+     ],
+     "section": "custom",
+     "w": 2.2,
+     "d": 1.6,
+     "shape": [
+      {
+       "r": -1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 0.8,
+       "y": 0.6
+      },
+      {
+       "r": 0,
+       "y": 1.1
+      },
+      {
+       "r": -0.8,
+       "y": 0.6
+      }
+     ],
+     "lift": [
+      {
+       "r": 0,
+       "y": 0
+      },
+      {
+       "r": 0.5,
+       "y": 0.8
+      },
+      {
+       "r": 1,
+       "y": 0
+      }
+     ],
+     "join": "miter"
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1b",
+    "holes": []
+   },
+   {
+    "id": "o1e",
+    "name": "Cylinder",
+    "type": "cylinder",
+    "params": {
+     "r": 0.9,
+     "h": 6
+    },
+    "transform": {
+     "position": [
+      7.5,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      90
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g13",
+    "holes": []
+   },
+   {
+    "id": "o1f",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 8,
+       "y": 6,
+       "smooth": 0
+      },
+      {
+       "r": 12,
+       "y": 5
+      },
+      {
+       "r": 13,
+       "y": 0
+      },
+      {
+       "r": 11,
+       "y": -5
+      },
+      {
+       "r": 8.5,
+       "y": -6,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.8,
+     "d": 1.8
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g13",
+    "holes": []
+   },
+   {
+    "id": "o1h",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 8,
+       "y": -0.6,
+       "smooth": 0
+      },
+      {
+       "r": 11.5,
+       "y": -0.4
+      },
+      {
+       "r": 11.5,
+       "y": 0.4
+      },
+      {
+       "r": 8,
+       "y": 0.6,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1g",
+    "holes": []
+   },
+   {
+    "id": "o1i",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 16,
+     "y": 6,
+     "z": 26
+    },
+    "transform": {
+     "position": [
+      12.5,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1g",
+    "holes": [],
+    "sym": {
+     "kind": "mirror",
+     "ref": null,
+     "axis": "x",
+     "count": 2
+    }
+   },
+   {
+    "id": "o1j",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 16,
+     "y": 6,
+     "z": 16
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1g",
+    "holes": []
+   },
+   {
+    "id": "o1l",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 40,
+     "y": 27,
+     "z": 40
+    },
+    "transform": {
+     "position": [
+      0,
+      0.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1k",
+    "holes": []
+   },
+   {
+    "id": "o1o",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 6,
+       "y": -12,
+       "smooth": 0
+      },
+      {
+       "r": 9,
+       "y": -7
+      },
+      {
+       "r": 8.5,
+       "y": 0
+      },
+      {
+       "r": 4.5,
+       "y": 7
+      },
+      {
+       "r": 6,
+       "y": 12,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1n",
+    "holes": [
+     "top"
+    ]
+   },
+   {
+    "id": "o1p",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 6.4,
+       "y": -11.4,
+       "smooth": 0
+      },
+      {
+       "r": 9.5,
+       "y": -7
+      },
+      {
+       "r": 9,
+       "y": 0
+      },
+      {
+       "r": 5,
+       "y": 7
+      },
+      {
+       "r": 6.3,
+       "y": 11.2,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.4,
+     "d": 1.4,
+     "cap": "round"
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "solid",
+    "groupId": "g1n",
+    "holes": [],
+    "sym": {
+     "kind": "radial",
+     "ref": "o1o",
+     "axis": "y",
+     "count": 8
+    }
+   },
+   {
+    "id": "o1q",
+    "name": "Torus",
+    "type": "torus",
+    "params": {
+     "R": 5.2,
+     "r": 0.9
+    },
+    "transform": {
+     "position": [
+      0,
+      6.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1n",
+    "holes": []
+   },
+   {
+    "id": "o1r",
+    "name": "Prism",
+    "type": "prism",
+    "params": {
+     "n": 6,
+     "r": 6.6,
+     "r2": 6.2,
+     "h": 1.6
+    },
+    "transform": {
+     "position": [
+      0,
+      -12.4,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1n",
+    "holes": []
+   },
+   {
+    "id": "o1s",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 3,
+     "y": 4,
+     "z": 6
+    },
+    "transform": {
+     "position": [
+      0,
+      -1,
+      8.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1n",
+    "holes": []
+   },
+   {
+    "id": "o1t",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 1.4
+    },
+    "transform": {
+     "position": [
+      0,
+      -1,
+      9.2
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1n",
+    "holes": []
+   },
+   {
+    "id": "o1v",
+    "name": "Cone",
+    "type": "cone",
+    "params": {
+     "r": 2.2,
+     "h": 7
+    },
+    "transform": {
+     "position": [
+      -9,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      55
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1u",
+    "holes": []
+   },
+   {
+    "id": "o1w",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": -8,
+       "y": 5,
+       "smooth": 0
+      },
+      {
+       "r": -11,
+       "y": 7
+      },
+      {
+       "r": -14,
+       "y": 10,
+       "smooth": 0
+      }
+     ],
+     "section": "custom",
+     "w": 2.2,
+     "d": 1.6,
+     "shape": [
+      {
+       "r": -1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 0.8,
+       "y": 0.6
+      },
+      {
+       "r": 0,
+       "y": 1.1
+      },
+      {
+       "r": -0.8,
+       "y": 0.6
+      }
+     ],
+     "lift": [
+      {
+       "r": 0,
+       "y": 0
+      },
+      {
+       "r": 0.5,
+       "y": 0.8
+      },
+      {
+       "r": 1,
+       "y": 0
+      }
+     ],
+     "join": "miter"
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1u",
+    "holes": []
+   },
+   {
+    "id": "o1x",
+    "name": "Cylinder",
+    "type": "cylinder",
+    "params": {
+     "r": 0.9,
+     "h": 6
+    },
+    "transform": {
+     "position": [
+      7.5,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      90
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1m",
+    "holes": []
+   },
+   {
+    "id": "o1y",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 8,
+       "y": 6,
+       "smooth": 0
+      },
+      {
+       "r": 12,
+       "y": 5
+      },
+      {
+       "r": 13,
+       "y": 0
+      },
+      {
+       "r": 11,
+       "y": -5
+      },
+      {
+       "r": 8.5,
+       "y": -6,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.8,
+     "d": 1.8
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1m",
+    "holes": []
+   },
+   {
+    "id": "o20",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 8,
+       "y": -0.6,
+       "smooth": 0
+      },
+      {
+       "r": 11.5,
+       "y": -0.4
+      },
+      {
+       "r": 11.5,
+       "y": 0.4
+      },
+      {
+       "r": 8,
+       "y": 0.6,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1z",
+    "holes": []
+   },
+   {
+    "id": "o21",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 16,
+     "y": 6,
+     "z": 26
+    },
+    "transform": {
+     "position": [
+      12.5,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1z",
+    "holes": [],
+    "sym": {
+     "kind": "mirror",
+     "ref": null,
+     "axis": "x",
+     "count": 2
+    }
+   },
+   {
+    "id": "o22",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 16,
+     "y": 6,
+     "z": 16
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1z",
+    "holes": []
+   },
+   {
+    "id": "o24",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 40,
+     "y": 27,
+     "z": 40
+    },
+    "transform": {
+     "position": [
+      0,
+      0.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g23",
+    "holes": []
+   },
+   {
+    "id": "o27",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 6,
+       "y": -12,
+       "smooth": 0
+      },
+      {
+       "r": 9,
+       "y": -7
+      },
+      {
+       "r": 8.5,
+       "y": 0
+      },
+      {
+       "r": 4.5,
+       "y": 7
+      },
+      {
+       "r": 6,
+       "y": 12,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g26",
+    "holes": [
+     "top"
+    ]
+   },
+   {
+    "id": "o28",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 6.4,
+       "y": -11.4,
+       "smooth": 0
+      },
+      {
+       "r": 9.5,
+       "y": -7
+      },
+      {
+       "r": 9,
+       "y": 0
+      },
+      {
+       "r": 5,
+       "y": 7
+      },
+      {
+       "r": 6.3,
+       "y": 11.2,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.4,
+     "d": 1.4,
+     "cap": "round"
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "solid",
+    "groupId": "g26",
+    "holes": [],
+    "sym": {
+     "kind": "radial",
+     "ref": "o27",
+     "axis": "y",
+     "count": 8
+    }
+   },
+   {
+    "id": "o29",
+    "name": "Torus",
+    "type": "torus",
+    "params": {
+     "R": 5.2,
+     "r": 0.9
+    },
+    "transform": {
+     "position": [
+      0,
+      6.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g26",
+    "holes": []
+   },
+   {
+    "id": "o2a",
+    "name": "Prism",
+    "type": "prism",
+    "params": {
+     "n": 6,
+     "r": 6.6,
+     "r2": 6.2,
+     "h": 1.6
+    },
+    "transform": {
+     "position": [
+      0,
+      -12.4,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g26",
+    "holes": []
+   },
+   {
+    "id": "o2b",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 3,
+     "y": 4,
+     "z": 6
+    },
+    "transform": {
+     "position": [
+      0,
+      -1,
+      8.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g26",
+    "holes": []
+   },
+   {
+    "id": "o2c",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 1.4
+    },
+    "transform": {
+     "position": [
+      0,
+      -1,
+      9.2
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g26",
+    "holes": []
+   },
+   {
+    "id": "o2e",
+    "name": "Cone",
+    "type": "cone",
+    "params": {
+     "r": 2.2,
+     "h": 7
+    },
+    "transform": {
+     "position": [
+      -9,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      55
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g2d",
+    "holes": []
+   },
+   {
+    "id": "o2f",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": -8,
+       "y": 5,
+       "smooth": 0
+      },
+      {
+       "r": -11,
+       "y": 7
+      },
+      {
+       "r": -14,
+       "y": 10,
+       "smooth": 0
+      }
+     ],
+     "section": "custom",
+     "w": 2.2,
+     "d": 1.6,
+     "shape": [
+      {
+       "r": -1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 0.8,
+       "y": 0.6
+      },
+      {
+       "r": 0,
+       "y": 1.1
+      },
+      {
+       "r": -0.8,
+       "y": 0.6
+      }
+     ],
+     "lift": [
+      {
+       "r": 0,
+       "y": 0
+      },
+      {
+       "r": 0.5,
+       "y": 0.8
+      },
+      {
+       "r": 1,
+       "y": 0
+      }
+     ],
+     "join": "miter"
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g2d",
+    "holes": []
+   },
+   {
+    "id": "o2g",
+    "name": "Cylinder",
+    "type": "cylinder",
+    "params": {
+     "r": 0.9,
+     "h": 6
+    },
+    "transform": {
+     "position": [
+      7.5,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      90
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g25",
+    "holes": []
+   },
+   {
+    "id": "o2h",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 8,
+       "y": 6,
+       "smooth": 0
+      },
+      {
+       "r": 12,
+       "y": 5
+      },
+      {
+       "r": 13,
+       "y": 0
+      },
+      {
+       "r": 11,
+       "y": -5
+      },
+      {
+       "r": 8.5,
+       "y": -6,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.8,
+     "d": 1.8
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g25",
+    "holes": []
+   },
+   {
+    "id": "o2j",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 8,
+       "y": -0.6,
+       "smooth": 0
+      },
+      {
+       "r": 11.5,
+       "y": -0.4
+      },
+      {
+       "r": 11.5,
+       "y": 0.4
+      },
+      {
+       "r": 8,
+       "y": 0.6,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g2i",
+    "holes": []
+   },
+   {
+    "id": "o2k",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 16,
+     "y": 6,
+     "z": 26
+    },
+    "transform": {
+     "position": [
+      12.5,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g2i",
+    "holes": [],
+    "sym": {
+     "kind": "mirror",
+     "ref": null,
+     "axis": "x",
+     "count": 2
+    }
+   },
+   {
+    "id": "o2l",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 16,
+     "y": 6,
+     "z": 16
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g2i",
+    "holes": []
+   },
+   {
+    "id": "o2n",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 40,
+     "y": 27,
+     "z": 40
+    },
+    "transform": {
+     "position": [
+      0,
+      0.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g2m",
+    "holes": []
+   },
+   {
+    "id": "o2q",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 6,
+       "y": -12,
+       "smooth": 0
+      },
+      {
+       "r": 9,
+       "y": -7
+      },
+      {
+       "r": 8.5,
+       "y": 0
+      },
+      {
+       "r": 4.5,
+       "y": 7
+      },
+      {
+       "r": 6,
+       "y": 12,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g2p",
+    "holes": [
+     "top"
+    ]
+   },
+   {
+    "id": "o2r",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 6.4,
+       "y": -11.4,
+       "smooth": 0
+      },
+      {
+       "r": 9.5,
+       "y": -7
+      },
+      {
+       "r": 9,
+       "y": 0
+      },
+      {
+       "r": 5,
+       "y": 7
+      },
+      {
+       "r": 6.3,
+       "y": 11.2,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.4,
+     "d": 1.4,
+     "cap": "round"
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "solid",
+    "groupId": "g2p",
+    "holes": [],
+    "sym": {
+     "kind": "radial",
+     "ref": "o2q",
+     "axis": "y",
+     "count": 8
+    }
+   },
+   {
+    "id": "o2s",
+    "name": "Torus",
+    "type": "torus",
+    "params": {
+     "R": 5.2,
+     "r": 0.9
+    },
+    "transform": {
+     "position": [
+      0,
+      6.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g2p",
+    "holes": []
+   },
+   {
+    "id": "o2t",
+    "name": "Prism",
+    "type": "prism",
+    "params": {
+     "n": 6,
+     "r": 6.6,
+     "r2": 6.2,
+     "h": 1.6
+    },
+    "transform": {
+     "position": [
+      0,
+      -12.4,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g2p",
+    "holes": []
+   },
+   {
+    "id": "o2u",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 3,
+     "y": 4,
+     "z": 6
+    },
+    "transform": {
+     "position": [
+      0,
+      -1,
+      8.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g2p",
+    "holes": []
+   },
+   {
+    "id": "o2v",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 1.4
+    },
+    "transform": {
+     "position": [
+      0,
+      -1,
+      9.2
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g2p",
+    "holes": []
+   },
+   {
+    "id": "o2x",
+    "name": "Cone",
+    "type": "cone",
+    "params": {
+     "r": 2.2,
+     "h": 7
+    },
+    "transform": {
+     "position": [
+      -9,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      55
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g2w",
+    "holes": []
+   },
+   {
+    "id": "o2y",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": -8,
+       "y": 5,
+       "smooth": 0
+      },
+      {
+       "r": -11,
+       "y": 7
+      },
+      {
+       "r": -14,
+       "y": 10,
+       "smooth": 0
+      }
+     ],
+     "section": "custom",
+     "w": 2.2,
+     "d": 1.6,
+     "shape": [
+      {
+       "r": -1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 0.8,
+       "y": 0.6
+      },
+      {
+       "r": 0,
+       "y": 1.1
+      },
+      {
+       "r": -0.8,
+       "y": 0.6
+      }
+     ],
+     "lift": [
+      {
+       "r": 0,
+       "y": 0
+      },
+      {
+       "r": 0.5,
+       "y": 0.8
+      },
+      {
+       "r": 1,
+       "y": 0
+      }
+     ],
+     "join": "miter"
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g2w",
+    "holes": []
+   },
+   {
+    "id": "o2z",
+    "name": "Cylinder",
+    "type": "cylinder",
+    "params": {
+     "r": 0.9,
+     "h": 6
+    },
+    "transform": {
+     "position": [
+      7.5,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      90
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g2o",
+    "holes": []
+   },
+   {
+    "id": "o30",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 8,
+       "y": 6,
+       "smooth": 0
+      },
+      {
+       "r": 12,
+       "y": 5
+      },
+      {
+       "r": 13,
+       "y": 0
+      },
+      {
+       "r": 11,
+       "y": -5
+      },
+      {
+       "r": 8.5,
+       "y": -6,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.8,
+     "d": 1.8
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g2o",
+    "holes": []
+   },
+   {
+    "id": "o32",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 8,
+       "y": -0.6,
+       "smooth": 0
+      },
+      {
+       "r": 11.5,
+       "y": -0.4
+      },
+      {
+       "r": 11.5,
+       "y": 0.4
+      },
+      {
+       "r": 8,
+       "y": 0.6,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g31",
+    "holes": []
+   },
+   {
+    "id": "o33",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 16,
+     "y": 6,
+     "z": 26
+    },
+    "transform": {
+     "position": [
+      12.5,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g31",
+    "holes": [],
+    "sym": {
+     "kind": "mirror",
+     "ref": null,
+     "axis": "x",
+     "count": 2
+    }
+   },
+   {
+    "id": "o34",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 16,
+     "y": 6,
+     "z": 16
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g31",
+    "holes": []
+   },
+   {
+    "id": "o36",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 40,
+     "y": 27,
+     "z": 40
+    },
+    "transform": {
+     "position": [
+      0,
+      0.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g35",
+    "holes": []
+   },
+   {
+    "id": "o39",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 6,
+       "y": -12,
+       "smooth": 0
+      },
+      {
+       "r": 9,
+       "y": -7
+      },
+      {
+       "r": 8.5,
+       "y": 0
+      },
+      {
+       "r": 4.5,
+       "y": 7
+      },
+      {
+       "r": 6,
+       "y": 12,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g38",
+    "holes": [
+     "top"
+    ]
+   },
+   {
+    "id": "o3a",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 6.4,
+       "y": -11.4,
+       "smooth": 0
+      },
+      {
+       "r": 9.5,
+       "y": -7
+      },
+      {
+       "r": 9,
+       "y": 0
+      },
+      {
+       "r": 5,
+       "y": 7
+      },
+      {
+       "r": 6.3,
+       "y": 11.2,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.4,
+     "d": 1.4,
+     "cap": "round"
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "solid",
+    "groupId": "g38",
+    "holes": [],
+    "sym": {
+     "kind": "radial",
+     "ref": "o39",
+     "axis": "y",
+     "count": 8
+    }
+   },
+   {
+    "id": "o3b",
+    "name": "Torus",
+    "type": "torus",
+    "params": {
+     "R": 5.2,
+     "r": 0.9
+    },
+    "transform": {
+     "position": [
+      0,
+      6.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g38",
+    "holes": []
+   },
+   {
+    "id": "o3c",
+    "name": "Prism",
+    "type": "prism",
+    "params": {
+     "n": 6,
+     "r": 6.6,
+     "r2": 6.2,
+     "h": 1.6
+    },
+    "transform": {
+     "position": [
+      0,
+      -12.4,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g38",
+    "holes": []
+   },
+   {
+    "id": "o3d",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 3,
+     "y": 4,
+     "z": 6
+    },
+    "transform": {
+     "position": [
+      0,
+      -1,
+      8.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g38",
+    "holes": []
+   },
+   {
+    "id": "o3e",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 1.4
+    },
+    "transform": {
+     "position": [
+      0,
+      -1,
+      9.2
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g38",
+    "holes": []
+   },
+   {
+    "id": "o3g",
+    "name": "Cone",
+    "type": "cone",
+    "params": {
+     "r": 2.2,
+     "h": 7
+    },
+    "transform": {
+     "position": [
+      -9,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      55
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g3f",
+    "holes": []
+   },
+   {
+    "id": "o3h",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": -8,
+       "y": 5,
+       "smooth": 0
+      },
+      {
+       "r": -11,
+       "y": 7
+      },
+      {
+       "r": -14,
+       "y": 10,
+       "smooth": 0
+      }
+     ],
+     "section": "custom",
+     "w": 2.2,
+     "d": 1.6,
+     "shape": [
+      {
+       "r": -1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 0.8,
+       "y": 0.6
+      },
+      {
+       "r": 0,
+       "y": 1.1
+      },
+      {
+       "r": -0.8,
+       "y": 0.6
+      }
+     ],
+     "lift": [
+      {
+       "r": 0,
+       "y": 0
+      },
+      {
+       "r": 0.5,
+       "y": 0.8
+      },
+      {
+       "r": 1,
+       "y": 0
+      }
+     ],
+     "join": "miter"
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g3f",
+    "holes": []
+   },
+   {
+    "id": "o3i",
+    "name": "Cylinder",
+    "type": "cylinder",
+    "params": {
+     "r": 0.9,
+     "h": 6
+    },
+    "transform": {
+     "position": [
+      7.5,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      90
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g37",
+    "holes": []
+   },
+   {
+    "id": "o3j",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 8,
+       "y": 6,
+       "smooth": 0
+      },
+      {
+       "r": 12,
+       "y": 5
+      },
+      {
+       "r": 13,
+       "y": 0
+      },
+      {
+       "r": 11,
+       "y": -5
+      },
+      {
+       "r": 8.5,
+       "y": -6,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.8,
+     "d": 1.8
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g37",
+    "holes": []
+   },
+   {
+    "id": "o3l",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 8,
+       "y": -0.6,
+       "smooth": 0
+      },
+      {
+       "r": 11.5,
+       "y": -0.4
+      },
+      {
+       "r": 11.5,
+       "y": 0.4
+      },
+      {
+       "r": 8,
+       "y": 0.6,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g3k",
+    "holes": []
+   },
+   {
+    "id": "o3m",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 16,
+     "y": 6,
+     "z": 26
+    },
+    "transform": {
+     "position": [
+      12.5,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g3k",
+    "holes": [],
+    "sym": {
+     "kind": "mirror",
+     "ref": null,
+     "axis": "x",
+     "count": 2
+    }
+   },
+   {
+    "id": "o3n",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 16,
+     "y": 6,
+     "z": 16
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g3k",
+    "holes": []
+   },
+   {
+    "id": "o3p",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 40,
+     "y": 27,
+     "z": 40
+    },
+    "transform": {
+     "position": [
+      0,
+      0.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g3o",
+    "holes": []
+   },
+   {
+    "id": "o3s",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 6,
+       "y": -12,
+       "smooth": 0
+      },
+      {
+       "r": 9,
+       "y": -7
+      },
+      {
+       "r": 8.5,
+       "y": 0
+      },
+      {
+       "r": 4.5,
+       "y": 7
+      },
+      {
+       "r": 6,
+       "y": 12,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g3r",
+    "holes": [
+     "top"
+    ]
+   },
+   {
+    "id": "o3t",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 6.4,
+       "y": -11.4,
+       "smooth": 0
+      },
+      {
+       "r": 9.5,
+       "y": -7
+      },
+      {
+       "r": 9,
+       "y": 0
+      },
+      {
+       "r": 5,
+       "y": 7
+      },
+      {
+       "r": 6.3,
+       "y": 11.2,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.4,
+     "d": 1.4,
+     "cap": "round"
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "solid",
+    "groupId": "g3r",
+    "holes": [],
+    "sym": {
+     "kind": "radial",
+     "ref": "o3s",
+     "axis": "y",
+     "count": 8
+    }
+   },
+   {
+    "id": "o3u",
+    "name": "Torus",
+    "type": "torus",
+    "params": {
+     "R": 5.2,
+     "r": 0.9
+    },
+    "transform": {
+     "position": [
+      0,
+      6.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g3r",
+    "holes": []
+   },
+   {
+    "id": "o3v",
+    "name": "Prism",
+    "type": "prism",
+    "params": {
+     "n": 6,
+     "r": 6.6,
+     "r2": 6.2,
+     "h": 1.6
+    },
+    "transform": {
+     "position": [
+      0,
+      -12.4,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g3r",
+    "holes": []
+   },
+   {
+    "id": "o3w",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 3,
+     "y": 4,
+     "z": 6
+    },
+    "transform": {
+     "position": [
+      0,
+      -1,
+      8.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g3r",
+    "holes": []
+   },
+   {
+    "id": "o3x",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 1.4
+    },
+    "transform": {
+     "position": [
+      0,
+      -1,
+      9.2
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g3r",
+    "holes": []
+   },
+   {
+    "id": "o3z",
+    "name": "Cone",
+    "type": "cone",
+    "params": {
+     "r": 2.2,
+     "h": 7
+    },
+    "transform": {
+     "position": [
+      -9,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      55
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g3y",
+    "holes": []
+   },
+   {
+    "id": "o40",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": -8,
+       "y": 5,
+       "smooth": 0
+      },
+      {
+       "r": -11,
+       "y": 7
+      },
+      {
+       "r": -14,
+       "y": 10,
+       "smooth": 0
+      }
+     ],
+     "section": "custom",
+     "w": 2.2,
+     "d": 1.6,
+     "shape": [
+      {
+       "r": -1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 0.8,
+       "y": 0.6
+      },
+      {
+       "r": 0,
+       "y": 1.1
+      },
+      {
+       "r": -0.8,
+       "y": 0.6
+      }
+     ],
+     "lift": [
+      {
+       "r": 0,
+       "y": 0
+      },
+      {
+       "r": 0.5,
+       "y": 0.8
+      },
+      {
+       "r": 1,
+       "y": 0
+      }
+     ],
+     "join": "miter"
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g3y",
+    "holes": []
+   },
+   {
+    "id": "o41",
+    "name": "Cylinder",
+    "type": "cylinder",
+    "params": {
+     "r": 0.9,
+     "h": 6
+    },
+    "transform": {
+     "position": [
+      7.5,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      90
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g3q",
+    "holes": []
+   },
+   {
+    "id": "o42",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 8,
+       "y": 6,
+       "smooth": 0
+      },
+      {
+       "r": 12,
+       "y": 5
+      },
+      {
+       "r": 13,
+       "y": 0
+      },
+      {
+       "r": 11,
+       "y": -5
+      },
+      {
+       "r": 8.5,
+       "y": -6,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.8,
+     "d": 1.8
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g3q",
+    "holes": []
+   },
+   {
+    "id": "o44",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 8,
+       "y": -0.6,
+       "smooth": 0
+      },
+      {
+       "r": 11.5,
+       "y": -0.4
+      },
+      {
+       "r": 11.5,
+       "y": 0.4
+      },
+      {
+       "r": 8,
+       "y": 0.6,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g43",
+    "holes": []
+   },
+   {
+    "id": "o45",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 16,
+     "y": 6,
+     "z": 26
+    },
+    "transform": {
+     "position": [
+      12.5,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g43",
+    "holes": [],
+    "sym": {
+     "kind": "mirror",
+     "ref": null,
+     "axis": "x",
+     "count": 2
+    }
+   },
+   {
+    "id": "o46",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 16,
+     "y": 6,
+     "z": 16
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g43",
+    "holes": []
+   },
+   {
+    "id": "o48",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 40,
+     "y": 27,
+     "z": 40
+    },
+    "transform": {
+     "position": [
+      0,
+      0.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g47",
+    "holes": []
+   },
+   {
+    "id": "o4b",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 6,
+       "y": -12,
+       "smooth": 0
+      },
+      {
+       "r": 9,
+       "y": -7
+      },
+      {
+       "r": 8.5,
+       "y": 0
+      },
+      {
+       "r": 4.5,
+       "y": 7
+      },
+      {
+       "r": 6,
+       "y": 12,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g4a",
+    "holes": [
+     "top"
+    ]
+   },
+   {
+    "id": "o4c",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 6.4,
+       "y": -11.4,
+       "smooth": 0
+      },
+      {
+       "r": 9.5,
+       "y": -7
+      },
+      {
+       "r": 9,
+       "y": 0
+      },
+      {
+       "r": 5,
+       "y": 7
+      },
+      {
+       "r": 6.3,
+       "y": 11.2,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.4,
+     "d": 1.4,
+     "cap": "round"
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "solid",
+    "groupId": "g4a",
+    "holes": [],
+    "sym": {
+     "kind": "radial",
+     "ref": "o4b",
+     "axis": "y",
+     "count": 8
+    }
+   },
+   {
+    "id": "o4d",
+    "name": "Torus",
+    "type": "torus",
+    "params": {
+     "R": 5.2,
+     "r": 0.9
+    },
+    "transform": {
+     "position": [
+      0,
+      6.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g4a",
+    "holes": []
+   },
+   {
+    "id": "o4e",
+    "name": "Prism",
+    "type": "prism",
+    "params": {
+     "n": 6,
+     "r": 6.6,
+     "r2": 6.2,
+     "h": 1.6
+    },
+    "transform": {
+     "position": [
+      0,
+      -12.4,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g4a",
+    "holes": []
+   },
+   {
+    "id": "o4f",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 3,
+     "y": 4,
+     "z": 6
+    },
+    "transform": {
+     "position": [
+      0,
+      -1,
+      8.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g4a",
+    "holes": []
+   },
+   {
+    "id": "o4g",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 1.4
+    },
+    "transform": {
+     "position": [
+      0,
+      -1,
+      9.2
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g4a",
+    "holes": []
+   },
+   {
+    "id": "o4i",
+    "name": "Cone",
+    "type": "cone",
+    "params": {
+     "r": 2.2,
+     "h": 7
+    },
+    "transform": {
+     "position": [
+      -9,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      55
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g4h",
+    "holes": []
+   },
+   {
+    "id": "o4j",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": -8,
+       "y": 5,
+       "smooth": 0
+      },
+      {
+       "r": -11,
+       "y": 7
+      },
+      {
+       "r": -14,
+       "y": 10,
+       "smooth": 0
+      }
+     ],
+     "section": "custom",
+     "w": 2.2,
+     "d": 1.6,
+     "shape": [
+      {
+       "r": -1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 0.8,
+       "y": 0.6
+      },
+      {
+       "r": 0,
+       "y": 1.1
+      },
+      {
+       "r": -0.8,
+       "y": 0.6
+      }
+     ],
+     "lift": [
+      {
+       "r": 0,
+       "y": 0
+      },
+      {
+       "r": 0.5,
+       "y": 0.8
+      },
+      {
+       "r": 1,
+       "y": 0
+      }
+     ],
+     "join": "miter"
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g4h",
+    "holes": []
+   },
+   {
+    "id": "o4k",
+    "name": "Cylinder",
+    "type": "cylinder",
+    "params": {
+     "r": 0.9,
+     "h": 6
+    },
+    "transform": {
+     "position": [
+      7.5,
+      3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      90
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g49",
+    "holes": []
+   },
+   {
+    "id": "o4l",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xy",
+     "path": [
+      {
+       "r": 8,
+       "y": 6,
+       "smooth": 0
+      },
+      {
+       "r": 12,
+       "y": 5
+      },
+      {
+       "r": 13,
+       "y": 0
+      },
+      {
+       "r": 11,
+       "y": -5
+      },
+      {
+       "r": 8.5,
+       "y": -6,
+       "smooth": 0
+      }
+     ],
+     "section": "circle",
+     "w": 1.8,
+     "d": 1.8
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g49",
+    "holes": []
+   },
+   {
+    "id": "o4n",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 8,
+       "y": -0.6,
+       "smooth": 0
+      },
+      {
+       "r": 11.5,
+       "y": -0.4
+      },
+      {
+       "r": 11.5,
+       "y": 0.4
+      },
+      {
+       "r": 8,
+       "y": 0.6,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g4m",
+    "holes": []
+   },
+   {
+    "id": "o4o",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 16,
+     "y": 6,
+     "z": 26
+    },
+    "transform": {
+     "position": [
+      12.5,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g4m",
+    "holes": [],
+    "sym": {
+     "kind": "mirror",
+     "ref": null,
+     "axis": "x",
+     "count": 2
+    }
+   },
+   {
+    "id": "o4p",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 16,
+     "y": 6,
+     "z": 16
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g4m",
+    "holes": []
+   },
+   {
+    "id": "o4r",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 40,
+     "y": 27,
+     "z": 40
+    },
+    "transform": {
+     "position": [
+      0,
+      0.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g4q",
+    "holes": []
+   }
+  ],
+  "pins": [],
+  "shell": {
+   "enabled": true
+  },
+  "kernel": "sdf",
+  "sdfExactDistance": true,
+  "meshMethod": "offset",
+  "root": [
+   "g1",
+   "gk",
+   "g13",
+   "g1m",
+   "g25",
+   "g2o",
+   "g37",
+   "g3q",
+   "g49"
+  ]
+ }
+}

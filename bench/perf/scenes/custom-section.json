@@ -1,0 +1,607 @@
+{
+ "name": "custom-section",
+ "group": "stress",
+ "note": "Sweeps with polygon sections, miters and sharp corners",
+ "doc": {
+  "version": 2,
+  "groups": [
+   {
+    "id": "g1",
+    "name": "Sweeps",
+    "thickness": 0.6,
+    "children": [
+     "o2",
+     "o3",
+     "o4",
+     "o5",
+     "o6",
+     "o7"
+    ],
+    "op": "add",
+    "shell": false,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.5
+   }
+  ],
+  "objects": [
+   {
+    "id": "o2",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xz",
+     "path": [
+      {
+       "r": -8,
+       "y": -8,
+       "smooth": 0
+      },
+      {
+       "r": 8,
+       "y": -8,
+       "smooth": 0
+      },
+      {
+       "r": 8,
+       "y": 8,
+       "smooth": 0
+      },
+      {
+       "r": -8,
+       "y": 8,
+       "smooth": 0
+      }
+     ],
+     "closed": true,
+     "section": "custom",
+     "w": 2,
+     "d": 2,
+     "join": "miter",
+     "shape": [
+      {
+       "r": -1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": 0.2,
+       "smooth": 0
+      },
+      {
+       "r": 0,
+       "y": 1,
+       "smooth": 0
+      },
+      {
+       "r": -1,
+       "y": 0.2,
+       "smooth": 0
+      }
+     ],
+     "lift": [
+      {
+       "r": 0,
+       "y": 0
+      },
+      {
+       "r": 1,
+       "y": 6
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      -8,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o3",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xz",
+     "path": [
+      {
+       "r": -8,
+       "y": -8,
+       "smooth": 0
+      },
+      {
+       "r": 8,
+       "y": -8,
+       "smooth": 0
+      },
+      {
+       "r": 8,
+       "y": 8,
+       "smooth": 0
+      },
+      {
+       "r": -8,
+       "y": 8,
+       "smooth": 0
+      }
+     ],
+     "closed": true,
+     "section": "custom",
+     "w": 2,
+     "d": 2,
+     "join": "miter",
+     "shape": [
+      {
+       "r": -1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": 0.2,
+       "smooth": 0
+      },
+      {
+       "r": 0,
+       "y": 1,
+       "smooth": 0
+      },
+      {
+       "r": -1,
+       "y": 0.2,
+       "smooth": 0
+      }
+     ],
+     "lift": [
+      {
+       "r": 0,
+       "y": 0
+      },
+      {
+       "r": 1,
+       "y": 6
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      -5,
+      0
+     ],
+     "rotation": [
+      0,
+      15,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o4",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xz",
+     "path": [
+      {
+       "r": -8,
+       "y": -8,
+       "smooth": 0
+      },
+      {
+       "r": 8,
+       "y": -8,
+       "smooth": 0
+      },
+      {
+       "r": 8,
+       "y": 8,
+       "smooth": 0
+      },
+      {
+       "r": -8,
+       "y": 8,
+       "smooth": 0
+      }
+     ],
+     "closed": true,
+     "section": "custom",
+     "w": 2,
+     "d": 2,
+     "join": "miter",
+     "shape": [
+      {
+       "r": -1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": 0.2,
+       "smooth": 0
+      },
+      {
+       "r": 0,
+       "y": 1,
+       "smooth": 0
+      },
+      {
+       "r": -1,
+       "y": 0.2,
+       "smooth": 0
+      }
+     ],
+     "lift": [
+      {
+       "r": 0,
+       "y": 0
+      },
+      {
+       "r": 1,
+       "y": 6
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      -2,
+      0
+     ],
+     "rotation": [
+      0,
+      30,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o5",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xz",
+     "path": [
+      {
+       "r": -8,
+       "y": -8,
+       "smooth": 0
+      },
+      {
+       "r": 8,
+       "y": -8,
+       "smooth": 0
+      },
+      {
+       "r": 8,
+       "y": 8,
+       "smooth": 0
+      },
+      {
+       "r": -8,
+       "y": 8,
+       "smooth": 0
+      }
+     ],
+     "closed": true,
+     "section": "custom",
+     "w": 2,
+     "d": 2,
+     "join": "miter",
+     "shape": [
+      {
+       "r": -1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": 0.2,
+       "smooth": 0
+      },
+      {
+       "r": 0,
+       "y": 1,
+       "smooth": 0
+      },
+      {
+       "r": -1,
+       "y": 0.2,
+       "smooth": 0
+      }
+     ],
+     "lift": [
+      {
+       "r": 0,
+       "y": 0
+      },
+      {
+       "r": 1,
+       "y": 6
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      1,
+      0
+     ],
+     "rotation": [
+      0,
+      45,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o6",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xz",
+     "path": [
+      {
+       "r": -8,
+       "y": -8,
+       "smooth": 0
+      },
+      {
+       "r": 8,
+       "y": -8,
+       "smooth": 0
+      },
+      {
+       "r": 8,
+       "y": 8,
+       "smooth": 0
+      },
+      {
+       "r": -8,
+       "y": 8,
+       "smooth": 0
+      }
+     ],
+     "closed": true,
+     "section": "custom",
+     "w": 2,
+     "d": 2,
+     "join": "miter",
+     "shape": [
+      {
+       "r": -1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": 0.2,
+       "smooth": 0
+      },
+      {
+       "r": 0,
+       "y": 1,
+       "smooth": 0
+      },
+      {
+       "r": -1,
+       "y": 0.2,
+       "smooth": 0
+      }
+     ],
+     "lift": [
+      {
+       "r": 0,
+       "y": 0
+      },
+      {
+       "r": 1,
+       "y": 6
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      4,
+      0
+     ],
+     "rotation": [
+      0,
+      60,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o7",
+    "name": "Sweep",
+    "type": "sweep",
+    "params": {
+     "plane": "xz",
+     "path": [
+      {
+       "r": -8,
+       "y": -8,
+       "smooth": 0
+      },
+      {
+       "r": 8,
+       "y": -8,
+       "smooth": 0
+      },
+      {
+       "r": 8,
+       "y": 8,
+       "smooth": 0
+      },
+      {
+       "r": -8,
+       "y": 8,
+       "smooth": 0
+      }
+     ],
+     "closed": true,
+     "section": "custom",
+     "w": 2,
+     "d": 2,
+     "join": "miter",
+     "shape": [
+      {
+       "r": -1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": -1,
+       "smooth": 0
+      },
+      {
+       "r": 1,
+       "y": 0.2,
+       "smooth": 0
+      },
+      {
+       "r": 0,
+       "y": 1,
+       "smooth": 0
+      },
+      {
+       "r": -1,
+       "y": 0.2,
+       "smooth": 0
+      }
+     ],
+     "lift": [
+      {
+       "r": 0,
+       "y": 0
+      },
+      {
+       "r": 1,
+       "y": 6
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      7,
+      0
+     ],
+     "rotation": [
+      0,
+      75,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   }
+  ],
+  "pins": [],
+  "shell": {
+   "enabled": true
+  },
+  "kernel": "sdf",
+  "sdfExactDistance": true,
+  "meshMethod": "offset",
+  "root": [
+   "g1"
+  ]
+ }
+}

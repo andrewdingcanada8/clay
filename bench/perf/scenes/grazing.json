@@ -1,0 +1,220 @@
+{
+ "name": "grazing",
+ "group": "stress",
+ "note": "Thin walls and flat faces seen edge-on (long marches)",
+ "doc": {
+  "version": 2,
+  "groups": [
+   {
+    "id": "g1",
+    "name": "Plates",
+    "thickness": 0.3,
+    "children": [
+     "o2",
+     "o3",
+     "o4",
+     "o5",
+     "o6"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    }
+   }
+  ],
+  "objects": [
+   {
+    "id": "o2",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 30,
+     "y": 0.8,
+     "z": 30
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": [
+     "py"
+    ]
+   },
+   {
+    "id": "o3",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 30,
+     "y": 0.8,
+     "z": 30
+    },
+    "transform": {
+     "position": [
+      0,
+      2.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": [
+     "py"
+    ]
+   },
+   {
+    "id": "o4",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 30,
+     "y": 0.8,
+     "z": 30
+    },
+    "transform": {
+     "position": [
+      0,
+      5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": [
+     "py"
+    ]
+   },
+   {
+    "id": "o5",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 30,
+     "y": 0.8,
+     "z": 30
+    },
+    "transform": {
+     "position": [
+      0,
+      7.5,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": [
+     "py"
+    ]
+   },
+   {
+    "id": "o6",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 30,
+     "y": 0.8,
+     "z": 30
+    },
+    "transform": {
+     "position": [
+      0,
+      10,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": [
+     "py"
+    ]
+   }
+  ],
+  "pins": [],
+  "shell": {
+   "enabled": true
+  },
+  "kernel": "sdf",
+  "sdfExactDistance": true,
+  "meshMethod": "offset",
+  "root": [
+   "g1"
+  ]
+ },
+ "view": {
+  "dir": [
+   1,
+   0.06,
+   0.25
+  ]
+ }
+}

@@ -1,0 +1,950 @@
+{
+ "name": "csg-chain",
+ "group": "stress",
+ "note": "30 alternating add and cut steps along a bar",
+ "doc": {
+  "version": 2,
+  "groups": [
+   {
+    "id": "g1",
+    "name": "Chain",
+    "thickness": 0.6,
+    "children": [
+     "o2",
+     "o3",
+     "o4",
+     "o5",
+     "o6",
+     "o7",
+     "o8",
+     "o9",
+     "oa",
+     "ob",
+     "oc",
+     "od",
+     "oe",
+     "of",
+     "og",
+     "oh",
+     "oi",
+     "oj",
+     "ok",
+     "ol",
+     "om",
+     "on",
+     "oo",
+     "op",
+     "oq",
+     "or",
+     "os",
+     "ot",
+     "ou",
+     "ov",
+     "ow"
+    ],
+    "op": "add",
+    "shell": false,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.4
+   }
+  ],
+  "objects": [
+   {
+    "id": "o2",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 40,
+     "y": 6,
+     "z": 6
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o3",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.2
+    },
+    "transform": {
+     "position": [
+      -19,
+      -2.5,
+      -1.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o4",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.6
+    },
+    "transform": {
+     "position": [
+      -17.7,
+      2.5,
+      -0.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o5",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 3
+    },
+    "transform": {
+     "position": [
+      -16.4,
+      -2.5,
+      0.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o6",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.2
+    },
+    "transform": {
+     "position": [
+      -15.1,
+      2.5,
+      1.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o7",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.6
+    },
+    "transform": {
+     "position": [
+      -13.8,
+      -2.5,
+      -1.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o8",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 3
+    },
+    "transform": {
+     "position": [
+      -12.5,
+      2.5,
+      -0.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o9",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.2
+    },
+    "transform": {
+     "position": [
+      -11.2,
+      -2.5,
+      0.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "oa",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.6
+    },
+    "transform": {
+     "position": [
+      -9.9,
+      2.5,
+      1.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "ob",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 3
+    },
+    "transform": {
+     "position": [
+      -8.6,
+      -2.5,
+      -1.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "oc",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.2
+    },
+    "transform": {
+     "position": [
+      -7.299999999999999,
+      2.5,
+      -0.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "od",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.6
+    },
+    "transform": {
+     "position": [
+      -6,
+      -2.5,
+      0.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "oe",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 3
+    },
+    "transform": {
+     "position": [
+      -4.699999999999999,
+      2.5,
+      1.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "of",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.2
+    },
+    "transform": {
+     "position": [
+      -3.3999999999999986,
+      -2.5,
+      -1.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "og",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.6
+    },
+    "transform": {
+     "position": [
+      -2.099999999999998,
+      2.5,
+      -0.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "oh",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 3
+    },
+    "transform": {
+     "position": [
+      -0.8000000000000007,
+      -2.5,
+      0.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "oi",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.2
+    },
+    "transform": {
+     "position": [
+      0.5,
+      2.5,
+      1.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "oj",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.6
+    },
+    "transform": {
+     "position": [
+      1.8000000000000007,
+      -2.5,
+      -1.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "ok",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 3
+    },
+    "transform": {
+     "position": [
+      3.1000000000000014,
+      2.5,
+      -0.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "ol",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.2
+    },
+    "transform": {
+     "position": [
+      4.400000000000002,
+      -2.5,
+      0.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "om",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.6
+    },
+    "transform": {
+     "position": [
+      5.699999999999999,
+      2.5,
+      1.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "on",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 3
+    },
+    "transform": {
+     "position": [
+      7,
+      -2.5,
+      -1.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "oo",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.2
+    },
+    "transform": {
+     "position": [
+      8.3,
+      2.5,
+      -0.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "op",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.6
+    },
+    "transform": {
+     "position": [
+      9.600000000000001,
+      -2.5,
+      0.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "oq",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 3
+    },
+    "transform": {
+     "position": [
+      10.900000000000002,
+      2.5,
+      1.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "or",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.2
+    },
+    "transform": {
+     "position": [
+      12.200000000000003,
+      -2.5,
+      -1.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "os",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.6
+    },
+    "transform": {
+     "position": [
+      13.5,
+      2.5,
+      -0.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "ot",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 3
+    },
+    "transform": {
+     "position": [
+      14.800000000000004,
+      -2.5,
+      0.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "ou",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.2
+    },
+    "transform": {
+     "position": [
+      16.1,
+      2.5,
+      1.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "ov",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.6
+    },
+    "transform": {
+     "position": [
+      17.4,
+      -2.5,
+      -1.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "ow",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 3
+    },
+    "transform": {
+     "position": [
+      18.700000000000003,
+      2.5,
+      -0.5
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "g1",
+    "holes": []
+   }
+  ],
+  "pins": [],
+  "shell": {
+   "enabled": true
+  },
+  "kernel": "sdf",
+  "sdfExactDistance": true,
+  "meshMethod": "offset",
+  "root": [
+   "g1"
+  ]
+ }
+}

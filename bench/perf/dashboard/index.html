@@ -1,0 +1,256 @@
+<title>SDF Hill Climb</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a lab notebook for one long experiment. Sticky tab rail on top, one view
+   at a time; numbers in mono, charts drawn to scale in SVG from data.json. */
+:root {
+  --bg: #f2f1ee;        /* bench paper */
+  --panel: #ffffff;
+  --line: #dddad3;
+  --fg: #1f1d1a;
+  --muted: #6b665e;
+  --accent: #0e6e8c;    /* the ratchet: kept wins */
+  --accent-soft: #d6ebf2;
+  --good: #2e7d32;
+  --bad: #b3261e;
+  --warn: #a15c00;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141618; --panel: #1c1f22; --line: #30353a; --fg: #e8e6e1; --muted: #9da3a8; --accent: #5ab8d6; --accent-soft: #17323d; --good: #6cc070; --bad: #f08a80; --warn: #e0a24a; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg: #141618; --panel: #1c1f22; --line: #30353a; --fg: #e8e6e1; --muted: #9da3a8; --accent: #5ab8d6; --accent-soft: #17323d; --good: #6cc070; --bad: #f08a80; --warn: #e0a24a; color-scheme: dark; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.wrap { max-width: 1100px; margin: 0 auto; padding-block: 18px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+h1 { margin: 0; font: 800 26px/1.1 var(--display); letter-spacing: -0.02em; }
+.sub { color: var(--muted); font-size: 13px; }
+nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 6px; display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); }
+nav a { font: 600 13px var(--display); color: var(--muted); text-decoration: none; padding: 7px 11px; border-radius: 8px; white-space: nowrap; }
+nav a[aria-current="page"] { color: var(--fg); background: var(--panel); box-shadow: inset 0 -2px 0 var(--accent); }
+nav a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h2 { margin: 0; font: 700 18px var(--display); letter-spacing: -0.01em; text-wrap: balance; }
+h3 { margin: 0; font: 600 14px var(--display); }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 10px; min-width: 0; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 10px; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 2px; }
+.tile .k { font: 500 11px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.tile .v { font: 700 28px var(--display); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.tile .n { font-size: 12px; color: var(--muted); }
+.big { color: var(--accent); }
+.mono { font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.tw { overflow-x: auto; min-width: 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 11px var(--mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.pill { display: inline-block; font: 600 11px var(--mono); padding: 2px 7px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.kept, .confirmed { color: var(--good); } .rejected, .refuted { color: var(--bad); } .testing { color: var(--warn); } .untested { color: var(--muted); } .info { color: var(--accent); }
+.chart { width: 100%; height: auto; display: block; }
+.chart text { fill: var(--muted); font: 11px var(--mono); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -2px; }
+.stills { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.still { display: grid; gap: 6px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.pair img { width: 100%; max-width: 100%; border-radius: 6px; background: #000; }
+.cap { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+p { margin: 0; max-width: 72ch; }
+.muted { color: var(--muted); }
+.empty { color: var(--muted); font-style: italic; }
+.filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.filters button { font: 600 12px var(--display); color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 5px 10px; cursor: pointer; }
+.filters button[aria-pressed="true"] { color: var(--fg); border-color: var(--accent); }
+a { color: var(--accent); }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>SDF Hill Climb</h1>
+    <span class="sub" id="updated">Loading results…</span>
+  </header>
+  <nav aria-label="Views">
+    <a href="#overview" data-v="overview">Overview</a>
+    <a href="#graph" data-v="graph">Graph</a>
+    <a href="#scaling" data-v="scaling">Scaling</a>
+    <a href="#scenes" data-v="scenes">Scenes</a>
+    <a href="#journal" data-v="journal">Journal</a>
+    <a href="#hypotheses" data-v="hypotheses">Hypotheses</a>
+    <a href="#research" data-v="research">Research</a>
+    <a href="#method" data-v="method">Method</a>
+  </nav>
+  <main id="view"><p class="empty">Loading data.json…</p></main>
+</div>
+
+<script>
+let D = null;
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = (v, d = 2) => (v == null || isNaN(v) ? '–' : (+v).toFixed(d));
+const when = (t) => (t ? new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+// ---------- a small line chart in SVG (log or linear y), drawn to one scale
+function chart({ series, logY = false, logX = false, yLabel = '', xLabel = '', h = 260, refY = null, xFmt = (v) => v, yFmt = (v) => v }) {
+  const W = 760, H = h, L = 58, R = 16, T = 14, B = 34;
+  const pts = series.flatMap((s) => s.points);
+  if (!pts.length) return '<p class="empty">No points yet.</p>';
+  const fx = logX ? Math.log10 : (v) => v, fy = logY ? Math.log10 : (v) => v;
+  let x0 = Math.min(...pts.map((p) => fx(p[0]))), x1 = Math.max(...pts.map((p) => fx(p[0])));
+  let y0 = Math.min(...pts.map((p) => fy(p[1]))), y1 = Math.max(...pts.map((p) => fy(p[1])));
+  if (refY != null) { y0 = Math.min(y0, fy(refY)); y1 = Math.max(y1, fy(refY)); }
+  if (x1 === x0) { x0 -= 1; x1 += 1; }
+  if (y1 === y0) { y0 -= 0.5; y1 += 0.5; }
+  const pad = (y1 - y0) * 0.08; y0 -= pad; y1 += pad;
+  const sx = (v) => L + ((fx(v) - x0) / (x1 - x0)) * (W - L - R), sy = (v) => T + (1 - (fy(v) - y0) / (y1 - y0)) * (H - T - B);
+  // ticks: decades on log axes, 5 even steps otherwise
+  const ticks = (a, b, log) => {
+    if (log) { const out = []; for (let e = Math.floor(a); e <= Math.ceil(b); e++) for (const m of [1, 2, 5]) { const v = m * 10 ** e; if (Math.log10(v) >= a && Math.log10(v) <= b) out.push(v); } return out; }
+    return Array.from({ length: 6 }, (_, i) => a + ((b - a) * i) / 5);
+  };
+  let g = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(yLabel)} against ${esc(xLabel)}">`;
+  for (const v of ticks(y0, y1, logY)) { const y = sy(v); g += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="${css('--line')}" stroke-width="1"/><text x="${L - 6}" y="${y + 4}" text-anchor="end">${esc(yFmt(v))}</text>`; }
+  for (const v of ticks(x0, x1, logX)) { const x = sx(v); g += `<text x="${x}" y="${H - 12}" text-anchor="middle">${esc(xFmt(v))}</text>`; }
+  if (refY != null) { const y = sy(refY); g += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="${css('--bad')}" stroke-dasharray="5 4" stroke-width="1.2"/>`; }
+  for (const s of series) {
+    const p = s.points.map((q) => `${sx(q[0])},${sy(q[1])}`).join(' ');
+    if (s.line !== false && s.points.length > 1) g += `<polyline points="${p}" fill="none" stroke="${s.color}" stroke-width="2.2" stroke-linejoin="round"/>`;
+    for (const q of s.points) g += `<circle cx="${sx(q[0])}" cy="${sy(q[1])}" r="${q[2]?.r ?? 3.5}" fill="${q[2]?.hollow ? css('--panel') : s.color}" stroke="${s.color}" stroke-width="1.5"><title>${esc(q[2]?.title ?? '')}</title></circle>`;
+  }
+  g += `<text x="${L}" y="${T - 2}" text-anchor="start">${esc(yLabel)}</text><text x="${W - R}" y="${H - 1}" text-anchor="end">${esc(xLabel)}</text></svg>`;
+  return g;
+}
+
+// ---------- views
+const V = {};
+V.overview = () => {
+  const b = D.baseline, cur = D.runs.filter((r) => r.kept).at(-1) ?? null;
+  const x = cur && b ? cur.headlineFps / b.headlineFps : null;
+  const target = 10;
+  const last = D.journal.at(-1);
+  return `<section class="tiles">
+    <div class="tile"><span class="k">Speed-up, composite</span><span class="v big">${x ? x.toFixed(2) + '×' : '–'}</span><span class="n">target ${target}× · ${x ? Math.min(100, (Math.log(x) / Math.log(target)) * 100).toFixed(0) : 0}% of the way (log)</span></div>
+    <div class="tile"><span class="k">Composite now</span><span class="v">${cur ? fmt(cur.headlineFps, 3) : '–'}</span><span class="n">frames/s, headless · baseline ${b ? fmt(b.headlineFps, 3) : '–'}</span></div>
+    <div class="tile"><span class="k">Worst frame now</span><span class="v">${cur?.scenes?.composite ? fmt(cur.scenes.composite.msMax, 0) : '–'}</span><span class="n">ms, composite (guardrail is set on the phone)</span></div>
+    <div class="tile"><span class="k">Attempts</span><span class="v">${D.journal.length}</span><span class="n">${D.journal.filter((j) => j.verdict === 'kept').length} kept · ${D.journal.filter((j) => j.verdict === 'rejected').length} rejected</span></div>
+  </section>
+  <section class="card"><h2>Where it stands</h2><p>${esc(D.status ?? '')}</p>
+    ${last ? `<p class="muted">Last attempt: <b>${esc(last.title)}</b> — <span class="pill ${esc(last.verdict)}">${esc(last.verdict)}</span> ${esc(last.result ?? '')}</p>` : ''}</section>
+  <section class="card"><h2>Headline over time</h2>${graphHeadline(220)}</section>`;
+};
+function graphHeadline(h) {
+  const runs = D.runs.filter((r) => r.headlineFps);
+  const b = D.baseline?.headlineFps || 1;
+  const kept = runs.filter((r) => r.kept), rej = runs.filter((r) => !r.kept && !r.device), dev = runs.filter((r) => r.device);
+  const idx = new Map(runs.map((r, i) => [r, i + 1]));
+  const P = (r) => [idx.get(r), r.headlineFps / b, { title: `${r.label}: ${fmt(r.headlineFps / b)}× (${fmt(r.headlineFps, 3)} fps)`, hollow: !r.kept }];
+  return chart({
+    series: [
+      { color: css('--accent'), points: kept.map(P) },
+      { color: css('--muted'), points: rej.map(P), line: false },
+      { color: css('--warn'), points: dev.map(P), line: false },
+    ],
+    logY: true, refY: 10, h, yLabel: 'speed-up vs baseline (log), composite scene', xLabel: 'attempt #', yFmt: (v) => `${+v.toPrecision(2)}×`, xFmt: (v) => Math.round(v),
+  }) + `<div class="legend"><span><i style="background:${css('--accent')}"></i>kept (the ratchet)</span><span><i style="background:${css('--panel')};border:1.5px solid ${css('--muted')}"></i>rejected</span><span><i style="background:${css('--warn')}"></i>iPhone run</span><span><i style="background:${css('--bad')};height:2px"></i>10× target</span></div>`;
+}
+V.graph = () => {
+  const names = D.sceneList.map((s) => s.name);
+  const b = D.baseline?.scenes ?? {};
+  const kept = D.runs.filter((r) => r.kept);
+  const palette = ['--accent', '--good', '--warn', '--bad', '--muted'];
+  const per = names.filter((n) => b[n]).map((n, i) => ({ color: css(palette[i % palette.length]), name: n, points: kept.filter((r) => r.scenes?.[n]).map((r, k) => [k + 1, r.scenes[n].fps / b[n].fps, { title: `${n} · ${r.label}: ${fmt(r.scenes[n].fps / b[n].fps)}×` }]) }));
+  return `<section class="card"><h2>Headline: composite scene</h2>${graphHeadline(280)}</section>
+  <section class="card"><h2>Every scene, kept builds</h2><p class="muted">Speed-up of each scene over its own baseline. Stress scenes show which bottleneck a change moved.</p>
+    ${chart({ series: per, logY: true, refY: 10, h: 300, yLabel: 'speed-up (log)', xLabel: 'kept build #', yFmt: (v) => `${+v.toPrecision(2)}×`, xFmt: (v) => Math.round(v) })}
+    <div class="legend">${per.map((s) => `<span><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join('')}</div></section>
+  <section class="card"><h2>Cost drivers, composite</h2><p class="muted">Field evaluations per covered pixel (steps, normals, shading) and objects evaluated per field evaluation, kept apart so it's clear which one moved.</p>
+    ${chart({ series: [
+      { color: css('--accent'), points: kept.filter((r) => r.scenes?.composite).map((r, k) => [k + 1, r.scenes.composite.mapsPerPx, { title: `${r.label}: ${fmt(r.scenes.composite.mapsPerPx)} evaluations/px` }]) },
+      { color: css('--warn'), points: kept.filter((r) => r.scenes?.composite).map((r, k) => [k + 1, r.scenes.composite.objsPerMap, { title: `${r.label}: ${fmt(r.scenes.composite.objsPerMap)} objects/evaluation` }]) },
+    ], h: 220, yLabel: 'count', xLabel: 'kept build #', xFmt: (v) => Math.round(v), yFmt: (v) => +v.toFixed(1) })}
+    <div class="legend"><span><i style="background:${css('--accent')}"></i>field evaluations per pixel</span><span><i style="background:${css('--warn')}"></i>objects per evaluation</span></div></section>`;
+};
+V.scaling = () => {
+  const rows = D.scaling ?? [];
+  if (!rows.length) return '<section class="card"><h2>Scaling</h2><p class="empty">No scaling sweep yet.</p></section>';
+  const colors = [css('--muted'), css('--accent'), css('--good'), css('--warn')];
+  const pick = rows.length > 3 ? [rows[0], ...rows.slice(-3)] : rows;
+  const plot = (key, label) => chart({
+    series: pick.map((r, i) => ({ color: colors[i % colors.length], points: (r[key] ?? []).map((p) => [p[0], p[1], { title: `${r.label}: N=${p[0]} → ${fmt(p[1], 0)} ms` }]) })),
+    logX: true, logY: true, h: 260, yLabel: 'ms per frame (log)', xLabel: `${label} (log)`, xFmt: (v) => +v.toPrecision(2), yFmt: (v) => +v.toPrecision(2),
+  });
+  return `<section class="card"><h2>Cost against scene size</h2><p class="muted">Each line is one build. A constant-factor win moves the line down; a complexity win flattens it (smaller exponent b in T = a·Nᵇ).</p>
+    <h3>Radial sweep copies</h3>${plot('sweeps', 'sweep copies N')}
+    <h3>Whole pieces</h3>${plot('pieces', 'pieces N')}
+    <div class="legend">${pick.map((r, i) => `<span><i style="background:${colors[i % colors.length]}"></i>${esc(r.label)}</span>`).join('')}</div></section>
+  <section class="card"><h2>Fitted exponents</h2><div class="tw"><table><thead><tr><th>Build</th><th>b, sweeps</th><th>b, pieces</th><th>Sweeps N at 1 s</th></tr></thead><tbody>
+    ${rows.map((r) => `<tr><td>${esc(r.label)}</td><td class="num">${fmt(r.bSweeps)}</td><td class="num">${fmt(r.bPieces)}</td><td class="num">${fmt(r.nmaxSweeps, 0)}</td></tr>`).join('')}
+  </tbody></table></div></section>`;
+};
+V.scenes = () => {
+  const b = D.baseline?.scenes ?? {}, cur = D.runs.filter((r) => r.kept).at(-1)?.scenes ?? {};
+  const cmp = D.compare ?? {};
+  return `<section class="card"><h2>Per scene, latest kept build vs baseline</h2><div class="tw"><table><thead><tr>
+    <th>Scene</th><th>Group</th><th>Baseline ms</th><th>Now ms</th><th>Speed-up</th><th>Eval/px</th><th>Obj/eval</th><th>Diff &gt;24</th><th>PSNR</th><th>Missed px</th><th>IoU</th></tr></thead><tbody>
+    ${D.sceneList.map((s) => { const B0 = b[s.name], C = cur[s.name], c = cmp[s.name] ?? {}; return `<tr><td><b>${esc(s.name)}</b><div class="muted" style="font-size:12px">${esc(s.note)}</div></td><td>${esc(s.group)}</td>
+      <td class="num">${fmt(B0?.msMean, 0)}</td><td class="num">${fmt(C?.msMean, 0)}</td><td class="num">${B0 && C ? fmt(B0.msMean / C.msMean) + '×' : '–'}</td>
+      <td class="num">${fmt(C?.mapsPerPx, 1)}</td><td class="num">${fmt(C?.objsPerMap, 2)}</td>
+      <td class="num">${c.diff24 != null ? (c.diff24 * 100).toFixed(2) + '%' : '–'}</td><td class="num">${fmt(c.psnr, 1)}</td><td class="num">${c.missed ?? '–'}</td><td class="num">${fmt(c.iou, 4)}</td></tr>`; }).join('')}
+  </tbody></table></div><p class="muted">Diff &gt;24: share of clay pixels whose colour moved by more than 24/255. Missed px: clay in the reference, background now (holes). Times are headless software rendering at 400 px wide: compare builds, not devices.</p></section>
+  <section class="card"><h2>Stills: reference (left) and latest kept build (right)</h2><div class="stills">
+    ${D.sceneList.filter((s) => D.stills?.[s.name]).map((s) => `<div class="still"><div class="pair"><img src="${esc(D.stills[s.name].ref)}" alt="${esc(s.name)}, reference" loading="lazy"><img src="${esc(D.stills[s.name].cur)}" alt="${esc(s.name)}, latest" loading="lazy"></div><span class="cap">${esc(s.name)}</span></div>`).join('') || '<p class="empty">No stills yet.</p>'}
+  </div></section>`;
+};
+let jFilter = 'all';
+V.journal = () => {
+  const list = [...D.journal].reverse().filter((j) => jFilter === 'all' || j.verdict === jFilter);
+  return `<section class="card"><h2>Every attempt</h2>
+    <div class="filters" role="group" aria-label="Filter attempts">${['all', 'kept', 'rejected', 'info'].map((f) => `<button data-jf="${f}" aria-pressed="${jFilter === f}">${f}</button>`).join('')}</div>
+    <div class="tw"><table><thead><tr><th>#</th><th>When</th><th>Hypothesis</th><th>Change</th><th>Result</th><th>Verdict</th><th>Commit</th></tr></thead><tbody>
+    ${list.map((j) => `<tr><td class="num">${esc(j.id)}</td><td class="mono">${when(j.t)}</td><td><b>${esc(j.title)}</b>${j.hyp ? `<div class="muted" style="font-size:12px">${esc(j.hyp)}</div>` : ''}</td><td>${esc(j.change ?? '')}</td><td>${esc(j.result ?? '')}</td><td><span class="pill ${esc(j.verdict)}">${esc(j.verdict)}</span></td><td class="mono">${esc(j.commit ?? '')}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">Nothing yet.</td></tr>'}
+    </tbody></table></div></section>`;
+};
+let hFilter = 'all';
+V.hypotheses = () => {
+  const st = ['untested', 'testing', 'confirmed', 'refuted', 'kept'];
+  const list = D.hypotheses.filter((h) => hFilter === 'all' || h.status === hFilter);
+  return `<section class="tiles">${st.map((s) => `<div class="tile"><span class="k">${s}</span><span class="v ${s}">${D.hypotheses.filter((h) => h.status === s).length}</span></div>`).join('')}</section>
+  <section class="card"><h2>Hypothesis board</h2>
+    <div class="filters" role="group" aria-label="Filter hypotheses">${['all', ...st].map((f) => `<button data-hf="${f}" aria-pressed="${hFilter === f}">${f}</button>`).join('')}</div>
+    <div class="tw"><table><thead><tr><th>#</th><th>Hypothesis</th><th>Area</th><th>Expected</th><th>Status</th><th>Evidence</th></tr></thead><tbody>
+    ${list.map((h) => `<tr><td class="num">${esc(h.id)}</td><td><b>${esc(h.title)}</b></td><td>${esc(h.area)}</td><td>${esc(h.expect ?? '')}</td><td><span class="pill ${esc(h.status)}">${esc(h.status)}</span></td><td>${esc(h.evidence ?? '')}</td></tr>`).join('')}
+    </tbody></table></div></section>`;
+};
+V.research = () => `<section class="card"><h2>Sources and takeaways</h2><div class="tw"><table><thead><tr><th>Source</th><th>Takeaway</th><th>Feeds</th></tr></thead><tbody>
+  ${D.research.map((r) => `<tr><td>${r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>` : esc(r.title)}</td><td>${esc(r.takeaway)}</td><td class="mono">${esc((r.feeds ?? []).join(', '))}</td></tr>`).join('')}
+  </tbody></table></div></section>`;
+V.method = () => `<section class="card"><h2>How a change is scored</h2>
+  <p><b>Headline:</b> frames per second on the composite scene (a hollow revolve with radial ribs, blends, a torus, a prism foot, cuts inside and above hollow groups, a nested hollow spout with a custom-section lifted sweep, a handle, tabs with symmetry inside symmetry, a mask and a second piece), averaged over an 8-angle orbit, every frame waited on. No upper bound.</p>
+  <p><b>Gates before a time counts:</b> the image check against the reference build (colour difference, PSNR, missed pixels, silhouette IoU), the same resolution, step cap and hit tolerance, and every feature still rendering (walls, openings, masks, blends, symmetry, the section cut).</p>
+  <p><b>Ratchet:</b> one hypothesis per attempt; kept only if it beats the current build by more than the measured run-to-run noise and a confirmation run agrees; otherwise rolled back. Every attempt is journalled, kept or not.</p>
+  <p><b>Also tracked:</b> the stress scenes (one bottleneck each), the scaling sweep (cost against the number of sweeps and pieces, fitted exponent), rebuild cost per edit, and real-phone runs when available. The user's own pieces are held out for a final check.</p>
+  <p class="muted">${esc(D.noise ?? '')}</p></section>`;
+
+function render() {
+  const v = (location.hash || '#overview').slice(1);
+  const view = V[v] ? v : 'overview';
+  document.querySelectorAll('nav a').forEach((a) => a.setAttribute('aria-current', a.dataset.v === view ? 'page' : 'false'));
+  $('#view').innerHTML = `<div style="display:grid;gap:14px">${V[view]()}</div>`;
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (b?.dataset.jf) { jFilter = b.dataset.jf; render(); }
+  if (b?.dataset.hf) { hFilter = b.dataset.hf; render(); }
+});
+window.addEventListener('hashchange', render);
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => D && render());
+fetch('data.json', { cache: 'no-store' }).then((r) => r.json()).then((d) => {
+  D = d;
+  $('#updated').textContent = `Updated ${when(d.updated)} · branch ${d.branch ?? ''}`;
+  render();
+}).catch(() => { $('#view').innerHTML = '<p class="empty">Couldn\'t load data.json.</p>'; });
+</script>

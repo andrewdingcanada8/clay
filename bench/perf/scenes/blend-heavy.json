@@ -1,0 +1,405 @@
+{
+ "name": "blend-heavy",
+ "group": "stress",
+ "note": "12 spheres, capsules and tori in one group with a big blend",
+ "doc": {
+  "version": 2,
+  "groups": [
+   {
+    "id": "g1",
+    "name": "Goop",
+    "thickness": 0.6,
+    "children": [
+     "o2",
+     "o3",
+     "o4",
+     "o5",
+     "o6",
+     "o7",
+     "o8",
+     "o9",
+     "oa",
+     "ob",
+     "oc",
+     "od"
+    ],
+    "op": "add",
+    "shell": false,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 3
+   }
+  ],
+  "objects": [
+   {
+    "id": "o2",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 3
+    },
+    "transform": {
+     "position": [
+      5,
+      -3,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o3",
+    "name": "Capsule",
+    "type": "capsule",
+    "params": {
+     "r": 1.5,
+     "h": 6
+    },
+    "transform": {
+     "position": [
+      6.062177826491071,
+      -1,
+      3.4999999999999996
+     ],
+     "rotation": [
+      20,
+      35,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o4",
+    "name": "Torus",
+    "type": "torus",
+    "params": {
+     "R": 3,
+     "r": 1
+    },
+    "transform": {
+     "position": [
+      4.500000000000001,
+      1,
+      7.794228634059947
+     ],
+     "rotation": [
+      40,
+      70,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o5",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 3
+    },
+    "transform": {
+     "position": [
+      3.061616997868383e-16,
+      3,
+      5
+     ],
+     "rotation": [
+      60,
+      105,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o6",
+    "name": "Capsule",
+    "type": "capsule",
+    "params": {
+     "r": 1.5,
+     "h": 6
+    },
+    "transform": {
+     "position": [
+      -3.4999999999999982,
+      -3,
+      6.062177826491071
+     ],
+     "rotation": [
+      80,
+      140,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o7",
+    "name": "Torus",
+    "type": "torus",
+    "params": {
+     "R": 3,
+     "r": 1
+    },
+    "transform": {
+     "position": [
+      -7.794228634059948,
+      -1,
+      4.499999999999999
+     ],
+     "rotation": [
+      100,
+      175,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o8",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 3
+    },
+    "transform": {
+     "position": [
+      -5,
+      1,
+      6.123233995736766e-16
+     ],
+     "rotation": [
+      120,
+      210,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "o9",
+    "name": "Capsule",
+    "type": "capsule",
+    "params": {
+     "r": 1.5,
+     "h": 6
+    },
+    "transform": {
+     "position": [
+      -6.06217782649107,
+      3,
+      -3.500000000000001
+     ],
+     "rotation": [
+      140,
+      245,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "oa",
+    "name": "Torus",
+    "type": "torus",
+    "params": {
+     "R": 3,
+     "r": 1
+    },
+    "transform": {
+     "position": [
+      -4.5000000000000036,
+      -3,
+      -7.794228634059946
+     ],
+     "rotation": [
+      160,
+      280,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "ob",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 3
+    },
+    "transform": {
+     "position": [
+      -9.184850993605148e-16,
+      -1,
+      -5
+     ],
+     "rotation": [
+      180,
+      315,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "oc",
+    "name": "Capsule",
+    "type": "capsule",
+    "params": {
+     "r": 1.5,
+     "h": 6
+    },
+    "transform": {
+     "position": [
+      3.500000000000001,
+      1,
+      -6.06217782649107
+     ],
+     "rotation": [
+      200,
+      350,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   },
+   {
+    "id": "od",
+    "name": "Torus",
+    "type": "torus",
+    "params": {
+     "R": 3,
+     "r": 1
+    },
+    "transform": {
+     "position": [
+      7.794228634059945,
+      3,
+      -4.5000000000000036
+     ],
+     "rotation": [
+      220,
+      385,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": []
+   }
+  ],
+  "pins": [],
+  "shell": {
+   "enabled": true
+  },
+  "kernel": "sdf",
+  "sdfExactDistance": true,
+  "meshMethod": "offset",
+  "root": [
+   "g1"
+  ]
+ }
+}

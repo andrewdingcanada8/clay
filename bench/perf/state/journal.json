@@ -1,0 +1,12 @@
+[
+ {
+  "id": 1,
+  "t": 1795203787510,
+  "title": "Baseline and harness",
+  "hyp": "Freeze the evaluator; measure the incumbent.",
+  "change": "bench/perf: scene generator (composite + stress + scaling), run.mjs (orbit timing, cost counters, stills), compare.py (image gates)",
+  "result": "",
+  "verdict": "info",
+  "commit": ""
+ }
+]

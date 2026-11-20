@@ -1,0 +1,467 @@
+{
+ "name": "shell-heavy",
+ "group": "stress",
+ "note": "Nested hollow groups with openings, and cuts above them",
+ "doc": {
+  "version": 2,
+  "groups": [
+   {
+    "id": "g1",
+    "name": "Outer",
+    "thickness": 0.6,
+    "children": [
+     "o2",
+     "o3",
+     "g4",
+     "g7",
+     "ga"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 1
+   },
+   {
+    "id": "g4",
+    "name": "Inner 0",
+    "thickness": 0.4,
+    "children": [
+     "o5",
+     "o6"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      2,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.6
+   },
+   {
+    "id": "g7",
+    "name": "Inner 1",
+    "thickness": 0.4,
+    "children": [
+     "o8",
+     "o9"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      6,
+      0
+     ],
+     "rotation": [
+      0,
+      60,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.6
+   },
+   {
+    "id": "ga",
+    "name": "Inner 2",
+    "thickness": 0.4,
+    "children": [
+     "ob",
+     "oc"
+    ],
+    "op": "add",
+    "shell": true,
+    "transform": {
+     "position": [
+      0,
+      10,
+      0
+     ],
+     "rotation": [
+      0,
+      120,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "blend": 0.6
+   }
+  ],
+  "objects": [
+   {
+    "id": "o2",
+    "name": "Revolve",
+    "type": "revolve",
+    "params": {
+     "points": [
+      {
+       "r": 6,
+       "y": -12,
+       "smooth": 0
+      },
+      {
+       "r": 9,
+       "y": -7
+      },
+      {
+       "r": 8.5,
+       "y": 0
+      },
+      {
+       "r": 4.5,
+       "y": 7
+      },
+      {
+       "r": 6,
+       "y": 12,
+       "smooth": 0
+      }
+     ]
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": [
+     "top"
+    ]
+   },
+   {
+    "id": "o3",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 14,
+     "y": 6,
+     "z": 6
+    },
+    "transform": {
+     "position": [
+      0,
+      -4,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g1",
+    "holes": [
+     "px",
+     "nx"
+    ]
+   },
+   {
+    "id": "o5",
+    "name": "Cylinder",
+    "type": "cylinder",
+    "params": {
+     "r": 2,
+     "h": 10
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      90,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g4",
+    "holes": [
+     "top",
+     "bottom"
+    ]
+   },
+   {
+    "id": "o6",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.5
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g4",
+    "holes": []
+   },
+   {
+    "id": "o8",
+    "name": "Cylinder",
+    "type": "cylinder",
+    "params": {
+     "r": 2,
+     "h": 10
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      90,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g7",
+    "holes": [
+     "top",
+     "bottom"
+    ]
+   },
+   {
+    "id": "o9",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.5
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "g7",
+    "holes": []
+   },
+   {
+    "id": "ob",
+    "name": "Cylinder",
+    "type": "cylinder",
+    "params": {
+     "r": 2,
+     "h": 10
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      90,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "ga",
+    "holes": [
+     "top",
+     "bottom"
+    ]
+   },
+   {
+    "id": "oc",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2.5
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "ga",
+    "holes": []
+   },
+   {
+    "id": "od",
+    "name": "Box",
+    "type": "box",
+    "params": {
+     "x": 30,
+     "y": 30,
+     "z": 30
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      -15
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "subtract",
+    "groupId": "",
+    "holes": []
+   },
+   {
+    "id": "oe",
+    "name": "Sphere",
+    "type": "sphere",
+    "params": {
+     "r": 2
+    },
+    "transform": {
+     "position": [
+      0,
+      0,
+      0
+     ],
+     "rotation": [
+      0,
+      0,
+      0
+     ],
+     "scale": [
+      1,
+      1,
+      1
+     ]
+    },
+    "mode": "shell",
+    "groupId": "",
+    "holes": []
+   }
+  ],
+  "pins": [],
+  "shell": {
+   "enabled": true
+  },
+  "kernel": "sdf",
+  "sdfExactDistance": true,
+  "meshMethod": "offset",
+  "root": [
+   "g1",
+   "od",
+   "oe"
+  ]
+ }
+}

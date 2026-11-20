@@ -1,0 +1,242 @@
+[
+ {
+  "id": "H1",
+  "title": "Mesh the field (surface nets in the worker) and draw triangles",
+  "area": "architecture",
+  "expect": "30\u2013100\u00d7, approx near seams",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H2",
+  "title": "Per-cell pruned step lists (Lipschitz pruning) built on release",
+  "area": "architecture",
+  "expect": "5\u201320\u00d7 per evaluation, exact",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H3",
+  "title": "Bake the whole field into a 3D distance texture on release; march the texture",
+  "area": "architecture",
+  "expect": "30\u2013100\u00d7, approx (refine near hit)",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H4",
+  "title": "Two-level march: baked/bound field far, exact field near the surface",
+  "area": "architecture",
+  "expect": "2\u20135\u00d7 steps",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H5",
+  "title": "Per-scene specialised shader (unrolled program, constants as defines)",
+  "area": "architecture",
+  "expect": "1.5\u20134\u00d7 (fewer spills, folding)",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H6",
+  "title": "Low-res depth pre-pass / temporal reuse of last depth",
+  "area": "architecture",
+  "expect": "2\u20134\u00d7 fewer steps",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H7",
+  "title": "Lower settled resolution + smart upscale / accumulation",
+  "area": "resolution",
+  "expect": "2\u20134\u00d7 pixels",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H8",
+  "title": "Normals: fewer or cheaper field evaluations at the hit",
+  "area": "shading",
+  "expect": "~20%",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H9",
+  "title": "AO: fewer taps, hit-local mask, or from baked field",
+  "area": "shading",
+  "expect": "~25%",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H10",
+  "title": "Remove runtime-indexed local arrays (gSw[64], G/F/K stacks)",
+  "area": "shader",
+  "expect": "1.2\u20132\u00d7 on Apple GPUs",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H11",
+  "title": "Program interpreter overhead (texelFetch per step, div/mod)",
+  "area": "shader",
+  "expect": "10\u201330%",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H12",
+  "title": "Sweeps evaluated lazily, only where the program needs them",
+  "area": "sweep",
+  "expect": "2\u20134\u00d7 near the surface",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H13",
+  "title": "Faster sweep distance (capsule hierarchy, specialised round sections)",
+  "area": "sweep",
+  "expect": "1.5\u20133\u00d7 per sweep",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H14",
+  "title": "unitDepth / cavity grid cost; skip outside bodies",
+  "area": "shells",
+  "expect": "10\u201330% on hollow scenes",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H15",
+  "title": "Per-pixel rayMask twice per pixel; tile culling instead",
+  "area": "culling",
+  "expect": "10\u201320%",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H16",
+  "title": "Bounding hierarchy of objects inside a cluster",
+  "area": "culling",
+  "expect": "2\u20135\u00d7 with many objects",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H17",
+  "title": "Relaxed sphere tracing / looser epsilon far away",
+  "area": "march",
+  "expect": "1.2\u20131.5\u00d7 steps",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H18",
+  "title": "Fold radial/mirror copies: evaluate the nearest copy (+neighbours)",
+  "area": "symmetry",
+  "expect": "N/3\u00d7 for N copies",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H19",
+  "title": "Precision: mediump/half",
+  "area": "shader",
+  "expect": "none on Metal (ANGLE keeps fp32)",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H20",
+  "title": "Branch divergence in 32-wide SIMD groups",
+  "area": "shader",
+  "expect": "unknown",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H21",
+  "title": "Overdraw/passes: low image + bands + blit + overlay; scissor to screen bounds",
+  "area": "passes",
+  "expect": "10\u201340%",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H22",
+  "title": "Shader compile/link time and texture re-uploads per release",
+  "area": "rebuild",
+  "expect": "stalls, not frames",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H23",
+  "title": "JS side per frame/edit (setDoc quadratic lookups, full uploads)",
+  "area": "cpu",
+  "expect": "drag smoothness",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H24",
+  "title": "Resolution policy from measured frame time",
+  "area": "resolution",
+  "expect": "guardrail",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H25",
+  "title": "WebGL state (MSAA canvas, formats, flush per band)",
+  "area": "state",
+  "expect": "small",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H26",
+  "title": "Far-field proxies / LOD under an error gate (Hubert-Brierre)",
+  "area": "architecture",
+  "expect": "2\u201310\u00d7 far steps",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H27",
+  "title": "The bottleneck isn't the field (whole-frame profile)",
+  "area": "profile",
+  "expect": "diagnostic",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H28",
+  "title": "Single map() call site (march + normals + AO share one loop)",
+  "area": "shader",
+  "expect": "1.5\u20133\u00d7 (code size, spills)",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H29",
+  "title": "Loops ANGLE can't prove finite get volatile stores; rewrite loop forms",
+  "area": "shader",
+  "expect": "small\u2013medium on iOS",
+  "status": "untested",
+  "evidence": ""
+ },
+ {
+  "id": "H30",
+  "title": "Group-level bound skip at the open step (any depth)",
+  "area": "culling",
+  "expect": "2\u20135\u00d7 with many groups",
+  "status": "untested",
+  "evidence": ""
+ }
+]
