@@ -732,9 +732,14 @@ void main() {
   for (int k = 0; k < ${MAX_GRIDS}; k++) nReach = max(nReach, 0.25 * uCavH[k]);
   vec2 span, aoSpan;
   uint marchClu, aoClu;
-  uvec4 marchMask = rayMask(ro, rd, t, t1, nReach, span, marchClu), aoMask = rayMask(ro, rd, t, t1, 4.0, aoSpan, aoClu);
+  // From a baked start every evaluation lies within a few voxels of the baked hit:
+  // only objects near that stretch of the ray are switched on, and the march ends
+  // with it (the bake puts the surface there).
+  float t1Full = t1;
+  if (uStartOn == 1) { t = max(t, tStart - 2.0 * uBakeH); t1 = min(t1, tStart + 3.0 * uBakeH); }
+  uvec4 marchMask = rayMask(ro, rd, t, t1, nReach, span, marchClu), aoMask = uStartOn == 1 ? marchMask : rayMask(ro, rd, t, t1, 4.0, aoSpan, aoClu);
   gClu = marchClu;
-  gAOClu = aoClu;
+  gAOClu = uStartOn == 1 ? marchClu : aoClu;
   gMask = marchMask;
   gAOMask = aoMask;
   bool hit = false;
@@ -753,7 +758,20 @@ void main() {
     eps = clamp((uPixelAngle * t + uPixelSize) * 0.35, 0.0008, 0.008);
     if (d < eps) { hit = true; break; }
     t += max(d * 0.92, eps * 0.5);
-    if (t > t1) { done = true; break; }
+    if (t > t1) {
+      // past the window round the baked hit without meeting the surface (a ray that
+      // grazes an edge the bake rounded over): the rest of the ray, with its objects
+      if (uStartOn == 1 && t1 < t1Full) {
+        vec2 sp2; uint c2;
+        gMask = rayMask(ro, rd, t, t1Full, nReach, sp2, c2);
+        gClu = c2;
+        t1 = min(t1Full, sp2.y);
+        if (gMask == uvec4(0u)) { done = true; break; }
+        t = max(t, sp2.x);
+        continue;
+      }
+      done = true; break;
+    }
   }
   // A ray running just alongside a flat face (seen edge-on) creeps along it in
   // tiny steps and can use up its steps before touching it: it is a hit.
