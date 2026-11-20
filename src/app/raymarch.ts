@@ -167,6 +167,8 @@ float sdFrustum(vec3 q, vec4 P, vec4 E, float rho, float b) {
   return max(side, abs(q.y) - P.z);
 }
 
+// lowest set bit's index (x != 0; findLSB needs ES 3.1); powers of two are exact in float
+int lowBit(uint x) { return int(log2(float(x & (~x + 1u))) + 0.5); }
 vec4 sw(int slot, int r, int i) { return texelFetch(uSweep, ivec2(i, slot * ${SWEEP_ROWS} + r), 0); }
 // section in its own plane; P = (kind, half width, half height, -)
 float sweepSection(int slot, vec4 P, int polyN, vec2 uv) {
@@ -237,13 +239,23 @@ vec2 sdSweep(int slot, vec4 P, vec4 M, vec3 q, int holeMask) {
   int g0 = int(sw(slot, 2, bi).w + 0.5), g1 = int(sw(slot, 4, bi).w + 0.5);
   bool sharp0 = (g0 & 4) == 4 && (bi > 0 || loop), sharp1 = (g1 & 4) == 4 && (bi + 1 < segs || loop);
   vec2 best = vec2(1e20);
-  // candidates: 0-2 segment pieces (nearest, before, after), 3-4 corners, 5-8 cap halves
-  for (int k = min(uGroupCount, 0); k < 9; k++) {
+  // candidates: 0-2 segment pieces (nearest, before, after), 3-4 corners, 5-8 cap
+  // halves; the loop visits only those that apply here, in order
+  uint cm = 1u;
+  if (sharp0) cm |= (g0 & 2) != 0 ? 10u : 2u;
+  if (sharp1) cm |= (g1 & 2) != 0 ? 20u : 4u;
+  if (!loop && roundCap) {
+    if (bi == 0) cm |= 96u;
+    if (bi == segs - 1) cm |= 384u;
+  }
+  for (int c = min(uGroupCount, 0); c < 9; c++) {
+    if (cm == 0u) break;
+    int k = lowBit(cm);
+    cm &= cm - 1u;
     vec2 uv;
     float eReal = -1e9, eSeam = -1e9, eRealO = -1e9, eSeamO = -1e9;
     bool closedOnly = false;
     if (k < 3) {
-      if ((k == 1 && !sharp0) || (k == 2 && !sharp1)) continue;
       int i = k == 0 ? bi : k == 1 ? (bi > 0 ? bi - 1 : segs - 1) : (bi + 1 < segs ? bi + 1 : 0);
       vec4 A = sw(slot, 0, i), DL = sw(slot, 1, i), Na = sw(slot, 2, i), Nb = sw(slot, 4, i);
       vec3 w = q - A.xyz, d = DL.xyz;
@@ -266,7 +278,6 @@ vec2 sdSweep(int slot, vec4 P, vec4 M, vec3 q, int holeMask) {
       eSeamO = max(!loop && i == 0 && openS ? -1e9 : sIn, !loop && i == segs - 1 && openE ? -1e9 : sOut);
     } else if (k < 5) {
       int j = k == 3 ? bi : bi + 1;
-      if ((k == 3 ? !sharp0 || (g0 & 2) == 0 : !sharp1 || (g1 & 2) == 0)) continue;
       vec3 w = q - sw(slot, 0, j).xyz;
       vec4 J0 = sw(slot, 6, j), J1 = sw(slot, 7, j), J2 = sw(slot, 8, j);
       vec3 ax = J0.xyz, co = vec3(J0.w, J1.xy), Nn = vec3(J1.zw, J2.x), Bn = J2.yzw;
@@ -277,7 +288,6 @@ vec2 sdSweep(int slot, vec4 P, vec4 M, vec3 q, int holeMask) {
       eSeamO = eSeam;
     } else {
       int e = (k - 5) / 2;
-      if (loop || !roundCap || bi != (e == 0 ? 0 : segs - 1)) continue;
       closedOnly = e == 0 ? openS : openE; // an open end has no cap in the depth
       int j = e == 0 ? 0 : n - 1, seg = e == 0 ? 0 : segs - 1;
       vec3 w = q - sw(slot, 0, j).xyz;
@@ -516,8 +526,6 @@ float boxBound(int i, vec3 p) {
   vec3 q = toLocal(i, p);
   return length(max(max(row(i, 8).xyz - q, q - row(i, 9).xyz), 0.0)) * row(i, 4).w;
 }
-// lowest set bit's index (x != 0; findLSB needs ES 3.1); powers of two are exact in float
-int lowBit(uint x) { return int(log2(float(x & (~x + 1u))) + 0.5); }
 void sweepAll(vec3 p) {
   // the bounds first, marking the sweeps within the gate; then one pass per marked
   // sweep (the long sweep code runs only as often as the most any pixel needs)
