@@ -100,7 +100,11 @@ uniform float uRoundR[${MAX_GRIDS}];
 uniform float uCavH[${MAX_GRIDS}];
 uniform vec4 uPins[${MAX_PINS * 2}];
 ${range(MAX_GRIDS).map((i) => `uniform sampler3D uCav${i}; uniform vec3 uCavO${i}; uniform vec3 uCavS${i}; uniform float uCavC${i};`).join('\n')}
-${range(MAX_PROFILES).map((i) => `uniform sampler2D uProf${i}; uniform vec2 uProfLo${i}; uniform vec2 uProfHi${i};`).join('\n')}
+${range(MAX_PROFILES).map((i) => `uniform sampler2D uProf${i};`).join('\n')}
+// per profile slot: first and last texel centres, texture size
+uniform vec2 uProfLo[${MAX_PROFILES}];
+uniform vec2 uProfHi[${MAX_PROFILES}];
+uniform vec2 uProfSz[${MAX_PROFILES}];
 
 vec4 row(int obj, int r) { return texelFetch(uData, ivec2(r, obj), 0); }
 vec3 toLocal(int o, vec3 p) {
@@ -124,20 +128,22 @@ float sdPin(vec3 p, vec3 a, vec3 b, float r) {
   float d = (max(x, y) < 0.0) ? -min(x2, y2) : (((x > 0.0) ? x2 : 0.0) + ((y > 0.0) ? y2 : 0.0));
   return sign(d) * sqrt(abs(d)) / baba;
 }
-float profileLookup(sampler2D tex, vec2 lo, vec2 hi, vec2 q, int ch) {
+// (the coordinates are worked out once; only the fetch is picked by slot, since
+// sampler arrays can't be indexed at run time)
+float profile(int slot, vec2 q, int ch) {
+  if (slot < 0 || slot >= ${MAX_PROFILES}) return 1e5;
+  vec2 lo = uProfLo[slot], hi = uProfHi[slot], sz = uProfSz[slot];
   vec2 c = clamp(q, lo, hi);
   vec2 o = q - c;
   o.x = max(o.x, 0.0); // r below the first texel centre is still inside the table
   float outside = length(o);
   // lo/hi are the first/last texel centres
-  vec2 sz = vec2(textureSize(tex, 0));
-  float v = texture(tex, (0.5 + (c - lo) / (hi - lo) * (sz - 1.0)) / sz)[ch];
+  vec2 uv = (0.5 + (c - lo) / (hi - lo) * (sz - 1.0)) / sz;
+  vec4 t = vec4(0.0);
+${range(MAX_PROFILES).map((i) => `  ${i ? 'else ' : ''}if (slot == ${i}) t = texture(uProf${i}, uv);`).join('\n')}
+  float v = t[ch];
   if (ch == 1) return v;
   return outside > 0.0 ? max(outside, v) : v; // the table has margin around the shape
-}
-float profile(int slot, vec2 q, int ch) {
-${range(MAX_PROFILES).map((i) => `  if (slot == ${i}) return profileLookup(uProf${i}, uProfLo${i}, uProfHi${i}, q, ch);`).join('\n')}
-  return 1e5;
 }
 float smin(float a, float b, float k) {
   if (k <= 0.0) return min(a, b);
@@ -835,10 +841,11 @@ export class SdfRenderer {
       u[`uCavS${i}`] = { value: new THREE.Vector3(1, 1, 1) };
       u[`uCavC${i}`] = { value: 1 };
     }
+    u.uProfLo = { value: range(MAX_PROFILES).map(() => new THREE.Vector2()) };
+    u.uProfHi = { value: range(MAX_PROFILES).map(() => new THREE.Vector2(1, 1)) };
+    u.uProfSz = { value: range(MAX_PROFILES).map(() => new THREE.Vector2(1, 1)) };
     for (const i of range(MAX_PROFILES)) {
       u[`uProf${i}`] = { value: null };
-      u[`uProfLo${i}`] = { value: new THREE.Vector2() };
-      u[`uProfHi${i}`] = { value: new THREE.Vector2(1, 1) };
     }
     this.material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3,
@@ -1272,8 +1279,9 @@ export class SdfRenderer {
         this.profiles.set(key, pt);
       }
       u[`uProf${slot}`].value = pt.tex;
-      u[`uProfLo${slot}`].value.set(pt.min[0], pt.min[1]);
-      u[`uProfHi${slot}`].value.set(pt.max[0], pt.max[1]);
+      (u.uProfLo.value as THREE.Vector2[])[slot].set(pt.min[0], pt.min[1]);
+      (u.uProfHi.value as THREE.Vector2[])[slot].set(pt.max[0], pt.max[1]);
+      (u.uProfSz.value as THREE.Vector2[])[slot].set(pt.tex.image.width, pt.tex.image.height);
       slots.set(o, slot);
       slot++;
     }
