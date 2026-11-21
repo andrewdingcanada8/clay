@@ -121,5 +121,17 @@
   "label": "merge exact-field lineage",
   "kept": true,
   "note": "composite 680 ms"
+ },
+ {
+  "dir": "2026-11-20T20-31-52-668Z-full-baseline",
+  "label": "baseline, full suite",
+  "kept": false,
+  "note": "all 14 scenes, reference stills"
+ },
+ {
+  "dir": "2026-11-21T03-32-18-639Z-full-merge",
+  "label": "merged build, full suite",
+  "kept": false,
+  "note": "14 scenes; strict gate fails on custom-section, grazing, pieces-4/9"
  }
 ]

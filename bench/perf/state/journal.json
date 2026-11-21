@@ -145,5 +145,15 @@
   "result": "Composite 1374 -> 680 ms (8.3x baseline); sweeps-64 1312 ms; image unchanged (diff 0.34%, IoU 0.9991)",
   "verdict": "kept",
   "commit": "849405b"
+ },
+ {
+  "id": 16,
+  "t": 1795232366420,
+  "title": "Full suite on the merged build: image gates on every scene",
+  "hyp": "The strict floor must hold on all scenes, not just composite",
+  "change": "Image check of all 14 scenes against the baseline",
+  "result": "Composite, sweeps, blend, shell, csg, close-up, pieces-1 pass. custom-section 1.86%, grazing 3.48%, pieces-9 0.97%, pieces-4 0.53% fail strict. The merge is pixel-identical to the bake lineage: the failures came from earlier kept steps gated on composite only. Diff maps: creases (3-sample forward normals see one side of a sharp edge) and thin-slab rims (baked start past a thin wall).",
+  "verdict": "info",
+  "commit": ""
  }
 ]
