@@ -151,5 +151,11 @@
   "label": "tetrahedral 4-tap normals",
   "kept": false,
   "note": "partial gate fix: composite 0.19%, grazing 2.08%, pieces-9 0.67%; custom-section unchanged; +10% time"
+ },
+ {
+  "dir": "2026-11-21T04-18-57-787Z-regimes-clean",
+  "label": "three regimes, merged build (clean)",
+  "kept": false,
+  "note": "orbit / still / editing measured apart"
  }
 ]

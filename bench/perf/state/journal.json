@@ -185,5 +185,15 @@
   "result": "Diff: composite 0.34->0.19%, grazing 3.48->2.08%, pieces-9 0.97->0.67%, custom-section 1.86->1.90% (its failure is coverage: 131 missed px, IoU 0.9963). Cost +10%. Bisecting the saved builds to find where each failure entered.",
   "verdict": "info",
   "commit": ""
+ },
+ {
+  "id": 20,
+  "t": 1795234975209,
+  "title": "First iPhone run (user, Clay Preview, merged build)",
+  "hyp": "The headless proxy's ratios carry to the phone",
+  "change": "View -> Run the benchmark scene on the user's iPhone (DPR 3, ratio 2, 804x544)",
+  "result": "Composite on iPhone: settled 18 ms (vs 691 headless), orbit 1-2 ms, bake 109 ms. The phone is ~38x faster than the proxy on the settled frame. The 4-jug piece still lost the GPU context 0.4-0.9 s after its field changed at rest (4 hollow bodies), on the build before the row-strip bake; fixed further by skipping the whole exact frame while the bake is pending (7239f50). Awaiting a rerun.",
+  "verdict": "info",
+  "commit": ""
  }
 ]
