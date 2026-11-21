@@ -275,5 +275,15 @@
   "result": "Bake: composite 4.27 -> 3.85 s, pieces-4 6.18 -> 4.89 s, sweeps-64 23.7 -> 26.3 s (worse). Images identical. Not worth the code; bake time moves to the bricks agent.",
   "verdict": "rejected",
   "commit": ""
+ },
+ {
+  "id": 29,
+  "t": 1795303944532,
+  "title": "iPhone 4-jug crash: fence-paced exact moving frames, bake paused while moving (device stability)",
+  "hyp": "The GPU reset while orbiting before the bake finished: exact frames (~79 ms GPU) requested at 60/s plus bake batches piled up",
+  "change": "Exact moving/drag frames wait on a fence for the previous one; bake steps only while the view is still",
+  "result": "Headless: orbit during a pending bake keeps the bake paused, exact frames paced, bake completes after release, no errors. Awaiting the user's iPhone rerun.",
+  "verdict": "kept",
+  "commit": ""
  }
 ]

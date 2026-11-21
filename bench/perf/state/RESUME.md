@@ -1,6 +1,6 @@
 # Resume note (read this first after a stop; don't re-read source files)
 
-Updated: 2026-11-21 21:10 UTC
+Updated: 2026-11-22 (device fix 3 published)
 
 ## Incumbent (claude/sdf-perf-hillclimb, pushed)
 - Still frame composite 934 ms headless (6.1x, strict images on 13/14 scenes; grazing passes with 1-px aliasing tolerance).
@@ -11,6 +11,9 @@ Updated: 2026-11-21 21:10 UTC
 - Bricks agent (id aacf436b21239f4a1, worktree .claude/worktrees/agent-aacf436b21239f4a1): bake size/time + strict gates on hard scenes. Last: composite settled 100 ms (57x), bake 27 s headless.
 - Pruning agent (id ae40e736ec7aa49f4, worktree .claude/worktrees/agent-ae40e736ec7aa49f4): editing regime (cheap per-drag object lists).
 - Both stopped at usage limit 18:40 UTC; resumed 21:10 UTC.
+
+## Device
+- 4-jug crash cause (v5 log): exact orbit frames before the bake finished piled up on the GPU. Fixed (fence-paced exact moving frames, bake paused while moving). Clay Preview v6 = bench/perf/ref/dist-device3. Awaiting user rerun.
 
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
