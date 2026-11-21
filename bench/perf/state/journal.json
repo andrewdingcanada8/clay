@@ -245,5 +245,25 @@
   "result": "Missed px: composite 16 -> 1, grazing 28 -> 4; IoU strict on every scene (custom-section 0.9992, pieces-9 0.9998). Composite 858 -> 934 ms. 0.75 voxel: same gates, slower (rejected). Orbit and editing unaffected.",
   "verdict": "kept",
   "commit": "d33ec1f"
+ },
+ {
+  "id": 26,
+  "t": 1795270848660,
+  "title": "Exact occlusion in concave corners (regime: still)",
+  "hyp": "Grazing's remaining 1.7% is baked occlusion missing tight inside corners",
+  "change": "Exact occlusion taps everywhere (probe) and only where the baked occlusion is dark (hybrid)",
+  "result": "Grazing diff unchanged at 1.71% (PSNR 32 -> 37): refuted. Zoom: both reference and candidate show speckled dashes along an inner rim thinner than a pixel seen edge-on; only the dot positions differ. Cost +30% (exact) / +10% (hybrid); not kept.",
+  "verdict": "rejected",
+  "commit": ""
+ },
+ {
+  "id": 27,
+  "t": 1795270848678,
+  "title": "Aliasing-tolerant image metric (announced harness change)",
+  "hyp": "Strict diff24 counts sub-pixel aliasing shifts as differences",
+  "change": "compare.py reports diff24aa (1-px tolerance) beside diff24; gates unchanged, scenes passing only the tolerant metric are labelled",
+  "result": "Current build: grazing 1.71% strict -> 0.09% with 1-px tolerance; custom-section 0.30 -> 0.08%; composite 0.02 -> 0.01%. Grazing passes with a 1-px aliasing tolerance; every other scene passes strict.",
+  "verdict": "info",
+  "commit": ""
  }
 ]

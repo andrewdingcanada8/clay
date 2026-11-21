@@ -187,5 +187,11 @@
   "label": "near-approach start (0.75 voxel)",
   "kept": false,
   "note": "same gates as 0.5, slower"
+ },
+ {
+  "dir": "2026-11-21T14-10-57-018Z-aohyb2.0",
+  "label": "exact occlusion everywhere (probe)",
+  "kept": false,
+  "note": "grazing diff unchanged 1.71%: not occlusion"
  }
 ]

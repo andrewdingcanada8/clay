@@ -73,6 +73,15 @@ A timing only counts if the stills pass, against the baseline renderer's stills:
 | Silhouette IoU | ≥ 0.999 | ≥ 0.995 |
 | Missed pixels (holes) | ≈ the reference | ≈ the reference |
 
+**Aliasing tolerance (reported beside the strict number, never instead):**
+- `diff24aa` counts a pixel as matching if any reference pixel within 1 px of it
+  matches.
+- Detail thinner than a pixel (a rim seen edge-on) aliases in the reference itself,
+  so exact pixel positions there are arbitrary.
+- A scene that fails `diff24` but passes `diff24aa` is labelled "passes with a 1-px
+  aliasing tolerance" in the journal, with the evidence: the diff map, and the
+  tolerant number next to the strict one.
+
 Resolution, step cap and hit epsilon are frozen: a win that exists only at a lower cap
 is a quality cut, not an optimisation.
 
