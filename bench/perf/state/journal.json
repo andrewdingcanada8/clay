@@ -155,5 +155,15 @@
   "result": "Composite, sweeps, blend, shell, csg, close-up, pieces-1 pass. custom-section 1.86%, grazing 3.48%, pieces-9 0.97%, pieces-4 0.53% fail strict. The merge is pixel-identical to the bake lineage: the failures came from earlier kept steps gated on composite only. Diff maps: creases (3-sample forward normals see one side of a sharp edge) and thin-slab rims (baked start past a thin wall).",
   "verdict": "info",
   "commit": ""
+ },
+ {
+  "id": 17,
+  "t": 1795232432811,
+  "title": "Snap v2: snap only where the ray faces the surface",
+  "hyp": "Accept the first exact evaluation within 0.3 voxel and step along the ray onto the surface when -n\u00b7rd > 0.3; grazing rays keep marching",
+  "change": "One snap attempt per ray in the single-call-site loop",
+  "result": "Composite 671 -> 629 ms (-6%) but diff 0.49% (limit 0.5%), grazing extra 67 px, IoU 0.998. The refined start leaves only ~2-3 march steps, so there is little to save; not worth the image risk.",
+  "verdict": "rejected",
+  "commit": ""
  }
 ]

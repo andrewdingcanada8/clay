@@ -133,5 +133,11 @@
   "label": "merged build, full suite",
   "kept": false,
   "note": "14 scenes; strict gate fails on custom-section, grazing, pieces-4/9"
+ },
+ {
+  "dir": "2026-11-21T03-38-27-504Z-snap2",
+  "label": "snap v2 (facing rays only)",
+  "kept": false,
+  "note": "-6% composite, image near limit, grazing worse"
  }
 ]
