@@ -1,0 +1,3 @@
+[
+ {"at": 1795234020379, "label": "merged build (exact-field + bake), before the phone-safe bake", "scene": "composite", "settledMs": 18, "movingMs": 1.5, "bakeMs": 109, "gpu": "Apple GPU", "dpr": 3, "ratio": 2, "w": 804, "h": 544, "note": "user's iPhone, View -> Run the benchmark scene; same build: 4-jug piece lost the GPU context right after its field changed at rest"}
+]
