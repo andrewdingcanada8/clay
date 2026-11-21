@@ -26,8 +26,8 @@ for m in runs_meta:
         continue
     r = json.load(open(p))
     runs.append({'label': m.get('label', r['label']), 'dir': m['dir'], 'kept': m.get('kept', False), 'device': m.get('device', False), 'note': m.get('note', ''),
-                 'git': r.get('git'), 'stamp': r.get('stamp'), 'headlineFps': r.get('headlineFps'),
-                 'scenes': {k: {kk: v[kk] for kk in ('fps', 'msMean', 'msP95', 'msMax', 'mapsPerPx', 'objsPerMap', 'objsPerPx') if kk in v} for k, v in r['scenes'].items()}})
+                 'git': r.get('git'), 'stamp': r.get('stamp'), 'headlineFps': r.get('headlineFps'), 'contaminated': r.get('contaminated'),
+                 'scenes': {k: {kk: v[kk] for kk in ('fps', 'msMean', 'msP95', 'msMax', 'mapsPerPx', 'objsPerMap', 'objsPerPx', 'workObjEvals', 'workMaps', 'foreignCores', 'prepareMs', 'msMove', 'msEdit', 'sharpAfterEditMs') if kk in v} for k, v in r['scenes'].items()}})
 
 def fit(points):
     """Least squares on log-log: T = a·N^b. Returns b."""
@@ -57,24 +57,30 @@ stills = {}
 os.makedirs(os.path.join(HERE, 'stills'), exist_ok=True)
 compare = {}
 if baseline and latest:
-    for f in os.listdir(os.path.join(RES, latest['dir'])):
-        if not f.endswith('.png'):
-            continue
+    # the current still of each scene: the latest counted run that isn't a rejected attempt
+    cur_dir = {}
+    for r in runs:
+        if r['kept'] or 'rejected' not in r.get('note', '') and r['label'].startswith(('merge', 'merged', 'full')):
+            for f in os.listdir(os.path.join(RES, r['dir'])):
+                if f.endswith('.png'):
+                    cur_dir[f] = r['dir']
+    for f, d in cur_dir.items():
         name = f[:-4]
-        src_ref = os.path.join(RES, baseline['dir'], f)
-        if not os.path.exists(src_ref):
+        # the reference still: the first counted run that has this scene
+        src_ref = next((os.path.join(RES, r['dir'], f) for r in runs if os.path.exists(os.path.join(RES, r['dir'], f))), None)
+        if not src_ref:
             continue
         shutil.copy(src_ref, os.path.join(HERE, 'stills', f'{name}-ref.png'))
-        shutil.copy(os.path.join(RES, latest['dir'], f), os.path.join(HERE, 'stills', f'{name}-cur.png'))
+        shutil.copy(os.path.join(RES, d, f), os.path.join(HERE, 'stills', f'{name}-cur.png'))
         stills[name] = {'ref': f'stills/{name}-ref.png', 'cur': f'stills/{name}-cur.png'}
-    cp = os.path.join(RES, latest['dir'], 'compare.json')
+    cp = max((os.path.join(RES, d, 'compare.json') for d in set(cur_dir.values()) if os.path.exists(os.path.join(RES, d, 'compare.json'))), key=lambda x: len(json.load(open(x))), default='')
     if os.path.exists(cp):
         compare = json.load(open(cp))
 
 scene_list = json.load(open(os.path.join(PERF, 'scenes', 'index.json')))
 data = {
     'updated': int(time.time() * 1000), 'branch': 'claude/sdf-perf-hillclimb',
-    'status': load('status.json', {}).get('text', ''), 'noise': load('status.json', {}).get('noise', ''),
+    'status': load('status.json', {}).get('text', ''), 'now': load('status.json', {}).get('now'), 'noise': load('status.json', {}).get('noise', ''),
     'baseline': baseline, 'runs': runs, 'scaling': scaling, 'sceneList': scene_list, 'stills': stills, 'compare': compare,
     'journal': load('journal.json', []), 'hypotheses': load('hypotheses.json', []), 'research': load('research.json', []),
 }

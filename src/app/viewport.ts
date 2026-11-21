@@ -194,15 +194,56 @@ export class Viewport {
         const c = this.renderer.domElement;
         dlog('stall', { ms: now - lastDraw, ratio: this.renderer.getPixelRatio(), w: c.width, h: c.height, moving: this.moving, hidden: document.hidden });
       }
+      const drewLast = lastDraw;
       lastDraw = 0;
       if (this.orbit.update() || this.needsRender || this.band.active || this.bakePending()) {
         this.needsRender = false;
         this.drawFrame(now);
         lastDraw = now;
         if (this.moving && this.mode === 'sdf') this.adaptMoving(now);
+        if (drewLast) this.hudFrame(now - drewLast);
       }
+      this.hudTick(now);
     };
     requestAnimationFrame(loop);
+  }
+
+  // ---------- performance HUD (View panel toggle): which of the three regimes the view
+  // is in (orbit: camera moving; editing: the field changing mid-drag; still: baking,
+  // refining, then sharp), its frame rate, and how long the view took to go sharp
+  private hud: HTMLDivElement | null = null;
+  private hudMs: number[] = [];
+  private hudAt = 0;
+  private hudFv = -1;
+  private fieldAt = 0;
+  private sharpInfo = '';
+  setHud(on: boolean) {
+    if (!on) { this.hud?.remove(); this.hud = null; return; }
+    if (this.hud) return;
+    const d = document.createElement('div');
+    d.style.cssText = 'position:absolute;left:8px;bottom:8px;z-index:5;pointer-events:none;font:11px/1.35 ui-monospace,Menlo,monospace;color:#fff;background:rgba(0,0,0,.55);padding:5px 7px;border-radius:6px;white-space:pre';
+    if (getComputedStyle(this.host).position === 'static') this.host.style.position = 'relative';
+    this.host.appendChild(d);
+    this.hud = d;
+  }
+  get hudOn() { return !!this.hud; }
+  private hudFrame(dt: number) {
+    if (dt > 250) return; // (a pause, not a frame)
+    this.hudMs.push(dt);
+    if (this.hudMs.length > 30) this.hudMs.shift();
+  }
+  private hudTick(now: number) {
+    // when the field last changed at rest (an edit released): time to sharp counts from there
+    if (this.sdf.fieldVersion !== this.hudFv && !this.sdf.interactive) { this.hudFv = this.sdf.fieldVersion; this.fieldAt = now; }
+    if (!this.hud || now - this.hudAt < 250) return;
+    this.hudAt = now;
+    const ms = this.hudMs.length ? [...this.hudMs].sort((a, b) => a - b)[this.hudMs.length >> 1] : 0;
+    const regime = this.mode !== 'sdf' ? 'MESH' : this.sdf.interactive ? 'EDITING' : this.moving ? 'ORBIT' : 'STILL';
+    const bp = this.bake.progress;
+    const state = this.mode !== 'sdf' ? '' : this.moving || this.sdf.interactive ? '' : bp !== null ? `baking ${Math.round(bp * 100)}%` : this.band.active ? 'refining' : 'sharp';
+    const c = this.renderer.domElement;
+    this.hud.textContent = `${regime}${state ? ' · ' + state : ''}\n${ms ? `${Math.round(1000 / ms)} fps · ${ms.toFixed(0)} ms` : '–'}  ${c.width}×${c.height} @${this.renderer.getPixelRatio().toFixed(2)}${this.sharpInfo ? '\n' + this.sharpInfo : ''}`;
+    if (this.moving || this.sdf.interactive) this.hudMs.length = Math.min(this.hudMs.length, 30); else if (state === 'sharp') this.hudMs.length = 0;
   }
 
   /** Called when the GPU context is lost (the phone's graphics reset) and when it comes back. */
@@ -248,19 +289,25 @@ export class Viewport {
    */
   recreateRenderer(): boolean {
     const old = this.renderer;
+    // let go of the dead context first: iOS hands out only so many, and a lost one
+    // still counts until its canvas is gone
+    const oldCanvas = old.domElement, holder = document.createComment('canvas');
+    oldCanvas.replaceWith(holder);
+    try { old.dispose(); } catch { /* already gone */ }
+    try { old.forceContextLoss(); } catch { /* already lost */ }
+    oldCanvas.width = oldCanvas.height = 1;
     let r: THREE.WebGLRenderer;
     try {
       r = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-      if (r.getContext().isContextLost()) { dlog('rebuild-failed', { why: 'new context already lost' }, true); r.dispose(); return false; }
+      if (r.getContext().isContextLost()) { dlog('rebuild-failed', { why: 'new context already lost' }, true); r.dispose(); holder.replaceWith(oldCanvas); return false; }
     } catch (err) {
       dlog('rebuild-failed', { why: 'no new context', msg: String((err as Error)?.message ?? err) }, true);
+      holder.replaceWith(oldCanvas);
       return false;
     }
     r.setPixelRatio(this.moving ? this.movingRatio() : this.basePixelRatio);
     r.localClippingEnabled = true;
-    this.host.insertBefore(r.domElement, old.domElement);
-    old.domElement.remove();
-    try { old.dispose(); } catch { /* already gone */ }
+    holder.replaceWith(r.domElement);
     this.renderer = r;
     // (images of the old context are gone with it)
     this.rt = null; this.lowKey = this.frontKey = ''; this.band.active = false; this.fence = null; this.shadow = null;
@@ -407,6 +454,26 @@ export class Viewport {
     return { settledMs, movingMs, prepareMs, w, h };
   }
 
+  private lastSdfDoc: SceneDoc | null = null;
+
+  /**
+   * For the harness: one frame of an edit in progress (a gizmo drag): the document is
+   * set again as a drag sets it (interactive, so the bake is stale) and the moving
+   * image is drawn from the exact field at the moving resolution, waited on.
+   * `end` releases the drag (the document set at rest; the bake must run again).
+   */
+  benchEdit(end = false) {
+    if (this.mode !== 'sdf' || !this.lastSdfDoc) return;
+    this.sdf.setDoc(this.lastSdfDoc, !end);
+    if (end) return;
+    this.camera.updateMatrixWorld();
+    const r = this.targets();
+    this.drawLow(r.low); this.present(r.low);
+    const gl = this.renderer.getContext(), px = new Uint8Array(4);
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    this.lowKey = this.frontKey = '';
+  }
+
   /** For the harness: finish any per-edit work now (the bake), waited on. Returns ms. */
   benchPrepare(): number {
     if (this.mode !== 'sdf') return 0;
@@ -530,8 +597,14 @@ export class Viewport {
   }
 
   /** The image drawn while moving: the baked field when it is ready, else the exact field. */
+  private lowLogAt = 0;
   private drawLow(t: THREE.WebGLRenderTarget) {
-    if (this.bake.ready) this.drawMarch(t, 0); else this.drawSdf(t);
+    if (this.bake.ready) { this.drawMarch(t, 0); return; }
+    // a whole frame of the exact field (moving, editing, or no bake yet): logged, so a
+    // GPU loss right after one points at it
+    const now = performance.now();
+    if (now - this.lowLogAt > 1000) { this.lowLogAt = now; dlog('exact-frame', { w: t.width, h: t.height, moving: this.moving, editing: this.sdf.interactive }); }
+    this.drawSdf(t);
   }
 
   /** Where each settled ray starts, from the baked field (null: no bake yet). */
@@ -557,7 +630,7 @@ export class Viewport {
     t.scissor.set(0, y, t.width, rows);
     t.scissorTest = rows < t.height;
     const u = this.sdf.material.uniforms;
-    if (start) { u.uStartOn.value = 1; u.uStartT.value = start.texture; u.uStartBack.value = 0.1 * this.bake.voxel; u.uBakeO.value.copy(this.bake.originVec); }
+    if (start) { u.uStartOn.value = 1; u.uStartT.value = start.texture; u.uStartBack.value = 0.5 * this.bake.voxel; u.uBakeO.value.copy(this.bake.originVec); }
     this.renderer.setRenderTarget(t);
     this.renderer.render(this.scene, this.camera);
     u.uStartOn.value = 0;
@@ -602,9 +675,16 @@ export class Viewport {
     const r = this.targets(), key = this.sdfKey(), drifting = key !== this.lastKey;
     this.lastKey = key;
     if (key === this.frontKey) { this.band.active = false; this.present(r.front); return; }
-    if (this.lowKey !== key) { this.drawLow(r.low); this.lowKey = key; }
+    // at rest with a bake to run, keep the last image up rather than drawing a whole
+    // frame of the exact field (a heavy scene's whole frame can outlast what a phone
+    // lets one frame run); the bake's image follows in a moment
+    const bakeWait = !this.moving && !this.sdf.interactive && (this.bakePending() || this.bake.busy) && !!this.lowKey;
+    if (this.lowKey !== key && !bakeWait) { this.drawLow(r.low); this.lowKey = key; }
     // (and come back next frame: once it holds still, the bands start)
     if (this.moving || drifting) { this.band.active = false; this.present(r.low); this.needsRender = true; return; }
+    // the bake runs first, alone on the GPU: a sharp image drawn now would be redrawn
+    // from the bake as soon as it lands (and the two together can outlast a frame)
+    if (this.bakePending() || this.bake.busy) { this.band.active = false; this.present(r.low); this.needsRender = true; return; }
     const H = r.back.height, b = this.band;
     const gl = this.renderer.getContext() as WebGL2RenderingContext;
     if (!b.active || b.key !== key) {
@@ -633,6 +713,9 @@ export class Viewport {
       this.frontKey = key;
       b.active = false;
       dlog('sharp', { bands: b.n, ms: now - b.start, rowsPerMs: this.rowRate, w: r.front.width, h: H });
+      const bake = this.bake.lastBakeMs;
+      this.sharpInfo = `sharp ${(now - b.start).toFixed(0)} ms` + (this.fieldAt && bake !== null ? ` · after edit ${((now - this.fieldAt) / 1000).toFixed(1)} s (bake ${(bake / 1000).toFixed(1)} s)` : '');
+      this.fieldAt = 0;
       this.present(r.front);
     } else this.present(r.low);
   }
@@ -927,6 +1010,7 @@ export class Viewport {
   /** SDF kernel: show the document directly (no build needed for the outer form). */
   /** `interactive`: mid-drag, slow profile tables wait for release (see SdfRenderer.setDoc). */
   setSdfDoc(doc: SceneDoc, interactive = false) {
+    this.lastSdfDoc = doc;
     this.sdf.setDoc(doc, interactive);
     if (!interactive) {
       const n = (t: string) => doc.objects.filter((o) => o.type === t).length;

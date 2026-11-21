@@ -1,4 +1,17 @@
 {
- "text": "Settled frame 4.1\u00d7 the baseline (5.67 \u2192 1.37 s, headless), moving frames 35\u00d7 (full resolution, from the baked field). Every settled pixel now does ~6.5 exact field evaluations of ~6 objects each, only round the baked hit. Exact-field agent still working on the cost of each evaluation. Next: fewer objects per evaluation (finer pruning near the hit), cheaper sweeps, then the scaling sweep and stress scenes.",
- "noise": "Noise: 5 baseline runs of the composite scene, 5552\u20135777 ms (\u03c3 \u2248 1.5%). A change must beat the incumbent by > 3% and hold on a confirmation run."
+ "text": "Still frame 8.7\u00d7 the baseline headless (5.67 \u2192 0.65 s); on the user's iPhone the composite scene settles in 18 ms, orbits in 1\u20132 ms and bakes in 109 ms. Strict image gate fails on 4 scenes (sharp creases, thin rims) since earlier kept steps: being repaired first. The 4-jug piece crashed the iPhone right after its field changed at rest; fixes are live in Clay Preview, awaiting a rerun. Editing (drag frames) is now measured: about as slow as a still frame, since the bake can't help mid-drag.",
+ "noise": "Noise: 5 baseline runs of the composite scene, 5552\u20135777 ms (\u03c3 \u2248 1.5%). A change must beat the incumbent by > 3% and hold on a confirmation run.",
+ "now": {
+  "current": "Morning: gate repair kept (strict on 5/6 failing scenes); grazing thin-slab investigation",
+  "agents": [
+   "Bricks lineage: bake size/time and strict gates on the hard scenes, then integrate (route to 100x on the still frame)",
+   "Pruning lineage, redirected to the editing regime: cheap per-drag object lists"
+  ],
+  "queue": [
+   "Full suite on the repaired build (all three regimes)",
+   "Grazing: widen the exact window where the bake is thin",
+   "Integrate bricks; republish Clay Preview"
+  ],
+  "updated": 1795268931997
+ }
 }

@@ -115,5 +115,115 @@
   "result": "Kept 0.1 voxel: 1.52 \u2192 1.37 s (4.1\u00d7); IoU 0.9991.",
   "verdict": "kept",
   "commit": "f8b6396"
+ },
+ {
+  "id": 13,
+  "t": 1795232076696,
+  "title": "Snap to the surface at the first close exact evaluation",
+  "hyp": "Accept the first exact eval with |d|<0.3h and project along the ray: saves most march steps",
+  "change": "Projection p - n\u00b7d after one exact eval",
+  "result": "1002 ms but extra 369 px, IoU 0.9886: rays near silhouettes snap onto surfaces they would miss. Retry with snap only for d<=0 or |d|<0.05h.",
+  "verdict": "rejected",
+  "commit": ""
+ },
+ {
+  "id": 14,
+  "t": 1795232076724,
+  "title": "Narrow-band bake",
+  "hyp": "Bake only voxels near the surface, from a cheap lower bound",
+  "change": "Per-voxel lower bound from object boxes, grown for openings and cuts",
+  "result": "Bake 10.8 s, unchanged: growth for openings and cuts covers almost the whole box. Retry with bounds from add objects only (cuts and hollowing only raise the field).",
+  "verdict": "rejected",
+  "commit": ""
+ },
+ {
+  "id": 15,
+  "t": 1795232076751,
+  "title": "Merge the exact-field lineage into the bake lineage",
+  "hyp": "The exact-field agent's cheaper map() (one call site, leaner interpreter, ~2x alone) multiplies with the baked start",
+  "change": "Merge claude/sdf-perf-exact; the single call-site loop now carries the windowed fallback, 3-tap normals and baked AO",
+  "result": "Composite 1374 -> 680 ms (8.3x baseline); sweeps-64 1312 ms; image unchanged (diff 0.34%, IoU 0.9991)",
+  "verdict": "kept",
+  "commit": "849405b"
+ },
+ {
+  "id": 16,
+  "t": 1795232366420,
+  "title": "Full suite on the merged build: image gates on every scene",
+  "hyp": "The strict floor must hold on all scenes, not just composite",
+  "change": "Image check of all 14 scenes against the baseline",
+  "result": "Composite, sweeps, blend, shell, csg, close-up, pieces-1 pass. custom-section 1.86%, grazing 3.48%, pieces-9 0.97%, pieces-4 0.53% fail strict. The merge is pixel-identical to the bake lineage: the failures came from earlier kept steps gated on composite only. Diff maps: creases (3-sample forward normals see one side of a sharp edge) and thin-slab rims (baked start past a thin wall).",
+  "verdict": "info",
+  "commit": ""
+ },
+ {
+  "id": 17,
+  "t": 1795232432811,
+  "title": "Snap v2: snap only where the ray faces the surface",
+  "hyp": "Accept the first exact evaluation within 0.3 voxel and step along the ray onto the surface when -n\u00b7rd > 0.3; grazing rays keep marching",
+  "change": "One snap attempt per ray in the single-call-site loop",
+  "result": "Composite 671 -> 629 ms (-6%) but diff 0.49% (limit 0.5%), grazing extra 67 px, IoU 0.998. The refined start leaves only ~2-3 march steps, so there is little to save; not worth the image risk.",
+  "verdict": "rejected",
+  "commit": ""
+ },
+ {
+  "id": 18,
+  "t": 1795232789010,
+  "title": "Clean full-suite rerun under the CPU lock",
+  "hyp": "Runs timed while agents build are unreliable",
+  "change": "Same merged build, full suite, now with the CPU mutex and contamination check",
+  "result": "pieces-9 1056 ms (unlocked, agents building) vs 662 ms clean: a 60% error from parallel builds. Other scenes within noise. Clean run is the incumbent reference.",
+  "verdict": "info",
+  "commit": ""
+ },
+ {
+  "id": 19,
+  "t": 1795232952361,
+  "title": "Tetrahedral 4-tap normals (gate repair candidate)",
+  "hyp": "The 3-sample forward normals misshade creases",
+  "change": "4 tetrahedral taps instead of 3 forward differences",
+  "result": "Diff: composite 0.34->0.19%, grazing 3.48->2.08%, pieces-9 0.97->0.67%, custom-section 1.86->1.90% (its failure is coverage: 131 missed px, IoU 0.9963). Cost +10%. Bisecting the saved builds to find where each failure entered.",
+  "verdict": "info",
+  "commit": ""
+ },
+ {
+  "id": 20,
+  "t": 1795234975209,
+  "title": "First iPhone run (user, Clay Preview, merged build)",
+  "hyp": "The headless proxy's ratios carry to the phone",
+  "change": "View -> Run the benchmark scene on the user's iPhone (DPR 3, ratio 2, 804x544)",
+  "result": "Composite on iPhone: settled 18 ms (vs 691 headless), orbit 1-2 ms, bake 109 ms. The phone is ~38x faster than the proxy on the settled frame. The 4-jug piece still lost the GPU context 0.4-0.9 s after its field changed at rest (4 hollow bodies), on the build before the row-strip bake; fixed further by skipping the whole exact frame while the bake is pending (7239f50). Awaiting a rerun.",
+  "verdict": "info",
+  "commit": ""
+ },
+ {
+  "id": 21,
+  "t": 1795268931877,
+  "title": "Strict-gate repair: tetrahedral normals + 0.5-voxel back-off (regime: still)",
+  "hyp": "Bisect: 3-sample normals broke creases; starting at the refined baked hit missed inner-silhouette pixels",
+  "change": "4 tetrahedral normal taps; start the exact window 0.5 voxel before the baked hit",
+  "result": "Strict now on composite 0.07%, csg 0.08%, custom-section 0.41%, pieces-4 0.08%, pieces-9 0.17%; grazing 2.0% (thin slabs, since bake v1). Still frame composite 652 -> 810 ms. Orbit unaffected; editing unaffected (exact path only used with a bake).",
+  "verdict": "kept",
+  "commit": "34d33d9"
+ },
+ {
+  "id": 22,
+  "t": 1795268931904,
+  "title": "Bricks lineage, first result (agent, regime: still; bake cost)",
+  "hyp": "Fine sparse bricks near the surface let the settled frame avoid most exact evaluations",
+  "change": "Coarse 192^3 bake, then (N+1)^3-sample bricks of the exact field in a band (N=4, N=8 where the coarse field bends); settled pass marches and shades from bricks",
+  "result": "Settled: composite 100 ms (57x baseline), sweeps-64 108, pieces-9 81, close-up 147, grazing 235, custom-section 108. Strict on composite, sweeps-64, close-up. Bake 4-30x longer (composite 27 s headless): time to sharp after an edit is the cost. Orbit unchanged; editing unaffected.",
+  "verdict": "info",
+  "commit": ""
+ },
+ {
+  "id": 23,
+  "t": 1795268931932,
+  "title": "Pruning lineage, first result (agent, regime: still)",
+  "hyp": "Per-cell object masks (Lipschitz pruning) cut objects per evaluation",
+  "change": "Cells of 2 voxels after the bake; masks ANDed into the settled ray mask once per ray",
+  "result": "Bit-identical image; objects/eval 6.19 -> 5.4; 5-7% faster. Small because the composite's objects really overlap. Agent redirected to the editing regime.",
+  "verdict": "info",
+  "commit": ""
  }
 ]

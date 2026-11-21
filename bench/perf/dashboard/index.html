@@ -130,7 +130,7 @@ const V = {};
 V.overview = () => {
   const b = D.baseline, cur = D.runs.filter((r) => r.kept).at(-1) ?? null;
   const x = cur && b ? cur.headlineFps / b.headlineFps : null;
-  const target = 10;
+  const target = 100;
   const last = D.journal.at(-1);
   return `<section class="tiles">
     <div class="tile"><span class="k">Speed-up, composite</span><span class="v big">${x ? x.toFixed(2) + '×' : '–'}</span><span class="n">target ${target}× · ${x ? Math.min(100, (Math.log(x) / Math.log(target)) * 100).toFixed(0) : 0}% of the way (log)</span></div>
@@ -138,10 +138,20 @@ V.overview = () => {
     <div class="tile"><span class="k">Worst frame now</span><span class="v">${cur?.scenes?.composite ? fmt(cur.scenes.composite.msMax, 0) : '–'}</span><span class="n">ms, composite (guardrail is set on the phone)</span></div>
     <div class="tile"><span class="k">Attempts</span><span class="v">${D.journal.length}</span><span class="n">${D.journal.filter((j) => j.verdict === 'kept').length} kept · ${D.journal.filter((j) => j.verdict === 'rejected').length} rejected</span></div>
   </section>
+  ${nowPanel()}
   <section class="card"><h2>Where it stands</h2><p>${esc(D.status ?? '')}</p>
     ${last ? `<p class="muted">Last attempt: <b>${esc(last.title)}</b> — <span class="pill ${esc(last.verdict)}">${esc(last.verdict)}</span> ${esc(last.result ?? '')}</p>` : ''}</section>
   <section class="card"><h2>Headline over time</h2>${graphHeadline(220)}</section>`;
 };
+function nowPanel() {
+  const n = D.now; if (!n) return '';
+  const ago = n.updated ? Math.max(0, Math.round((Date.now() - n.updated) / 60000)) : null;
+  const li = (a) => (a ?? []).map((x) => `<li>${esc(x)}</li>`).join('');
+  return `<section class="card"><h2>Now <span class="muted" style="font-weight:400;font-size:13px">${ago === null ? '' : ago < 1 ? 'updated just now' : `updated ${ago} min ago`}</span></h2>
+    <p><b>Working on:</b> ${esc(n.current ?? '')}</p>
+    ${n.agents?.length ? `<div><b>Agents running</b><ul>${li(n.agents)}</ul></div>` : ''}
+    ${n.queue?.length ? `<div><b>Up next</b><ol>${li(n.queue)}</ol></div>` : ''}</section>`;
+}
 function graphHeadline(h) {
   const runs = D.runs.filter((r) => r.headlineFps);
   const b = D.baseline?.headlineFps || 1;
