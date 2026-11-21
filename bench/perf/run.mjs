@@ -136,26 +136,42 @@ for (const name of names) {
     for (let y = 0; y < H; y++) img.data.set(buf.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);
     cx.putImageData(img, 0, 0);
     v.scene.background = bg; v.renderer.setClearColor(clear, clearA);
+    // editing: frames of a drag in progress (field changing, bake stale, exact field at
+    // the moving resolution), measured last so the other series are untouched
+    const msEdit = [];
+    if (v.benchEdit) {
+      v.benchEdit(); // warm-up
+      for (let i = 0; i < frames; i++) {
+        place((2 * Math.PI * i) / frames);
+        const t = performance.now(); v.benchEdit(); msEdit.push(performance.now() - t);
+      }
+      v.benchEdit(true);
+    }
     for (const o of [...hide, ...helpers]) o.visible = true;
-    return { ms, msMove, prepareMs, w: W, h: H, covered: n, mapsPerPx: n ? maps / n : 0, maxMaps, objsPerMap: maps ? objs / maps : 0, objsPerPx: n ? objs / n : 0, png: cv.toDataURL('image/png') };
+    return { ms, msMove, msEdit, prepareMs, w: W, h: H, covered: n, mapsPerPx: n ? maps / n : 0, maxMaps, objsPerMap: maps ? objs / maps : 0, objsPerPx: n ? objs / n : 0, png: cv.toDataURL('image/png') };
   }, { view: sc.view, frames, runs });
   const foreign = +foreignCores(cpu0, cpuSample()).toFixed(2);
   fs.writeFileSync(path.join(runDir, `${name}.png`), Buffer.from(r.png.split(',')[1], 'base64'));
   const mean = r.ms.reduce((a, b) => a + b, 0) / r.ms.length;
   const meanMove = r.msMove.reduce((a, b) => a + b, 0) / r.msMove.length;
+  const meanEdit = r.msEdit.length ? r.msEdit.reduce((a, b) => a + b, 0) / r.msEdit.length : null;
   results.scenes[name] = {
     group: sc.group, msMean: +mean.toFixed(1), msP95: +pct(r.ms, 0.95).toFixed(1), msMax: +Math.max(...r.ms).toFixed(1), fps: +(1000 / mean).toFixed(3), prepareMs: +r.prepareMs.toFixed(0), msMove: +meanMove.toFixed(1), fpsMove: +(1000 / meanMove).toFixed(3),
+    // the three regimes: orbit (msMove), still (msMean, the headline), editing (msEdit);
+    // after an edit is released, the view is sharp after the bake plus one settled frame
+    msEdit: meanEdit === null ? null : +meanEdit.toFixed(1), fpsEdit: meanEdit === null ? null : +(1000 / meanEdit).toFixed(3), sharpAfterEditMs: Math.round(r.prepareMs + mean),
     w: r.w, h: r.h, coveredPx: r.covered, mapsPerPx: +r.mapsPerPx.toFixed(2), maxMaps: r.maxMaps, objsPerMap: +r.objsPerMap.toFixed(2), objsPerPx: +r.objsPerPx.toFixed(1), settleMs,
     // machine-independent work of one settled frame (the cost view's counts): object
     // evaluations and field evaluations summed over the covered pixels
     workObjEvals: Math.round(r.objsPerPx * r.covered), workMaps: Math.round(r.mapsPerPx * r.covered), foreignCores: foreign, ms: r.ms.map((x) => +x.toFixed(1)),
   };
-  console.log(`${name.padEnd(16)} ${mean.toFixed(0).padStart(6)} ms  moving ${meanMove.toFixed(0).padStart(5)} ms  p95 ${pct(r.ms, 0.95).toFixed(0).padStart(6)}  fps ${(1000 / mean).toFixed(3)}  maps/px ${r.mapsPerPx.toFixed(1)}  objs/map ${r.objsPerMap.toFixed(2)}  settle ${settleMs} ms  work ${(r.objsPerPx * r.covered / 1e6).toFixed(2)}M obj-evals${foreign > 0.25 ? `  CONTAMINATED (${foreign} foreign cores)` : ''}`);
+  console.log(`${name.padEnd(16)} ${mean.toFixed(0).padStart(6)} ms  moving ${meanMove.toFixed(0).padStart(5)} ms  edit ${meanEdit === null ? '  –' : meanEdit.toFixed(0).padStart(5)} ms  bake ${r.prepareMs.toFixed(0).padStart(6)} ms  p95 ${pct(r.ms, 0.95).toFixed(0).padStart(6)}  fps ${(1000 / mean).toFixed(3)}  maps/px ${r.mapsPerPx.toFixed(1)}  objs/map ${r.objsPerMap.toFixed(2)}  settle ${settleMs} ms  work ${(r.objsPerPx * r.covered / 1e6).toFixed(2)}M obj-evals${foreign > 0.25 ? `  CONTAMINATED (${foreign} foreign cores)` : ''}`);
 }
 const fpsList = Object.values(results.scenes).map((s) => s.fps);
 results.geomeanFps = +Math.exp(fpsList.reduce((a, f) => a + Math.log(f), 0) / fpsList.length).toFixed(4);
 results.headlineFps = results.scenes.composite?.fps ?? null;
 results.headlineMovingFps = results.scenes.composite?.fpsMove ?? null;
+results.headlineEditFps = results.scenes.composite?.fpsEdit ?? null;
 results.maxForeignCores = Math.max(...Object.values(results.scenes).map((s) => s.foreignCores));
 results.contaminated = results.maxForeignCores > 0.25;
 results.errors = errors.slice(0, 10);

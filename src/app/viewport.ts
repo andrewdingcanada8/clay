@@ -407,6 +407,26 @@ export class Viewport {
     return { settledMs, movingMs, prepareMs, w, h };
   }
 
+  private lastSdfDoc: SceneDoc | null = null;
+
+  /**
+   * For the harness: one frame of an edit in progress (a gizmo drag): the document is
+   * set again as a drag sets it (interactive, so the bake is stale) and the moving
+   * image is drawn from the exact field at the moving resolution, waited on.
+   * `end` releases the drag (the document set at rest; the bake must run again).
+   */
+  benchEdit(end = false) {
+    if (this.mode !== 'sdf' || !this.lastSdfDoc) return;
+    this.sdf.setDoc(this.lastSdfDoc, !end);
+    if (end) return;
+    this.camera.updateMatrixWorld();
+    const r = this.targets();
+    this.drawLow(r.low); this.present(r.low);
+    const gl = this.renderer.getContext(), px = new Uint8Array(4);
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    this.lowKey = this.frontKey = '';
+  }
+
   /** For the harness: finish any per-edit work now (the bake), waited on. Returns ms. */
   benchPrepare(): number {
     if (this.mode !== 'sdf') return 0;
@@ -927,6 +947,7 @@ export class Viewport {
   /** SDF kernel: show the document directly (no build needed for the outer form). */
   /** `interactive`: mid-drag, slow profile tables wait for release (see SdfRenderer.setDoc). */
   setSdfDoc(doc: SceneDoc, interactive = false) {
+    this.lastSdfDoc = doc;
     this.sdf.setDoc(doc, interactive);
     if (!interactive) {
       const n = (t: string) => doc.objects.filter((o) => o.type === t).length;

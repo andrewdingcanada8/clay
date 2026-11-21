@@ -46,6 +46,23 @@ measure → hypothesise → experiment → keep / reset → reflect ─┐
 - The two drivers of sphere tracing, map() calls per pixel and objects per call, are
   reported separately so a blended number can't hide which one moved.
 
+## Three regimes, never mixed
+
+| Regime | When | Series |
+|---|---|---|
+| Orbit | camera moving, geometry unchanged | `msMove` |
+| Still | view at rest, refining to sharp (the headline) | `msMean` |
+| Editing | a drag, scale or slider: the field changes every frame | `msEdit` |
+
+- **Time to sharp after an edit** is the bake plus one settled frame (`sharpAfterEditMs`).
+- Each optimisation is judged in the regime it targets and also checked in the other two.
+  Examples:
+  - a baked field speeds up orbit and still, but does nothing mid-drag and adds bake
+    time after every release;
+  - a cheaper exact field helps all three.
+- Heavy work happens only on release, so editing frames can only get cheaper through a
+  cheaper exact field or fewer pixels.
+
 ## The gates (anti-cheat)
 
 A timing only counts if the stills pass, against the baseline renderer's stills:
