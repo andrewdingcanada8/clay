@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 import { FRAG, type SdfRenderer } from './raymarch';
 import { dlog } from './debugLog';
-import { drawRows, BRICK_B, BRICK_N, BRICK_SHARP, BRICK_THR, BrickLevel, CLASSIFY, SETTLED } from './bricks';
+import { drawRows, BRICK_NEAR, BRICK_B, BRICK_N, BRICK_SHARP, BRICK_THR, BrickLevel, CLASSIFY, SETTLED } from './bricks';
 
 /** Voxels along the box's longest side. */
 const RES = 192;
@@ -162,7 +162,7 @@ export class FieldBake {
     this.levels = BRICK_N.map((n) => new BrickLevel(n, FRAG, sdf.material.uniforms));
     this.classMat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: CLASSIFY, depthTest: false, depthWrite: false,
-      uniforms: { uTex: { value: null }, uCy: { value: 1 }, uRows: { value: 1 }, uThr: { value: 1 }, uSharp: { value: 1 } },
+      uniforms: { uTex: { value: null }, uCy: { value: 1 }, uRows: { value: 1 }, uThr: { value: 1 }, uSharp: { value: 1 }, uNear: { value: 1 } },
     });
     const cm = new THREE.Mesh(tri(), this.classMat);
     cm.frustumCulled = false;
@@ -343,7 +343,7 @@ export class FieldBake {
     }
     const cu = this.classMat.uniforms;
     cu.uTex.value = t.texture; cu.uCy.value = cy; cu.uRows.value = rows;
-    cu.uThr.value = BRICK_THR * this.h; cu.uSharp.value = BRICK_SHARP * this.h;
+    cu.uThr.value = BRICK_THR * this.h; cu.uSharp.value = BRICK_SHARP * this.h; cu.uNear.value = BRICK_NEAR * this.h;
     const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
     renderer.autoClear = false;
     renderer.setRenderTarget(this.classRT);

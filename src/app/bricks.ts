@@ -27,6 +27,14 @@ export const AO_FINE = Q.get('ao') === '1';
 /** Bake each brick's own N³ samples only (a core atlas), then fill the shared faces from
  *  the neighbours' cores in a copy pass (no map()): about half the samples of (N+1)³. */
 export const APRON_COPY = Q.get('ap') !== '0';
+/** Second differences count only along sample lines that come this near the surface (voxels). */
+export const BRICK_NEAR = +(Q.get('bl') ?? 99);
+/** Normal taps this many fine spacings from the hit. */
+export const NORMAL_E = +(Q.get('ne') ?? 1);
+/** Brick reads: take off trilinear's curvature error (second differences; implies MANUAL_TRI). */
+export const QUAD_CORR = Q.get('qc') !== '0';
+/** Brick reads: trilinear by hand from exact texel reads (fp32 weights). */
+export const MANUAL_TRI = Q.get('mt') === '1' || QUAD_CORR;
 /** Atlas slots per row and per column. */
 export const SLOTS_XY = 40;
 
@@ -44,7 +52,10 @@ uniform int uRows;
 uniform float uThr;   // world units
 uniform float uSharp; // world units
 out uvec4 fragColor;
+uniform float uNear;  // world units
 #define B ${BRICK_B}
+// a bend only rounds the surface off where it lies near it
+bool near(float a, float b, float c) { return min(min(abs(a), abs(b)), abs(c)) < uNear; }
 void main() {
   ivec2 fc = ivec2(gl_FragCoord.xy);
   bool sharpMode = fc.y >= uRows;
@@ -67,11 +78,11 @@ void main() {
     // second differences along each axis over the cell's samples
     for (int a = 0; a <= B; a++) for (int b = 0; b <= B; b++) for (int x = 1; x < B; x++) {
       int i = (a * (B + 1) + b) * (B + 1) + x;
-      s = max(s, abs(v[i - 1] - 2.0 * v[i] + v[i + 1]));
+      s = max(s, near(v[i - 1], v[i], v[i + 1]) ? abs(v[i - 1] - 2.0 * v[i] + v[i + 1]) : 0.0);
       int j = (a * (B + 1) + x) * (B + 1) + b;
-      s = max(s, abs(v[j - (B + 1)] - 2.0 * v[j] + v[j + (B + 1)]));
+      s = max(s, near(v[j - (B + 1)], v[j], v[j + (B + 1)]) ? abs(v[j - (B + 1)] - 2.0 * v[j] + v[j + (B + 1)]) : 0.0);
       int l = (x * (B + 1) + a) * (B + 1) + b;
-      s = max(s, abs(v[l - (B + 1) * (B + 1)] - 2.0 * v[l] + v[l + (B + 1) * (B + 1)]));
+      s = max(s, near(v[l - (B + 1) * (B + 1)], v[l], v[l + (B + 1) * (B + 1)]) ? abs(v[l - (B + 1) * (B + 1)] - 2.0 * v[l] + v[l + (B + 1) * (B + 1)]) : 0.0);
     }
     if (m < uThr && (!sharpMode || s > uSharp)) {
       uint bit = 1u << uint(k & 31);
@@ -124,6 +135,35 @@ float bakedField(vec3 p) {
   return texture(uTex, (q * (n - 1.0) + 0.5) / n).r;
 }
 ivec3 slotOf(int slot, ivec3 s) { return ivec3(slot % s.x, (slot / s.x) % s.y, slot / (s.x * s.y)); }
+// trilinear by hand in fp32 from exact texel reads (l in [0, n])
+float tri3(sampler3D t, ivec3 base, vec3 l, int n) {
+  ivec3 i0 = min(ivec3(floor(l)), ivec3(n - 1));
+  vec3 w = l - vec3(i0);
+  ivec3 q = base + i0;
+  float a = texelFetch(t, q, 0).r, b = texelFetch(t, q + ivec3(1, 0, 0), 0).r;
+  float c = texelFetch(t, q + ivec3(0, 1, 0), 0).r, d = texelFetch(t, q + ivec3(1, 1, 0), 0).r;
+  float e = texelFetch(t, q + ivec3(0, 0, 1), 0).r, f = texelFetch(t, q + ivec3(1, 0, 1), 0).r;
+  float g = texelFetch(t, q + ivec3(0, 1, 1), 0).r, h = texelFetch(t, q + ivec3(1, 1, 1), 0).r;
+  float v = mix(mix(mix(a, b, w.x), mix(c, d, w.x), w.y), mix(mix(e, f, w.x), mix(g, h, w.x), w.y), w.z);
+${QUAD_CORR ? `
+  // trilinear overestimates a convex field (and under-, a concave one) by about
+  // half w(1 - w) times the second difference along each axis: take that off
+  // (second differences along the cell's base lines, inside the brick)
+  vec3 d2;
+  for (int k = 0; k < 3; k++) {
+    ivec3 e1 = ivec3(k == 0, k == 1, k == 2);
+    int i = i0[k];
+    float fm = texelFetch(t, base + i0 + e1 * (max(i - 1, 0) - i), 0).r;
+    float f0 = a, f1 = k == 0 ? b : k == 1 ? c : e;
+    float f2 = texelFetch(t, base + i0 + e1 * (min(i + 2, n) - i), 0).r;
+    // at index i (needs i >= 1) and i + 1 (needs i + 1 <= n - 1)
+    float da = fm - 2.0 * f0 + f1, db = f0 - 2.0 * f1 + f2;
+    da = i >= 1 ? da : db; db = i + 1 <= n - 1 ? db : da;
+    d2[k] = mix(da, db, w[k]);
+  }
+  v -= 0.5 * dot(w * (1.0 - w), d2);` : ''}
+  return v;
+}
 // the field from the brick holding p, else the coarse field; level: -1 none, 0 smooth, 1 sharp
 float field(vec3 p, out int level) {
   vec3 g = (p - uO) / uH;
@@ -134,8 +174,11 @@ float field(vec3 p, out int level) {
   vec3 u = g - cf * ${BRICK_B.toFixed(1)};
   vec3 l0 = clamp(u * ${f(BRICK_N[0] / BRICK_B)}, 0.0, ${BRICK_N[0].toFixed(1)});
   vec3 l1 = clamp(u * ${f(BRICK_N[1] / BRICK_B)}, 0.0, ${BRICK_N[1].toFixed(1)});
+${MANUAL_TRI ? `
+  float f0 = tri3(uAtlas0, slotOf(slot, uSlots0) * ${BRICK_N[0] + 1}, l0, ${BRICK_N[0]});
+  float f1 = tri3(uAtlas1, slotOf(slot, uSlots1) * ${BRICK_N[1] + 1}, l1, ${BRICK_N[1]});` : `
   float f0 = texture(uAtlas0, (vec3(slotOf(slot, uSlots0)) * ${(BRICK_N[0] + 1).toFixed(1)} + 0.5 + l0) / vec3(textureSize(uAtlas0, 0))).r;
-  float f1 = texture(uAtlas1, (vec3(slotOf(slot, uSlots1)) * ${(BRICK_N[1] + 1).toFixed(1)} + 0.5 + l1) / vec3(textureSize(uAtlas1, 0))).r;
+  float f1 = texture(uAtlas1, (vec3(slotOf(slot, uSlots1)) * ${(BRICK_N[1] + 1).toFixed(1)} + 0.5 + l1) / vec3(textureSize(uAtlas1, 0))).r;`}
   level = ivec3(cf) != c || s == 0.0 ? -1 : s > 0.0 ? 0 : 1;
   return level == 0 ? f0 : level == 1 ? f1 : coarse(p);
 }
@@ -175,7 +218,7 @@ void main() {
   if (kind == 1) n = -uClip.xyz;
   else {
     // central differences one fine spacing apart
-    vec3 e = vec3(uH * (level == 1 ? ${f(BRICK_B / BRICK_N[1])} : ${f(BRICK_B / BRICK_N[0])}), 0.0, 0.0);
+    vec3 e = vec3(uH * (level == 1 ? ${f(NORMAL_E * BRICK_B / BRICK_N[1])} : ${f(NORMAL_E * BRICK_B / BRICK_N[0])}), 0.0, 0.0);
     int l2;
     n = vec3(field(p + e.xyy, l2) - field(p - e.xyy, l2), field(p + e.yxy, l2) - field(p - e.yxy, l2), field(p + e.yyx, l2) - field(p - e.yyx, l2));
   }
@@ -214,10 +257,17 @@ const int N0 = ${BRICK_N[0]}, N1 = ${BRICK_N[1]};
 ivec3 slotOf(int slot, ivec3 s) { return ivec3(slot % s.x, (slot / s.x) % s.y, slot / (s.x * s.y)); }
 // a core's value at l (its own fine units, clamped to its samples), interpolated
 float coreAt(int lv, int slot, vec3 l) {
-  vec3 c0 = clamp(l, 0.0, float(N0 - 1)), c1 = clamp(l, 0.0, float(N1 - 1));
-  float a = texture(uCore0, (vec3(slotOf(slot, uSlots0) * N0) + c0 + 0.5) / vec3(textureSize(uCore0, 0))).r;
-  float b = texture(uCore1, (vec3(slotOf(slot, uSlots1) * N1) + c1 + 0.5) / vec3(textureSize(uCore1, 0))).r;
-  return lv == 0 ? a : b;
+  // (by hand, from exact texel reads: a filtered read's weights are too coarse)
+  int N = lv == 0 ? N0 : N1;
+  vec3 c = clamp(l, 0.0, float(N - 1));
+  ivec3 i0 = min(ivec3(floor(c)), ivec3(N - 2)), base = lv == 0 ? slotOf(slot, uSlots0) * N0 : slotOf(slot, uSlots1) * N1;
+  vec3 w = c - vec3(i0);
+  float v[8];
+  for (int k = 0; k < 8; k++) {
+    ivec3 q = base + i0 + ivec3(k & 1, (k >> 1) & 1, k >> 2);
+    v[k] = lv == 0 ? texelFetch(uCore0, q, 0).r : texelFetch(uCore1, q, 0).r;
+  }
+  return mix(mix(mix(v[0], v[1], w.x), mix(v[2], v[3], w.x), w.y), mix(mix(v[4], v[5], w.x), mix(v[6], v[7], w.x), w.y), w.z);
 }
 void main() {
   int N = uLevel == 0 ? N0 : N1, S = N + 1;
