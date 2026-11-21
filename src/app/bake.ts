@@ -10,6 +10,7 @@
 // openings, masks and symmetry come along. The clip plane is applied when drawing.
 import * as THREE from 'three';
 import { FRAG, type SdfRenderer } from './raymarch';
+import { BRICK_B, BRICK_N, BRICK_SHARP, BRICK_THR, BrickLevel, CLASSIFY, SETTLED } from './bricks';
 
 /** Voxels along the box's longest side. */
 const RES = 192;
@@ -107,7 +108,7 @@ export class FieldBake {
   /** The field version the texture holds (complete), or -1. */
   readyVersion = -1;
   private target: THREE.WebGL3DRenderTarget | null = null;
-  private job: { version: number; z: number; batch: number; fence: WebGLSync | null; at: number; t0: number } | null = null;
+  private job: { version: number; z: number; batch: number; fence: WebGLSync | null; at: number; t0: number; phase: number; tb: number; level: number } | null = null;
   private layerRate = 0; // layers per ms, learned
   private bakeScene = new THREE.Scene();
   private bakeCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -118,7 +119,18 @@ export class FieldBake {
   private size = new THREE.Vector3();
   private h = 1;
   /** How long the last complete bake took (ms, wall clock) and its voxel count. */
-  lastBake = { ms: 0, voxels: 0 };
+  lastBake = { ms: 0, voxels: 0, bricks: [0, 0], samples: 0, brickMs: 0, classifyMs: 0 };
+  // ---- fine bricks (bricks.ts)
+  /** The field version the bricks hold (complete), or -1. */
+  brickVersion = -1;
+  private ind: THREE.Data3DTexture | null = null;
+  private levels: BrickLevel[];
+  private classMat: THREE.ShaderMaterial;
+  private classScene = new THREE.Scene();
+  private classRT: THREE.WebGLRenderTarget | null = null;
+  readonly settledMat: THREE.ShaderMaterial;
+  readonly settledScene = new THREE.Scene();
+  private cells = new Int32Array(3);
 
   constructor(private sdf: SdfRenderer) {
     this.bakeMat = new THREE.ShaderMaterial({
@@ -142,7 +154,32 @@ export class FieldBake {
     // the exact renderer's matrices are set in its onBeforeRender: share its camera upkeep
     mm.onBeforeRender = (r, s, c, g, mat, grp) => sdf.mesh.onBeforeRender(r, s, c, g, mat, grp);
     this.marchScene.add(mm);
+    this.levels = BRICK_N.map((n) => new BrickLevel(n, FRAG, sdf.material.uniforms));
+    this.classMat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: CLASSIFY, depthTest: false, depthWrite: false,
+      uniforms: { uTex: { value: null }, uCy: { value: 1 }, uRows: { value: 1 }, uThr: { value: 1 }, uSharp: { value: 1 } },
+    });
+    const cm = new THREE.Mesh(tri(), this.classMat);
+    cm.frustumCulled = false;
+    this.classScene.add(cm);
+    this.settledMat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: SETTLED, depthTest: true, depthWrite: true,
+      uniforms: {
+        uTex: { value: null }, uInd: { value: null }, uAtlas0: { value: null }, uAtlas1: { value: null },
+        uO: { value: this.origin }, uSize: { value: this.size }, uH: { value: 1 },
+        uCells: { value: this.cells }, uSlots0: { value: this.levels[0].slots }, uSlots1: { value: this.levels[1].slots },
+        uInvProjView: su.uInvProjView, uProjView: su.uProjView, uClip: su.uClip, uClipOn: su.uClipOn,
+        uClay: su.uClay, uCap: su.uCap, uPixelAngle: su.uPixelAngle, uPixelSize: su.uPixelSize, uFlat: su.uFlat,
+      },
+    });
+    const sm = new THREE.Mesh(tri(), this.settledMat);
+    sm.frustumCulled = false;
+    sm.onBeforeRender = (r, s, c, g, mat, grp) => sdf.mesh.onBeforeRender(r, s, c, g, mat, grp);
+    this.settledScene.add(sm);
   }
+
+  /** The bricks match the field (the settled frame can come from them). */
+  get bricksReady() { return this.brickVersion === this.sdf.fieldVersion && this.ready; }
 
   get ready() { return this.readyVersion === this.sdf.fieldVersion && !!this.target; }
   get busy() { return !!this.job; }
@@ -151,7 +188,7 @@ export class FieldBake {
   get voxel() { return this.h; }
 
   /** Forget the bake (the GPU context it lived in is gone). */
-  reset() { this.target?.dispose(); this.target = null; this.job = null; this.readyVersion = -1; }
+  reset() { this.target?.dispose(); this.target = null; this.job = null; this.readyVersion = -1; this.brickVersion = -1; for (const l of this.levels) l.dispose(); this.classRT?.dispose(); this.classRT = null; }
 
   /**
    * Advance the bake by one batch of layers if the field changed and is at rest.
@@ -161,7 +198,7 @@ export class FieldBake {
   step(renderer: THREE.WebGLRenderer, now: number): boolean {
     const v = this.sdf.fieldVersion;
     if (this.sdf.interactive || this.sdf.bounds.isEmpty()) { this.job = null; return false; }
-    if (this.readyVersion === v && !this.job) return false;
+    if (this.readyVersion === v && this.brickVersion === v && !this.job) return false;
     const gl = renderer.getContext() as WebGL2RenderingContext;
     if (!this.job || this.job.version !== v) {
       if (this.job?.fence) gl.deleteSync(this.job.fence);
@@ -173,19 +210,40 @@ export class FieldBake {
       gl.deleteSync(j.fence); j.fence = null;
       this.layerRate = j.batch / Math.max(1, now - j.at);
     }
-    const t = this.target!;
-    const n = Math.max(1, Math.min(t.depth - j.z, this.layerRate > 0 ? Math.round(this.layerRate * BATCH_MS) : 2));
-    this.drawLayers(renderer, j.z, n);
-    j.fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-    gl.flush();
-    j.z += n; j.batch = n; j.at = performance.now();
-    if (j.z >= t.depth) {
-      this.readyVersion = v;
-      this.lastBake = { ms: performance.now() - j.t0, voxels: t.width * t.height * t.depth };
-      this.job = null;
-      return false;
+    if (j.phase === 0) {
+      const t = this.target!;
+      const n = Math.max(1, Math.min(t.depth - j.z, this.layerRate > 0 ? Math.round(this.layerRate * BATCH_MS) : 2));
+      this.drawLayers(renderer, j.z, n);
+      j.fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+      gl.flush();
+      j.z += n; j.batch = n; j.at = performance.now();
+      if (j.z >= t.depth) {
+        this.readyVersion = v;
+        this.lastBake.ms = performance.now() - j.t0;
+        this.lastBake.voxels = t.width * t.height * t.depth;
+        // next: find the band cells (waits on the GPU: a readback), then bake their bricks
+        j.phase = 1; j.z = 0; j.tb = performance.now();
+      }
+      return true;
     }
-    return true;
+    if (j.phase === 1) { this.classify(renderer); j.phase = 2; j.z = 0; j.level = 0; return true; }
+    while (j.level < this.levels.length && j.z >= this.levels[j.level].layers) { j.level++; j.z = 0; }
+    if (j.level < this.levels.length) {
+      const L = this.levels[j.level], a = L.atlas!;
+      // (a brick layer costs about what a coarse layer of the same area does)
+      const area = this.target!.width * this.target!.height, aArea = a.width * a.height;
+      const rate = this.layerRate * area / aArea;
+      const n = Math.max(1, Math.min(L.layers - j.z, rate > 0 ? Math.round(rate * BATCH_MS) : 2));
+      L.draw(renderer, this.origin, this.h, j.z, n);
+      j.fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+      gl.flush();
+      j.z += n; j.batch = n * aArea / area; j.at = performance.now();
+      return true;
+    }
+    this.brickVersion = v;
+    this.lastBake.brickMs = performance.now() - j.tb;
+    this.job = null;
+    return false;
   }
 
   /** The whole bake at once, waited on (for the benchmark harness). Returns ms. */
@@ -199,8 +257,16 @@ export class FieldBake {
     void gl;
     this.readyVersion = this.sdf.fieldVersion;
     this.job = null;
-    this.lastBake = { ms: performance.now() - t0, voxels: this.target!.width * this.target!.height * this.target!.depth };
-    return this.lastBake.ms;
+    this.lastBake.ms = performance.now() - t0;
+    this.lastBake.voxels = this.target!.width * this.target!.height * this.target!.depth;
+    const tb = performance.now();
+    this.classify(renderer);
+    for (const L of this.levels) if (L.layers) L.draw(renderer, this.origin, this.h, 0, L.layers);
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
+    this.brickVersion = this.sdf.fieldVersion;
+    this.lastBake.brickMs = performance.now() - tb;
+    (window as unknown as { __brickStats: unknown }).__brickStats = { ...this.lastBake, cells: [...this.cells], atlas: this.levels.map((l) => l.atlas ? [l.atlas.width, l.atlas.height, l.atlas.depth] : null) };
+    return performance.now() - t0;
   }
 
   private start(version: number, now: number) {
@@ -225,7 +291,8 @@ export class FieldBake {
     this.sdf.material.uniforms.uBakeTex.value = this.target.texture;
     this.sdf.material.uniforms.uBakeSize.value.copy(this.size);
     this.marchMat.uniforms.uH.value = h;
-    this.job = { version, z: 0, batch: 0, fence: null, at: now, t0: now };
+    this.job = { version, z: 0, batch: 0, fence: null, at: now, t0: now, phase: 0, tb: now, level: 0 };
+    this.brickVersion = -1;
   }
 
   private drawLayers(renderer: THREE.WebGLRenderer, z0: number, n: number) {
@@ -242,4 +309,58 @@ export class FieldBake {
     renderer.setRenderTarget(prev);
     renderer.autoClear = auto;
   }
+
+  /** Find the band cells and the sharp ones (a GPU pass, read back), lay out the atlases and the indirection. */
+  private classify(renderer: THREE.WebGLRenderer) {
+    const t0 = performance.now();
+    const t = this.target!;
+    const cx = Math.ceil((t.width - 1) / BRICK_B), cy = Math.ceil((t.height - 1) / BRICK_B), cz = Math.ceil((t.depth - 1) / BRICK_B);
+    const blocks = Math.ceil(cz / 128), rows = cy * blocks;
+    if (!this.classRT || this.classRT.width !== cx || this.classRT.height !== 2 * rows) {
+      this.classRT?.dispose();
+      this.classRT = new THREE.WebGLRenderTarget(cx, 2 * rows, { type: THREE.UnsignedIntType, format: THREE.RGBAIntegerFormat, internalFormat: 'RGBA32UI', depthBuffer: false });
+      this.classRT.texture.minFilter = this.classRT.texture.magFilter = THREE.NearestFilter;
+    }
+    const cu = this.classMat.uniforms;
+    cu.uTex.value = t.texture; cu.uCy.value = cy; cu.uRows.value = rows;
+    cu.uThr.value = BRICK_THR * this.h; cu.uSharp.value = BRICK_SHARP * this.h;
+    const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
+    renderer.autoClear = false;
+    renderer.setRenderTarget(this.classRT);
+    renderer.render(this.classScene, this.bakeCam);
+    const gl = renderer.getContext() as WebGL2RenderingContext;
+    const bits = new Uint32Array(cx * 2 * rows * 4);
+    gl.readPixels(0, 0, cx, 2 * rows, gl.RGBA_INTEGER, gl.UNSIGNED_INT, bits);
+    renderer.setRenderTarget(prev);
+    renderer.autoClear = auto;
+    // slots in cell order; indirection: +slot+1 (smooth level), -(slot+1) (sharp level)
+    const ind = new Float32Array(cx * cy * cz);
+    const lists: number[][] = [[], []];
+    const sharpOff = rows * cx * 4;
+    for (let k = 0; k < cz; k++) {
+      const blk = k >> 7, kk = k & 127, w = kk >> 5, bit = (1 << (kk & 31)) >>> 0;
+      for (let j = 0; j < cy; j++) for (let i = 0; i < cx; i++) {
+        const o = ((blk * cy + j) * cx + i) * 4 + w;
+        if ((bits[o] & bit) === 0) continue;
+        const lv = (bits[sharpOff + o] & bit) !== 0 ? 1 : 0;
+        lists[lv].push(i, j, k);
+        ind[(k * cy + j) * cx + i] = (lv ? -1 : 1) * lists[lv].length / 3;
+      }
+    }
+    this.cells.set([cx, cy, cz]);
+    this.ind?.dispose();
+    this.ind = new THREE.Data3DTexture(ind, cx, cy, cz);
+    this.ind.format = THREE.RedFormat; this.ind.type = THREE.FloatType;
+    this.ind.minFilter = this.ind.magFilter = THREE.NearestFilter;
+    this.ind.unpackAlignment = 1;
+    this.ind.needsUpdate = true;
+    this.levels.forEach((L, i) => { L.layout(lists[i]); if (L.count) L.masks(renderer, this.origin, this.h); });
+    const su = this.settledMat.uniforms;
+    su.uTex.value = t.texture; su.uInd.value = this.ind; su.uH.value = this.h;
+    su.uAtlas0.value = this.levels[0].atlas!.texture; su.uAtlas1.value = this.levels[1].atlas!.texture;
+    this.lastBake.bricks = this.levels.map((l) => l.count);
+    this.lastBake.samples = this.levels.reduce((a, l) => a + l.count * l.S ** 3, 0);
+    this.lastBake.classifyMs = performance.now() - t0;
+  }
+
 }

@@ -422,6 +422,7 @@ export class Viewport {
     else {
       const r = this.targets();
       if (moving) { this.drawLow(r.low); this.present(r.low); }
+      else if (this.bake.bricksReady) { this.drawBricks(r.back); this.present(r.back); }
       else { this.drawSdf(r.back, 0, r.back.height, this.startDepths()); this.present(r.back); }
     }
     const gl = this.renderer.getContext(), px = new Uint8Array(4);
@@ -488,7 +489,7 @@ export class Viewport {
     const e = this.camera.matrixWorld.elements, p = this.camera.projectionMatrix.elements;
     const c = this.renderer.domElement;
     const bg = this.scene.background as THREE.Color | null;
-    let k = `${this.sdf.version}|${this.bake.ready ? 'b' : 'x'}|${c.width}x${c.height}|${bg?.getHexString?.() ?? ''}|`;
+    let k = `${this.sdf.version}|${this.bake.ready ? 'b' : 'x'}${this.bake.bricksReady ? 'f' : ''}|${c.width}x${c.height}|${bg?.getHexString?.() ?? ''}|`;
     for (let i = 0; i < 16; i++) k += `${e[i].toFixed(5)},${p[i].toFixed(5)},`;
     return k;
   }
@@ -525,6 +526,16 @@ export class Viewport {
     if (mode) this.renderer.setClearColor(new THREE.Color(-1, -1, -1), -1);
     this.renderer.setRenderTarget(t);
     this.renderer.render(this.bake.marchScene, this.camera);
+    this.renderer.setRenderTarget(null);
+    this.renderer.setClearColor(clear, clearA);
+  }
+
+  /** The settled image from the coarse field and the fine bricks (bricks.ts), whole. */
+  private drawBricks(t: THREE.WebGLRenderTarget) {
+    const clear = this.renderer.getClearColor(new THREE.Color()), clearA = this.renderer.getClearAlpha();
+    this.renderer.setClearColor(0x000000, 0);
+    this.renderer.setRenderTarget(t);
+    this.renderer.render(this.bake.settledScene, this.camera);
     this.renderer.setRenderTarget(null);
     this.renderer.setClearColor(clear, clearA);
   }
@@ -605,6 +616,15 @@ export class Viewport {
     if (this.lowKey !== key) { this.drawLow(r.low); this.lowKey = key; }
     // (and come back next frame: once it holds still, the bands start)
     if (this.moving || drifting) { this.band.active = false; this.present(r.low); this.needsRender = true; return; }
+    if (this.bake.bricksReady) {
+      // cheap enough to draw whole
+      this.band.active = false;
+      this.drawBricks(r.back);
+      [r.back, r.front] = [r.front, r.back];
+      this.frontKey = key;
+      this.present(r.front);
+      return;
+    }
     const H = r.back.height, b = this.band;
     const gl = this.renderer.getContext() as WebGL2RenderingContext;
     if (!b.active || b.key !== key) {

@@ -51,7 +51,15 @@ precision highp float;
 precision highp int;
 precision highp sampler3D;
 in vec2 vNdc;
+#ifdef SDF_MASK
+layout(location = 0) out highp uvec4 pc_fragColor;
+#else
 layout(location = 0) out highp vec4 pc_fragColor;
+#endif
+#ifdef SDF_BRICK
+// each slot's object mask (even rows) and cluster bits (odd rows), from the SDF_MASK pass
+uniform highp usampler2D uBrickMask;
+#endif
 uniform mat4 uInvProjView;
 uniform mat4 uProjView;
 uniform sampler2D uData;
@@ -87,6 +95,11 @@ uniform sampler2D uStartT;
 uniform float uStartBack;
 uniform highp sampler3D uBakeTex;
 uniform vec3 uBakeSize;
+// fine bricks (bake.ts): atlas slots per axis, cell size in voxels, fine step in voxels
+uniform ivec3 uBrickSlots;
+uniform float uBrickCell;
+uniform float uBrickStep;
+uniform float uBrickReach;
 // occlusion from the baked field (settled pass with a bake): the same four taps
 float bakedField(vec3 p) {
   vec3 q = clamp((p - uBakeO) / uBakeSize, 0.0, 1.0);
@@ -710,6 +723,31 @@ void main() {
   vec3 p = uBakeO + vec3(gl_FragCoord.xy - 0.5, uBakeZ) * uBakeH;
   pc_fragColor = vec4(map(p), 0.0, 0.0, 1.0);
 }
+#elif defined(SDF_BRICK)
+// brick bake: atlas layer uBakeZ; each slot's cell comes from the slot table (uStartT)
+void main() {
+  gNoClip = true;
+  ivec3 a = ivec3(ivec2(gl_FragCoord.xy), int(uBakeZ + 0.5));
+  ivec3 sl = a / BRICK_S, l = a - sl * BRICK_S;
+  int slot = (sl.z * uBrickSlots.y + sl.y) * uBrickSlots.x + sl.x;
+  ivec2 st = ivec2(slot & 4095, slot >> 12);
+  vec3 cell = texelFetch(uStartT, st, 0).xyz;
+  gMask = texelFetch(uBrickMask, ivec2(st.x, 2 * st.y), 0);
+  gClu = texelFetch(uBrickMask, ivec2(st.x, 2 * st.y + 1), 0).x;
+  vec3 p = uBakeO + (cell * uBrickCell + vec3(l) * uBrickStep) * uBakeH;
+  pc_fragColor = vec4(map(p), 0.0, 0.0, 1.0);
+}
+#elif defined(SDF_MASK)
+// the objects (and clusters) within uBrickReach of each slot's cell centre
+void main() {
+  ivec2 fc = ivec2(gl_FragCoord.xy);
+  vec3 cell = texelFetch(uStartT, ivec2(fc.x, fc.y >> 1), 0).xyz;
+  vec3 c = uBakeO + (cell + 0.5) * uBrickCell * uBakeH;
+  vec2 span;
+  uint clu;
+  uvec4 m = rayMask(c, vec3(1.0, 0.0, 0.0), 0.0, 0.0, uBrickReach, span, clu);
+  pc_fragColor = (fc.y & 1) == 0 ? m : uvec4(clu, 0u, 0u, 0u);
+}
 #else
 void main() {
   vec4 a = uInvProjView * vec4(vNdc, -1.0, 1.0);
@@ -882,6 +920,11 @@ export class SdfRenderer {
       uStartBack: { value: 1 },
       uBakeTex: { value: null },
       uBakeSize: { value: new THREE.Vector3(1, 1, 1) },
+      uBrickSlots: { value: new Int32Array(3) },
+      uBrickCell: { value: 2 },
+      uBrickStep: { value: 0.5 },
+      uBrickReach: { value: 1 },
+      uBrickMask: { value: null },
       uFlat: { value: 0 },
       uPass: { value: 0 },
       uCamPos: { value: new THREE.Vector3() },
