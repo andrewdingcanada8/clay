@@ -193,5 +193,11 @@
   "label": "exact occlusion everywhere (probe)",
   "kept": false,
   "note": "grazing diff unchanged 1.71%: not occlusion"
+ },
+ {
+  "dir": "2026-11-21T14-56-29-727Z-band2",
+  "label": "narrow-band bake (bounds, no cut/opening growth)",
+  "kept": false,
+  "note": "bake -10..21% composite/pieces-4, worse sweeps-64"
  }
 ]

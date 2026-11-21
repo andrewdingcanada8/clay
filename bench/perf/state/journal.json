@@ -265,5 +265,15 @@
   "result": "Current build: grazing 1.71% strict -> 0.09% with 1-px tolerance; custom-section 0.30 -> 0.08%; composite 0.02 -> 0.01%. Grazing passes with a 1-px aliasing tolerance; every other scene passes strict.",
   "verdict": "info",
   "commit": ""
+ },
+ {
+  "id": 28,
+  "t": 1795303264841,
+  "title": "Narrow-band bake from object bounds (regime: time to sharp after edit)",
+  "hyp": "Cuts, masks, hollowing and openings only raise the field, so a lower bound from object bounds minus blend reach is safe without opening/cut growth",
+  "change": "SDF_BAKE writes the lower bound where it exceeds 4 voxels, else map()",
+  "result": "Bake: composite 4.27 -> 3.85 s, pieces-4 6.18 -> 4.89 s, sweeps-64 23.7 -> 26.3 s (worse). Images identical. Not worth the code; bake time moves to the bricks agent.",
+  "verdict": "rejected",
+  "commit": ""
  }
 ]
