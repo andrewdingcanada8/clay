@@ -12,7 +12,12 @@ bench/perf/bench.sh <label> --dist bench/perf/ref/dist-<name> [--scenes composit
 python3 bench/perf/compare.py bench/perf/results/<ref run> bench/perf/results/<candidate run>
 ```
 
-- `bench.sh` takes a global lock, so timed runs never overlap.
+- `bench.sh` takes a global lock, so timed runs never overlap. It also takes the CPU lock
+  exclusively: run every heavy job through `bench/perf/heavy.sh <cmd>` (e.g.
+  `bench/perf/heavy.sh npm run build:single`), and it pauses while a benchmark runs.
+- A scene timed under foreign CPU load (another process using > 0.25 core) marks the
+  run `contaminated`. Rerun it.
+- `workObjEvals` / `workMaps` are the machine-independent work of one settled frame.
 - Each run writes `results/<stamp>-<label>/result.json` and one PNG still per scene:
   - settled and moving frame ms per scene;
   - p95 and max;

@@ -67,8 +67,30 @@ is used only if strict can't get near the target, and that is recorded.
 
 Before climbing, the incumbent was run 5 times: composite 5552–5777 ms, σ ≈ 1.5%. A
 candidate must beat the incumbent by more than 3% and hold on a confirmation run.
-Timed runs are serialised through one lock (`bench/perf/bench.sh`), because they share
-the CPU that SwiftShader renders on.
+### Isolation from parallel work
+
+The VM has 4 cores and SwiftShader uses about 2.3 of them, so reserving cores would
+starve the benchmark itself. Three layers keep timings honest while agents work:
+
+1. **A CPU mutex.**
+   - `bench/perf/bench.sh` queues benchmarks behind each other and takes
+     `/tmp/clay-cpu.lock` exclusively.
+   - Every heavy job (builds, typecheck, tests, other headless renders) runs through
+     `bench/perf/heavy.sh`, which takes the same lock shared.
+   - A waiting benchmark raises `/tmp/clay-bench.pending`, so new heavy jobs hold back
+     and benchmarks never starve.
+2. **Contamination check.**
+   - While each scene is timed, `run.mjs` measures machine-wide busy CPU minus its own
+     process tree (`foreignCores`).
+   - Above 0.25 of a core, the run is marked `contaminated` and is rerun before it
+     counts.
+3. **Work counts.**
+   - Next to the ms, every scene reports machine-independent work per settled frame:
+     `workObjEvals` (object evaluations) and `workMaps` (field evaluations), from the
+     cost view.
+   - These can't be disturbed by load. Time stays the headline, because the cost of
+     an evaluation depends on code shape, but work must agree with a claimed win from
+     a fewer-evaluations change.
 
 ## Frozen evaluator
 

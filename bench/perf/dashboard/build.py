@@ -26,8 +26,8 @@ for m in runs_meta:
         continue
     r = json.load(open(p))
     runs.append({'label': m.get('label', r['label']), 'dir': m['dir'], 'kept': m.get('kept', False), 'device': m.get('device', False), 'note': m.get('note', ''),
-                 'git': r.get('git'), 'stamp': r.get('stamp'), 'headlineFps': r.get('headlineFps'),
-                 'scenes': {k: {kk: v[kk] for kk in ('fps', 'msMean', 'msP95', 'msMax', 'mapsPerPx', 'objsPerMap', 'objsPerPx') if kk in v} for k, v in r['scenes'].items()}})
+                 'git': r.get('git'), 'stamp': r.get('stamp'), 'headlineFps': r.get('headlineFps'), 'contaminated': r.get('contaminated'),
+                 'scenes': {k: {kk: v[kk] for kk in ('fps', 'msMean', 'msP95', 'msMax', 'mapsPerPx', 'objsPerMap', 'objsPerPx', 'workObjEvals', 'workMaps', 'foreignCores', 'prepareMs', 'msMove') if kk in v} for k, v in r['scenes'].items()}})
 
 def fit(points):
     """Least squares on log-log: T = a·N^b. Returns b."""
