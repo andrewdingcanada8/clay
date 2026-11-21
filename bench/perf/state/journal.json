@@ -175,5 +175,15 @@
   "result": "pieces-9 1056 ms (unlocked, agents building) vs 662 ms clean: a 60% error from parallel builds. Other scenes within noise. Clean run is the incumbent reference.",
   "verdict": "info",
   "commit": ""
+ },
+ {
+  "id": 19,
+  "t": 1795232952361,
+  "title": "Tetrahedral 4-tap normals (gate repair candidate)",
+  "hyp": "The 3-sample forward normals misshade creases",
+  "change": "4 tetrahedral taps instead of 3 forward differences",
+  "result": "Diff: composite 0.34->0.19%, grazing 3.48->2.08%, pieces-9 0.97->0.67%, custom-section 1.86->1.90% (its failure is coverage: 131 missed px, IoU 0.9963). Cost +10%. Bisecting the saved builds to find where each failure entered.",
+  "verdict": "info",
+  "commit": ""
  }
 ]

@@ -145,5 +145,11 @@
   "label": "merged build, full suite (clean, under CPU lock)",
   "kept": false,
   "note": "incumbent reference: composite 691 ms, geomean 1.366 fps"
+ },
+ {
+  "dir": "2026-11-21T03-46-21-370Z-tetra",
+  "label": "tetrahedral 4-tap normals",
+  "kept": false,
+  "note": "partial gate fix: composite 0.19%, grazing 2.08%, pieces-9 0.67%; custom-section unchanged; +10% time"
  }
 ]
