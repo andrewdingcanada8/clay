@@ -19,8 +19,7 @@ import { type CompiledGroup, OPENING_EPS, compileGroups } from '../engine/scene'
 const MAX_GROUPS = 8;
 const MAX_GRIDS = 4;
 const MAX_PROFILES = 8;
-const MAX_PINS = 32;
-const ROWS = 10; // texels per object in the data texture
+const ROWS = 16; // texels per object in the data texture (10 used; a power of two for the program's)
 const TYPE_CODE: Record<string, number> = { sphere: 0, box: 1, cylinder: 2, cone: 3, torus: 4, capsule: 5, prism: 6, revolve: 7, sweep: 8 };
 const MAX_SWEEPS = 6; // distinct sweep shapes (texture slots); copies of one share its slot
 const MAX_SWEEP_OBJS = 64; // sweep objects (copies included), each with its own distance
@@ -30,6 +29,7 @@ const MASK_FLAG = 256;
 const MAX_PROG = 512;
 const MAX_CLUSTERS = 32; // top-level layers, each culled per ray as a whole (see rayMask)
 const MAX_DEPTH = 12;
+const MAX_LOOP = 4096; // a constant bound for loops over a run of objects (they break first)
 // sweep texture rows per slot (indexed by path vertex / segment unless noted):
 // 0 point + length so far, 1 segment direction + length, 2/4 section normal square
 // to the segment at its start/end + flags of the vertex there (1 miter, 2 round
@@ -76,7 +76,6 @@ uniform int uGroupCount;
 uniform int uObjCount;
 uniform int uProgLen; // the layer program (scene.CompiledIns), in uData from row uProgRow
 uniform int uProgRow;
-uniform int uSweepCount;
 uniform int uCluCount;
 // the baked field (bake.ts): a bake pass writes map() at voxel centres of layer uBakeZ;
 // the settled pass may start each ray where the baked field says the surface is
@@ -101,9 +100,6 @@ uniform int uSweepData[${MAX_SWEEP_OBJS}]; // its shape's texture slot
 uniform float uSweepGate;
 uniform ivec2 uCluSw[${MAX_CLUSTERS}]; // each cluster's range in the sweep list
 uniform ivec4 uGroupRange[${MAX_GROUPS}];   // shells start, solids start, subs start, end
-uniform ivec2 uPinRange[${MAX_GROUPS}];
-uniform vec4 uGroupC[${MAX_GROUPS}];
-uniform vec4 uGroupE[${MAX_GROUPS}];
 uniform float uT[${MAX_GROUPS}];
 uniform float uK[${MAX_GROUPS}];
 uniform float uReach[${MAX_GROUPS}]; // scene.CompiledGroup.reach: every fold its objects pass through
@@ -111,12 +107,13 @@ uniform int uCutsBound[${MAX_GROUPS}]; // scene.CompiledGroup.cutsBound
 uniform float uRound[${MAX_GROUPS}]; // rounds the rims of the group's cuts
 uniform int uHollow[${MAX_GROUPS}];
 uniform int uUseGrid[${MAX_GRIDS}];
-uniform int uUseRound[${MAX_GRIDS}]; // the grid's second channel: a compound rounding
-uniform float uRoundR[${MAX_GRIDS}];
 uniform float uCavH[${MAX_GRIDS}];
-uniform vec4 uPins[${MAX_PINS * 2}];
 ${range(MAX_GRIDS).map((i) => `uniform sampler3D uCav${i}; uniform vec3 uCavO${i}; uniform vec3 uCavS${i}; uniform float uCavC${i};`).join('\n')}
-${range(MAX_PROFILES).map((i) => `uniform sampler2D uProf${i}; uniform vec2 uProfLo${i}; uniform vec2 uProfHi${i};`).join('\n')}
+${range(MAX_PROFILES).map((i) => `uniform sampler2D uProf${i};`).join('\n')}
+// per profile slot: first and last texel centres, texture size
+uniform vec2 uProfLo[${MAX_PROFILES}];
+uniform vec2 uProfHi[${MAX_PROFILES}];
+uniform vec2 uProfSz[${MAX_PROFILES}];
 
 vec4 row(int obj, int r) { return texelFetch(uData, ivec2(r, obj), 0); }
 vec3 toLocal(int o, vec3 p) {
@@ -131,29 +128,20 @@ float sdCone2(vec2 q, float r, float hh) {
   bool inside = q.y > -hh && q.y < hh && q.x < r * (hh - q.y) / (2.0 * hh);
   return inside ? -d : d;
 }
-float sdPin(vec3 p, vec3 a, vec3 b, float r) {
-  vec3 ba = b - a, pa = p - a;
-  float baba = dot(ba, ba), paba = dot(pa, ba);
-  float x = length(pa * baba - ba * paba) - r * baba;
-  float y = abs(paba - baba * 0.5) - baba * 0.5;
-  float x2 = x * x, y2 = y * y * baba;
-  float d = (max(x, y) < 0.0) ? -min(x2, y2) : (((x > 0.0) ? x2 : 0.0) + ((y > 0.0) ? y2 : 0.0));
-  return sign(d) * sqrt(abs(d)) / baba;
-}
-float profileLookup(sampler2D tex, vec2 lo, vec2 hi, vec2 q, int ch) {
+float profile(int slot, vec2 q, int ch) {
+  if (slot < 0 || slot >= ${MAX_PROFILES}) return 1e5;
+  vec2 lo = uProfLo[slot], hi = uProfHi[slot], sz = uProfSz[slot];
   vec2 c = clamp(q, lo, hi);
   vec2 o = q - c;
   o.x = max(o.x, 0.0); // r below the first texel centre is still inside the table
   float outside = length(o);
   // lo/hi are the first/last texel centres
-  vec2 sz = vec2(textureSize(tex, 0));
-  float v = texture(tex, (0.5 + (c - lo) / (hi - lo) * (sz - 1.0)) / sz)[ch];
+  vec2 uv = (0.5 + (c - lo) / (hi - lo) * (sz - 1.0)) / sz;
+  vec4 t = vec4(0.0);
+${range(MAX_PROFILES).map((i) => `  ${i ? 'else ' : ''}if (slot == ${i}) t = texture(uProf${i}, uv);`).join('\n')}
+  float v = t[ch];
   if (ch == 1) return v;
   return outside > 0.0 ? max(outside, v) : v; // the table has margin around the shape
-}
-float profile(int slot, vec2 q, int ch) {
-${range(MAX_PROFILES).map((i) => `  if (slot == ${i}) return profileLookup(uProf${i}, uProfLo${i}, uProfHi${i}, q, ch);`).join('\n')}
-  return 1e5;
 }
 float smin(float a, float b, float k) {
   if (k <= 0.0) return min(a, b);
@@ -164,19 +152,21 @@ bool bit(int mask, int n) { return ((mask >> n) & 1) == 1; }
 // Regular n-gon frustum along Y: P = (n, bottom radius, half height, top radius).
 // Signed distance to the side plane at angle 'a' (outward normal), from (u, y)
 // where u is the coordinate along that normal.
-float frustumSide(float u, float y, vec4 P) {
-  float c = cos(3.14159265 / P.x);
-  float ap1 = P.y * c, ap2 = P.w * c, h = 2.0 * P.z;
-  return ((u - ap1) * h + (y + P.z) * (ap1 - ap2)) / length(vec2(h, ap1 - ap2));
+// E: the object's row 7 = (edge rounding, cos(pi/n), tan(pi/n), 1 / slant length of a
+// side's apothem line), constants worked out on the CPU (see writeData)
+float frustumSide(float u, float y, vec4 P, vec4 E) {
+  float ap1 = P.y * E.y, ap2 = P.w * E.y, h = 2.0 * P.z;
+  return ((u - ap1) * h + (y + P.z) * (ap1 - ap2)) * E.w;
 }
-float sdFrustum(vec3 q, vec4 P) {
-  float an = 3.14159265 / P.x;
-  // side normals point at angles (2k+1)*an; b = angle from the nearest one
-  float b = mod(atan(q.z, q.x), 2.0 * an) - an;
-  float side = frustumSide(length(q.xz) * cos(b), q.y, P);
+// (rho, b): distance from the axis, angle from the nearest side normal (side normals
+// point at angles (2k+1)*pi/n)
+float sdFrustum(vec3 q, vec4 P, vec4 E, float rho, float b) {
+  float side = frustumSide(rho * cos(b), q.y, P, E);
   return max(side, abs(q.y) - P.z);
 }
 
+// lowest set bit's index (x != 0; findLSB needs ES 3.1); powers of two are exact in float
+int lowBit(uint x) { return int(log2(float(x & (~x + 1u))) + 0.5); }
 vec4 sw(int slot, int r, int i) { return texelFetch(uSweep, ivec2(i, slot * ${SWEEP_ROWS} + r), 0); }
 // section in its own plane; P = (kind, half width, half height, -)
 float sweepSection(int slot, vec4 P, int polyN, vec2 uv) {
@@ -247,13 +237,23 @@ vec2 sdSweep(int slot, vec4 P, vec4 M, vec3 q, int holeMask) {
   int g0 = int(sw(slot, 2, bi).w + 0.5), g1 = int(sw(slot, 4, bi).w + 0.5);
   bool sharp0 = (g0 & 4) == 4 && (bi > 0 || loop), sharp1 = (g1 & 4) == 4 && (bi + 1 < segs || loop);
   vec2 best = vec2(1e20);
-  // candidates: 0-2 segment pieces (nearest, before, after), 3-4 corners, 5-8 cap halves
-  for (int k = min(uGroupCount, 0); k < 9; k++) {
+  // candidates: 0-2 segment pieces (nearest, before, after), 3-4 corners, 5-8 cap
+  // halves; the loop visits only those that apply here, in order
+  uint cm = 1u;
+  if (sharp0) cm |= (g0 & 2) != 0 ? 10u : 2u;
+  if (sharp1) cm |= (g1 & 2) != 0 ? 20u : 4u;
+  if (!loop && roundCap) {
+    if (bi == 0) cm |= 96u;
+    if (bi == segs - 1) cm |= 384u;
+  }
+  for (int c = min(uGroupCount, 0); c < 9; c++) {
+    if (cm == 0u) break;
+    int k = lowBit(cm);
+    cm &= cm - 1u;
     vec2 uv;
     float eReal = -1e9, eSeam = -1e9, eRealO = -1e9, eSeamO = -1e9;
     bool closedOnly = false;
     if (k < 3) {
-      if ((k == 1 && !sharp0) || (k == 2 && !sharp1)) continue;
       int i = k == 0 ? bi : k == 1 ? (bi > 0 ? bi - 1 : segs - 1) : (bi + 1 < segs ? bi + 1 : 0);
       vec4 A = sw(slot, 0, i), DL = sw(slot, 1, i), Na = sw(slot, 2, i), Nb = sw(slot, 4, i);
       vec3 w = q - A.xyz, d = DL.xyz;
@@ -276,7 +276,6 @@ vec2 sdSweep(int slot, vec4 P, vec4 M, vec3 q, int holeMask) {
       eSeamO = max(!loop && i == 0 && openS ? -1e9 : sIn, !loop && i == segs - 1 && openE ? -1e9 : sOut);
     } else if (k < 5) {
       int j = k == 3 ? bi : bi + 1;
-      if ((k == 3 ? !sharp0 || (g0 & 2) == 0 : !sharp1 || (g1 & 2) == 0)) continue;
       vec3 w = q - sw(slot, 0, j).xyz;
       vec4 J0 = sw(slot, 6, j), J1 = sw(slot, 7, j), J2 = sw(slot, 8, j);
       vec3 ax = J0.xyz, co = vec3(J0.w, J1.xy), Nn = vec3(J1.zw, J2.x), Bn = J2.yzw;
@@ -287,7 +286,6 @@ vec2 sdSweep(int slot, vec4 P, vec4 M, vec3 q, int holeMask) {
       eSeamO = eSeam;
     } else {
       int e = (k - 5) / 2;
-      if (loop || !roundCap || bi != (e == 0 ? 0 : segs - 1)) continue;
       closedOnly = e == 0 ? openS : openE; // an open end has no cap in the depth
       int j = e == 0 ? 0 : n - 1, seg = e == 0 ? 0 : segs - 1;
       vec3 w = q - sw(slot, 0, j).xyz;
@@ -305,29 +303,33 @@ vec2 sdSweep(int slot, vec4 P, vec4 M, vec3 q, int holeMask) {
 }
 
 // a regular n-gon frustum with every edge rounded by rr (primitives.prismFrustum.roundedSdf)
-float sdFrustumRound(vec3 q, vec4 P, float rr) {
-  float an = 3.14159265 / P.x, hh = P.z, h = 2.0 * hh;
-  float ap1 = P.y * cos(an), ap2 = P.w * cos(an), cosT = h / length(vec2(h, ap1 - ap2));
+float sdFrustumRound(vec3 q, vec4 P, vec4 E, float rho, float b) {
+  float rr = E.x, hh = P.z, h = 2.0 * hh;
+  float ap1 = P.y * E.y, ap2 = P.w * E.y, cosT = h * E.w;
   float a1 = ap1 - rr / cosT, a2 = ap2 - rr / cosT;
   float yAx = a1 > a2 ? -hh + a1 / (a1 - a2) * h : hh;
   float y0 = -hh + rr, y1 = min(hh - rr, yAx);
   float ap = max(0.0, a1 + (a2 - a1) * (clamp(q.y, y0, y1) + hh) / h);
-  float b = mod(atan(q.z, q.x), 2.0 * an) - an, rho = length(q.xz);
   float ex = rho * cos(b) - ap, py = abs(rho * sin(b));
-  float side = sign(ex) * length(vec2(ex, py - min(py, ap * tan(an)))) * cosT;
+  float side = sign(ex) * length(vec2(ex, py - min(py, ap * E.z))) * cosT;
   float cap = max(y0 - q.y, q.y - y1);
   return min(max(side, cap), 0.0) + length(max(vec2(side, cap), 0.0)) - rr;
 }
-// rr: edge rounding (prisms; boxes carry theirs in P.w)
-float sdLocal(vec3 q, vec4 P, int type, int slot, float rr) {
+// E: row 7 (prisms: see frustumSide; boxes carry their rounding in P.w)
+float sdLocal(vec3 q, vec4 P, int type, int slot, vec4 E) {
+  float rho = length(q.xz); // (most types: worked out once)
   if (type == 0) return length(q) - P.x;
   if (type == 1) return sdBox(q, P.xyz - P.w) - P.w;
-  if (type == 2) return extrude(length(q.xz) - P.x, q.y, P.y);
-  if (type == 3) return sdCone2(vec2(length(q.xz), q.y), P.x, P.y);
-  if (type == 4) return length(vec2(length(q.xz) - P.x, q.y)) - P.y;
+  if (type == 2) return extrude(rho - P.x, q.y, P.y);
+  if (type == 3) return sdCone2(vec2(rho, q.y), P.x, P.y);
+  if (type == 4) return length(vec2(rho - P.x, q.y)) - P.y;
   if (type == 5) return length(vec3(q.x, q.y - clamp(q.y, -P.y, P.y), q.z)) - P.x;
-  if (type == 6) return rr > 0.0 ? sdFrustumRound(q, P, rr) : sdFrustum(q, P);
-  return profile(slot, vec2(length(q.xz), q.y), 0);
+  if (type == 6) {
+    float an = 3.14159265 / P.x;
+    float b = mod(atan(q.z, q.x), 2.0 * an) - an;
+    return E.x > 0.0 ? sdFrustumRound(q, P, E, rho, b) : sdFrustum(q, P, E, rho, b);
+  }
+  return profile(slot, vec2(rho, q.y), 0);
 }
 int gObjN = 0, gMapN = 0; // evaluation counters for the cost view (uFlat == 2)
 // Sweeps at the point map() is evaluating, by sweep object: (distance, distance with open
@@ -338,7 +340,7 @@ float sdObj(int i, vec3 p) {
   gObjN++;
   vec4 meta = row(i, 6);
   if (int(meta.x) == 8) return gSw[int(meta.y)].x;
-  return sdLocal(toLocal(i, p), row(i, 3), int(meta.x), int(meta.y), row(i, 7).x) * row(i, 4).w;
+  return sdLocal(toLocal(i, p), row(i, 3), int(meta.x), int(meta.y), row(i, 7)) * row(i, 4).w;
 }
 // lower bound from the object's bounding sphere
 float bound(int i, vec3 p) { vec4 b = row(i, 5); return length(p - b.xyz) - b.w; }
@@ -401,7 +403,7 @@ float holeDepth(int i, vec3 p) {
   vec4 P = row(i, 3), S = row(i, 4), meta = row(i, 6);
   int type = int(meta.x), slot = int(meta.y), mask = int(meta.z);
   float d = 1e5;
-  if (type == 0 || type == 4 || type == 5) return bit(mask, 0) ? 1e5 : -sdLocal(q, P, type, slot, 0.0) * S.w;
+  if (type == 0 || type == 4 || type == 5) return bit(mask, 0) ? 1e5 : -sdLocal(q, P, type, slot, vec4(0.0)) * S.w;
   if (type == 1) {
     if (!bit(mask, 0)) d = min(d, (P.x - q.x) * S.x);
     if (!bit(mask, 1)) d = min(d, (P.x + q.x) * S.x);
@@ -426,11 +428,12 @@ float holeDepth(int i, vec3 p) {
     if (!bit(mask, 0)) d = min(d, (P.z - q.y) * S.y);
     if (!bit(mask, 1)) d = min(d, (P.z + q.y) * S.y);
     float n = P.x;
+    vec4 E = row(i, 7);
     for (int k = 0; k < 12; k++) {
       if (float(k) >= n) break;
       if (bit(mask, 2 + k)) continue;
       float a = 6.2831853 * (float(k) - 0.5) / n;
-      d = min(d, -frustumSide(dot(q.xz, vec2(cos(a), sin(a))), q.y, P) * min(S.x, S.z));
+      d = min(d, -frustumSide(dot(q.xz, vec2(cos(a), sin(a))), q.y, P, E) * min(S.x, S.z));
     }
     return d;
   }
@@ -461,21 +464,6 @@ vec2 cubic(sampler3D tex, vec3 f, vec3 dims) {
   return g0.z * y0 + g1.z * y1;
 }
 float cubicR(sampler3D tex, vec3 f, vec3 dims) { return cubic(tex, f, dims).r; }
-
-// Compound rounding from grid k: what to add to the sharp body's field Gs (engine/round);
-// trilinear, and tricubic near the rounded surface (smooth, no texel facets). Outside
-// the grid, -r: still a lower bound on the distance.
-float roundCorr(int k, vec3 p, float Gs) {
-${range(MAX_GRIDS).map((i) => `  if (k == ${i}) {
-    vec3 dims = vec3(textureSize(uCav${i}, 0));
-    vec3 tc = (p - uCavO${i}) * uCavS${i} + 0.5 / dims;
-    if (any(lessThan(tc, vec3(0.0))) || any(greaterThan(tc, vec3(1.0)))) return -uRoundR[${i}];
-    float c = texture(uCav${i}, tc).g;
-    if (abs(Gs + c) < 2.0 * uCavH[${i}]) c = cubic(uCav${i}, tc * dims - 0.5, dims).g;
-    return c;
-  }`).join('\n')}
-  return 0.0;
-}
 
 // Cavity depth from grid k: the analytic base depth A plus the grid's correction
 // (trilinear far from the inner wall, tricubic near it). A must match scene.baseDepth.
@@ -522,17 +510,30 @@ float boxBound(int i, vec3 p) {
   return length(max(max(row(i, 8).xyz - q, q - row(i, 9).xyz), 0.0)) * row(i, 4).w;
 }
 void sweepAll(vec3 p) {
+  // the bounds first, marking the sweeps within the gate; then one pass per marked
+  // sweep (the long sweep code runs only as often as the most any pixel needs)
+  uvec2 todo = uvec2(0u);
   for (int c = min(uGroupCount, 0); c < ${MAX_CLUSTERS}; c++) {
     if (c >= uCluCount) break;
     if (((gClu >> uint(c)) & 1u) == 0u) continue;
     ivec2 r = uCluSw[c];
-    for (int k = r.x; k < r.y; k++) {
+    for (int n = 0; n < ${MAX_SWEEP_OBJS}; n++) {
+      int k = r.x + n;
+      if (k >= r.y) break;
       int i = uSweepObj[k];
       float b = bound(i, p);
       if (!objOn(i) || b > uSweepGate || (b = max(b, boxBound(i, p))) > uSweepGate) { gSw[k] = vec2(b); continue; }
-      gObjN++;
-      gSw[k] = sdSweep(uSweepData[k], row(i, 3), row(i, 7), toLocal(i, p), int(row(i, 6).z)) * row(i, 4).w;
+      if (k < 32) todo.x |= 1u << uint(k); else todo.y |= 1u << uint(k - 32);
     }
+  }
+  for (int n = min(uGroupCount, 0); n < ${MAX_SWEEP_OBJS}; n++) {
+    if (todo == uvec2(0u)) break;
+    int k;
+    if (todo.x != 0u) { k = lowBit(todo.x); todo.x &= todo.x - 1u; }
+    else { k = 32 + lowBit(todo.y); todo.y &= todo.y - 1u; }
+    int i = uSweepObj[k];
+    gObjN++;
+    gSw[k] = sdSweep(uSweepData[k], row(i, 3), row(i, 7), toLocal(i, p), int(row(i, 6).z)) * row(i, 4).w;
   }
 }
 
@@ -553,7 +554,9 @@ float unitDepth(int g, vec3 p, float fs) {
   float tau = useGrid ? 0.5 * uCavH[min(g, ${MAX_GRIDS - 1})] : 0.02;
   float t1 = -1e5, t2 = -1e5, lb = -fs - 0.25 * kb * float(R.y - R.x - 1);
   float kS = max(kA, kb);
-  for (int i = R.x; i < R.y; i++) {
+  for (int n = 0; n < ${MAX_LOOP}; n++) {
+    int i = R.x + n;
+    if (i >= R.y) break;
     if (!objOn(i)) continue;
     if (int(row(i, 6).z) == 0 && -bound(i, p) < max(lb, t1) - kS) continue;
     float d = sdCached(i, p);
@@ -569,8 +572,9 @@ float unitDepth(int g, vec3 p, float fs) {
   }
   float D = -smin(-t1, -t2, kS);
   // a closed cut's surface bounds the depth too, unless a layer is added above a cut (see scene.baseDepth)
-  for (int i = R.z; i < R.w; i++) {
-    if (uCutsBound[g] == 0) break;
+  for (int n = 0; n < ${MAX_LOOP}; n++) {
+    int i = R.z + n;
+    if (i >= R.w || uCutsBound[g] == 0) break;
     if (!objOn(i) || int(row(i, 6).z) != 0) continue;
     float b = bound(i, p);
     D = min(D, b < D + 0.5 ? sdObj(i, p) : b);
@@ -603,58 +607,82 @@ float map(vec3 p) {
   int needU = -1;
   for (int n = 0; n < ${MAX_PROG}; n++) {
     if (pc >= uProgLen) break;
-    vec4 ins = texelFetch(uData, ivec2(pc % ${ROWS}, uProgRow + pc / ${ROWS}), 0);
-    pc++;
-    int op = int(ins.x + 0.5);
-    if (op == 0) {
-      int i = int(ins.y + 0.5), fl = int(ins.z + 0.5);
-      float k = ins.w;
-      if (!objOn(i)) continue;
-      bool sub = (fl & 1) == 1, solid = (fl & 2) == 2, msk = (fl & 4) == 4;
-      float b = bound(i, p);
-      // (the shell surface is never below the body, so the body's test covers it for
-      // cuts; a mask's distance is the field wherever it trims, so it is always exact)
-      bool need = msk || (sub ? b < 0.5 + k - g : b < max(solid ? g : f, 0.0) + 0.5 + k);
-      float d = need ? sdShell(i, p) : b;
-      if (msk) {
-        if (d > g) kd = -1;
-        g = -smin(-g, -d, k); f = -smin(-f, -d, k);
-      } else if (sub) {
-        if (-d > g) kd = -1;
-        g = -smin(-g, d, k); f = -smin(-f, d, k);
+    vec4 ins = texelFetch(uData, ivec2(pc & ${ROWS - 1}, uProgRow + (pc >> ${Math.log2(ROWS)})), 0);
+    // The cheap steps run in this tight loop: object steps that can't change the fold
+    // here (off this ray, or the bound shows the smooth min/max would return g and f
+    // exactly: see 'need'), group opens, and group ends that hollow nothing. It stops
+    // at an object the fold needs exactly or a hollow body's end, which the long body
+    // below handles, so that body runs only for the steps that matter.
+    for (int s = 0; s < ${MAX_PROG}; s++) {
+      int op = int(ins.x + 0.5);
+      if (op == 0) {
+        int i = int(ins.y + 0.5), fl = int(ins.z + 0.5);
+        if (objOn(i)) {
+          // (the shell surface is never below the body, so the body's test covers it
+          // for cuts; a mask's distance is the field wherever it trims: always exact)
+          if ((fl & 4) == 4) break;
+          float b = bound(i, p), k = ins.w;
+          if ((fl & 1) == 1 ? b < 0.5 + k - g : b < max((fl & 2) == 2 ? g : f, 0.0) + 0.5 + k) break;
+        }
+        pc++;
+      } else if (op == 1) {
+        // a top-level group the ray can't reach: as if empty (never a mask; see setDoc)
+        int c = int(ins.z + 0.5) - 1;
+        if (c >= 0 && ((gClu >> uint(c)) & 1u) == 0u) pc = int(ins.y + 0.5);
+        else {
+          if (sp < ${MAX_DEPTH}) { G[sp] = g; F[sp] = f; K[sp] = kd; sp++; }
+          g = 1e5; f = 1e5; kd = -1;
+          pc++;
+        }
       } else {
-        if (d < g) kd = -1;
-        g = smin(g, d, k);
-        if (!solid) f = smin(f, d, k);
+        int fl = int(ins.y + 0.5), u = int(ins.z + 0.5) - 1;
+        if (u >= 0 && uHollow[u] == 1 && f < ${OPENING_EPS.toFixed(3)}) break;
+        float gv = g;
+        int kind = kd;
+        if (sp > 0) { sp--; g = G[sp]; f = F[sp]; kd = K[sp]; }
+        // the group folds into its parent (as below)
+        bool fm = (fl & 4) == 4, fs = !fm && (fl & 1) == 1, mx = fm || fs;
+        float a = mx ? -g : g, w = fm ? -gv : gv;
+        if (w < a) kd = fs ? -1 : kind;
+        float r = smin(a, w, ins.w), rf = smin(mx ? -f : f, w, ins.w);
+        g = mx ? -r : r; f = mx ? -rf : rf;
+        pc++;
       }
-    } else if (op == 1) {
-      // a top-level group the ray can't reach: as if empty (never a mask; see setDoc)
-      int c = int(ins.z + 0.5) - 1;
-      if (c >= 0 && ((gClu >> uint(c)) & 1u) == 0u) { pc = int(ins.y + 0.5); continue; }
-      if (sp < ${MAX_DEPTH}) { G[sp] = g; F[sp] = f; K[sp] = kd; sp++; }
-      g = 1e5; f = 1e5; kd = -1;
+      if (pc >= uProgLen) break;
+      ins = texelFetch(uData, ivec2(pc & ${ROWS - 1}, uProgRow + (pc >> ${Math.log2(ROWS)})), 0);
+    }
+    if (pc >= uProgLen) break;
+    pc++;
+    // what the step folds into the open group: v with blend kv, as a mask (fm), a
+    // cut (fs) or an add (solid: not into the shell surface f); kindV: its kind
+    float v = 0.0, kv = ins.w;
+    bool fm = false, fs = false, fsolid = false;
+    int kindV = -1;
+    if (int(ins.x + 0.5) == 0) {
+      // an object the fold needs exactly
+      int i = int(ins.y + 0.5), fl = int(ins.z + 0.5);
+      v = sdShell(i, p);
+      fm = (fl & 4) == 4; fs = !fm && (fl & 1) == 1; fsolid = !fm && !fs && (fl & 2) == 2;
     } else {
+      // a hollow body's end: back for its depth first
       int fl = int(ins.y + 0.5), u = int(ins.z + 0.5) - 1;
-      float k = ins.w;
+      if (ready != pc) { needU = u; pc--; break; }
       float gv = g;
       int kind = kd;
-      if (u >= 0 && uHollow[u] == 1 && f < ${OPENING_EPS.toFixed(3)}) {
-        if (ready != pc) { needU = u; pc--; break; } // back for the depth
-        float cav = max(f - ${OPENING_EPS.toFixed(3)}, uT[u] - cavD);
-        if (-cav > gv) { gv = -cav; kind = u; }
-      }
+      float cav = max(f - ${OPENING_EPS.toFixed(3)}, uT[u] - cavD);
+      if (-cav > gv) { gv = -cav; kind = u; }
       if (sp > 0) { sp--; g = G[sp]; f = F[sp]; kd = K[sp]; }
-      if ((fl & 4) == 4) {
-        if (gv > g) kd = kind;
-        g = -smin(-g, -gv, k); f = -smin(-f, -gv, k);
-      } else if ((fl & 1) == 1) {
-        if (-gv > g) kd = -1;
-        g = -smin(-g, gv, k); f = -smin(-f, gv, k);
-      } else {
-        if (gv < g) kd = kind;
-        g = smin(g, gv, k); f = smin(f, gv, k);
-      }
+      v = gv; kindV = kind;
+      fm = (fl & 4) == 4; fs = !fm && (fl & 1) == 1;
     }
+    // one fold for objects and groups: a mask is a smooth max with v, a cut one
+    // with -v, an add a smooth min with v (negated in and out: exact)
+    bool mx = fm || fs;
+    float a = mx ? -g : g, w = fm ? -v : v;
+    if (w < a) kd = fs ? -1 : kindV;
+    float r = smin(a, w, kv);
+    g = mx ? -r : r;
+    if (!fsolid) { float rf = smin(mx ? -f : f, w, kv); f = mx ? -rf : rf; }
   }
   if (needU < 0) break;
   cavD = unitDepth(needU, p, f);
@@ -667,34 +695,7 @@ float map(vec3 p) {
   return s;
 }
 
-vec3 calcNormal(vec3 p, float e, float d0) {
-  // forward differences from the field at the hit (known): three more field
-  // evaluations instead of four; looped so map() is emitted once here
-  vec3 n = vec3(0.0);
-  for (int i = min(uGroupCount, 0); i < 3; i++) {
-    vec3 k = vec3(i == 0, i == 1, i == 2);
-    n[i] = map(p + k * e) - d0;
-  }
-  return normalize(n);
-}
 uvec4 gAOMask;
-float calcAO(vec3 p, vec3 n) {
-  float occ = 0.0, sca = 1.0;
-  uvec4 m = gMask;
-  uint mc = gClu;
-  gMask = gAOMask;
-  gClu = gAOClu;
-  gNoClip = true; // occlusion comes from the clay only, not the section plane
-  for (int i = min(uGroupCount, 0); i < 4; i++) {
-    float h = 0.15 + 0.6 * float(i);
-    float d = map(p + n * h);
-    occ += (h - d) * sca; sca *= 0.75;
-  }
-  gNoClip = false;
-  gMask = m;
-  gClu = mc;
-  return clamp(1.0 - 0.18 * occ, 0.0, 1.0);
-}
 bool boxHit(vec3 ro, vec3 rd, out float t0, out float t1) {
   vec3 inv = 1.0 / rd;
   vec3 a = (uBoundsMin - ro) * inv, b = (uBoundsMax - ro) * inv;
@@ -752,44 +753,78 @@ void main() {
   if (uObjCount <= 128) { t = max(t, span.x); t1 = min(t1, span.y); }
   if (uStartOn == 1) t = max(t, tStart);
   float d = 1e5, eps = 0.0;
-  bool done = false;
-  for (int i = 0; i < 200; i++) {
-    d = map(ro + rd * t);
-    eps = clamp((uPixelAngle * t + uPixelSize) * 0.35, 0.0008, 0.008);
-    if (d < eps) { hit = true; break; }
-    t += max(d * 0.92, eps * 0.5);
-    if (t > t1) {
-      // past the window round the baked hit without meeting the surface (a ray that
-      // grazes an edge the bake rounded over): the rest of the ray, with its objects
-      if (uStartOn == 1 && t1 < t1Full) {
-        vec2 sp2; uint c2;
-        gMask = rayMask(ro, rd, t, t1Full, nReach, sp2, c2);
-        gClu = c2;
-        t1 = min(t1Full, sp2.y);
-        if (gMask == uvec4(0u)) { done = true; break; }
-        t = max(t, sp2.x);
-        continue;
+  // One loop calls map() for the march, then the 3 normal taps, then (without a
+  // baked field) the 4 occlusion taps, so the long inlined field appears once.
+  // phase 0: marching (step i); 1-3: normal taps (forward differences from d at p);
+  // 5-8: occlusion taps
+  int phase = 0, i = 0, kind = 0;
+  vec3 p = vec3(0.0), n = vec3(0.0);
+  float ne = 0.0, occ = 0.0, sca = 1.0;
+  for (int it = min(uGroupCount, 0); it < 216; it++) {
+    vec3 q;
+    if (phase == 0) q = ro + rd * t;
+    else if (phase <= 3) q = p + vec3(phase == 1, phase == 2, phase == 3) * ne;
+    else q = p + n * (0.15 + 0.6 * float(phase - 5));
+    float m = map(q);
+    if (phase == 0) {
+      d = m;
+      eps = clamp((uPixelAngle * t + uPixelSize) * 0.35, 0.0008, 0.008);
+      bool done = false;
+      if (d < eps) hit = true;
+      else {
+        t += max(d * 0.92, eps * 0.5);
+        if (t > t1) {
+          // past the window round the baked hit without meeting the surface (a ray
+          // that grazes an edge the bake rounded over): the rest of the ray, with its objects
+          if (uStartOn == 1 && t1 < t1Full) {
+            vec2 sp2; uint c2;
+            gMask = rayMask(ro, rd, t, t1Full, nReach, sp2, c2);
+            gClu = c2;
+            t1 = min(t1Full, sp2.y);
+            if (gMask == uvec4(0u)) done = true;
+            else { t = max(t, sp2.x); i++; continue; }
+          } else done = true;
+        }
       }
-      done = true; break;
+      i++;
+      if (!hit && !done && i < 200) continue;
+      // A ray running just alongside a flat face (seen edge-on) creeps along it in
+      // tiny steps and can use up its steps before touching it: it is a hit.
+      if (!hit && !done && d < 8.0 * eps) hit = true;
+      // cost view: map() calls and object evaluations for this pixel, no shading
+      if (uFlat == 2 && !hit) { pc_fragColor = vec4(float(min(gMapN, 255)) / 255.0, float(min(gObjN >> 8, 255)) / 255.0, float(gObjN & 255) / 255.0, 1.0); return; }
+      if (!hit) discard;
+      p = ro + rd * t;
+      vec4 clip = uProjView * vec4(p, 1.0);
+      gl_FragDepth = clamp((clip.z / clip.w) * 0.5 + 0.5, 0.0, 1.0);
+      if (uFlat == 1) { pc_fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+      kind = gKind; // set by the last map() call, at p
+      // the inner wall comes from an interpolated grid: take its normal over half a
+      // texel so texel boundaries don't show as facets
+      ne = max(0.0008, uPixelAngle * t * 0.5);
+      if (kind == 2 && gCavH > 0.0) ne = max(ne, 0.25 * gCavH);
+      phase = 1;
+    } else if (phase <= 3) {
+      n[phase - 1] = m - d;
+      phase++;
+      if (phase < 4) continue;
+      n = normalize(n);
+      if (dot(n, rd) > 0.0) n = -n;
+      if (uPass != 0) break;
+      // with a baked field, occlusion comes from it (below)
+      if (uStartOn == 1) break;
+      // occlusion: the wider mask, and the clay only (not the section plane)
+      gMask = gAOMask;
+      gClu = gAOClu;
+      gNoClip = true;
+      phase = 5;
+    } else {
+      float h = 0.15 + 0.6 * float(phase - 5);
+      occ += (h - m) * sca; sca *= 0.75;
+      phase++;
+      if (phase == 9) break;
     }
   }
-  // A ray running just alongside a flat face (seen edge-on) creeps along it in
-  // tiny steps and can use up its steps before touching it: it is a hit.
-  if (!hit && !done && d < 8.0 * eps) hit = true;
-  // cost view: map() calls and object evaluations for this pixel, no shading
-  if (uFlat == 2 && !hit) { pc_fragColor = vec4(float(min(gMapN, 255)) / 255.0, float(min(gObjN >> 8, 255)) / 255.0, float(gObjN & 255) / 255.0, 1.0); return; }
-  if (!hit) discard;
-  vec3 p = ro + rd * t;
-  vec4 clip = uProjView * vec4(p, 1.0);
-  gl_FragDepth = clamp((clip.z / clip.w) * 0.5 + 0.5, 0.0, 1.0);
-  if (uFlat == 1) { pc_fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
-  int kind = gKind; // set by the last map() call, at p
-  // the inner wall comes from an interpolated grid: take its normal over half a
-  // texel so texel boundaries don't show as facets
-  float ne = max(0.0008, uPixelAngle * t * 0.5);
-  if (kind == 2 && gCavH > 0.0) ne = max(ne, 0.25 * gCavH);
-  vec3 n = calcNormal(p, ne, d);
-  if (dot(n, rd) > 0.0) n = -n;
   if (uPass == 1) {
     float z = dot(p - uCamPos, uCamDir);
     float v = 1.0 - clamp((z - uDepthRange.x) / max(uDepthRange.y - uDepthRange.x, 1e-4), 0.0, 1.0);
@@ -801,12 +836,10 @@ void main() {
   vec3 key = normalize(-rd + vec3(0.35, 0.65, 0.2));
   float dif = clamp(dot(n, key), 0.0, 1.0);
   float hemi = 0.55 + 0.45 * n.y;
-  float ao;
   if (uStartOn == 1) {
-    float occ = 0.0, sca = 1.0;
-    for (int i = 0; i < 4; i++) { float h = 0.15 + 0.6 * float(i); occ += (h - bakedField(p + n * h)) * sca; sca *= 0.75; }
-    ao = clamp(1.0 - 0.18 * occ, 0.0, 1.0);
-  } else ao = calcAO(p, n);
+    for (int k = 0; k < 4; k++) { float h = 0.15 + 0.6 * float(k); occ += (h - bakedField(p + n * h)) * sca; sca *= 0.75; }
+  }
+  float ao = clamp(1.0 - 0.18 * occ, 0.0, 1.0);
   vec3 col = base * (0.38 + 0.22 * hemi + 0.62 * dif) * (0.55 + 0.45 * ao);
   col += 0.06 * pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 3.0);
   pc_fragColor = vec4(pow(col, vec3(1.0 / 1.15)), 1.0);
@@ -868,16 +901,12 @@ export class SdfRenderer {
       uObjCount: { value: 0 },
       uProgLen: { value: 0 },
       uProgRow: { value: 0 },
-      uSweepCount: { value: 0 },
       uSweepObj: { value: range(MAX_SWEEP_OBJS).map(() => 0) },
       uSweepData: { value: range(MAX_SWEEP_OBJS).map(() => 0) },
       uCluSw: { value: new Int32Array(2 * MAX_CLUSTERS) }, // (an ivec2 array goes up as flat ints)
       uSweepGate: { value: 4 },
       // integer vector arrays must be flat Int32Arrays (three.js does not flatten them)
       uGroupRange: { value: new Int32Array(MAX_GROUPS * 4) },
-      uPinRange: { value: new Int32Array(MAX_GROUPS * 2) },
-      uGroupC: { value: range(MAX_GROUPS).map(() => new THREE.Vector4()) },
-      uGroupE: { value: range(MAX_GROUPS).map(() => new THREE.Vector4()) },
       uT: { value: range(MAX_GROUPS).map(() => 0.5) },
       uK: { value: range(MAX_GROUPS).map(() => 0) },
       uReach: { value: range(MAX_GROUPS).map(() => 0) },
@@ -885,10 +914,7 @@ export class SdfRenderer {
       uHollow: { value: range(MAX_GROUPS).map(() => 0) },
       uCutsBound: { value: range(MAX_GROUPS).map(() => 1) },
       uUseGrid: { value: range(MAX_GRIDS).map(() => 0) },
-      uUseRound: { value: range(MAX_GRIDS).map(() => 0) },
-      uRoundR: { value: range(MAX_GRIDS).map(() => 0) },
       uCavH: { value: range(MAX_GRIDS).map(() => 0) },
-      uPins: { value: range(MAX_PINS * 2).map(() => new THREE.Vector4()) },
     };
     for (const i of range(MAX_GRIDS)) {
       u[`uCav${i}`] = { value: null };
@@ -896,10 +922,11 @@ export class SdfRenderer {
       u[`uCavS${i}`] = { value: new THREE.Vector3(1, 1, 1) };
       u[`uCavC${i}`] = { value: 1 };
     }
+    u.uProfLo = { value: range(MAX_PROFILES).map(() => new THREE.Vector2()) };
+    u.uProfHi = { value: range(MAX_PROFILES).map(() => new THREE.Vector2(1, 1)) };
+    u.uProfSz = { value: range(MAX_PROFILES).map(() => new THREE.Vector2(1, 1)) };
     for (const i of range(MAX_PROFILES)) {
       u[`uProf${i}`] = { value: null };
-      u[`uProfLo${i}`] = { value: new THREE.Vector2() };
-      u[`uProfHi${i}`] = { value: new THREE.Vector2(1, 1) };
     }
     this.material = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3,
@@ -982,9 +1009,6 @@ export class SdfRenderer {
     const u = this.material.uniforms;
     const objs: CompiledObject[] = [];
     const ranges = u.uGroupRange.value as Int32Array;
-    const pinRanges = u.uPinRange.value as Int32Array;
-    const pins = u.uPins.value as THREE.Vector4[];
-    let pinCount = 0;
     groups.forEach((g, k) => {
       const a = objs.length;
       objs.push(...g.shells);
@@ -993,17 +1017,6 @@ export class SdfRenderer {
       const c = objs.length;
       objs.push(...g.subs);
       ranges.set([a, b, c, objs.length], 4 * k);
-      const p0 = pinCount;
-      for (const p of g.pins) {
-        if (pinCount >= MAX_PINS) break;
-        pins[2 * pinCount].set(p.ax, p.ay, p.az, p.r);
-        pins[2 * pinCount + 1].set(p.bx, p.by, p.bz, 0);
-        pinCount++;
-      }
-      pinRanges.set([p0, pinCount], 2 * k);
-      const gb = g.bounds;
-      (u.uGroupC.value as THREE.Vector4[])[k].set((gb.min[0] + gb.max[0]) / 2, (gb.min[1] + gb.max[1]) / 2, (gb.min[2] + gb.max[2]) / 2, 0);
-      (u.uGroupE.value as THREE.Vector4[])[k].set((gb.max[0] - gb.min[0]) / 2 + 0.05, (gb.max[1] - gb.min[1]) / 2 + 0.05, (gb.max[2] - gb.min[2]) / 2 + 0.05, 0);
       (u.uT.value as number[])[k] = g.t;
       (u.uK.value as number[])[k] = g.k;
       (u.uRound.value as number[])[k] = g.rim;
@@ -1053,7 +1066,6 @@ export class SdfRenderer {
       sweepObjs[ns] = i; sweepData[ns] = shapes.get(o)!; slots.set(o, ns++);
       cluSw[2 * c + 1] = ns;
     }
-    u.uSweepCount.value = ns;
     u.uProgLen.value = Math.min(MAX_PROG, prog.length / 4);
     u.uProgRow.value = objs.length;
     this.writeData(objs, groups, slots, prog, cluster);
@@ -1107,8 +1119,6 @@ export class SdfRenderer {
       }
       u[`uCav${k}`].value = this.gridTex[k];
       (u.uUseGrid.value as number[])[k] = c && !c.noCavity ? 1 : 0;
-      (u.uUseRound.value as number[])[k] = c?.round ? 1 : 0;
-      (u.uRoundR.value as number[])[k] = c?.roundR ?? 0;
       if (g) attachGrid(g, c); // CPU picking sees the rounding too
       (u.uCavH.value as number[])[k] = c ? c.h : 0;
       if (c) {
@@ -1205,7 +1215,15 @@ export class SdfRenderer {
         case 'box': data[k3] = q.x! / 2; data[k3 + 1] = q.y! / 2; data[k3 + 2] = q.z! / 2; data[k3 + 3] = o.round; break;
         case 'cylinder': case 'cone': case 'capsule': data[k3] = q.r!; data[k3 + 1] = q.h! / 2; break;
         case 'torus': data[k3] = q.R!; data[k3 + 1] = q.r!; break;
-        case 'prism': data[k3] = Math.min(12, Math.max(3, Math.round(q.n!))); data[k3 + 1] = q.r!; data[k3 + 2] = q.h! / 2; data[k3 + 3] = q.r2 ?? q.r!; data[(i * ROWS + 7) * 4] = o.round; break;
+        case 'prism': {
+          const n = Math.min(12, Math.max(3, Math.round(q.n!))), r2 = q.r2 ?? q.r!;
+          data[k3] = n; data[k3 + 1] = q.r!; data[k3 + 2] = q.h! / 2; data[k3 + 3] = r2;
+          // constants of the side planes (see frustumSide in the shader)
+          const k7 = (i * ROWS + 7) * 4, c = Math.cos(Math.PI / n);
+          data[k7] = o.round; data[k7 + 1] = c; data[k7 + 2] = Math.tan(Math.PI / n);
+          data[k7 + 3] = 1 / Math.hypot(q.h!, (q.r! - r2) * c);
+          break;
+        }
         case 'sweep': {
           const { path, sec } = o.sweep!;
           data[k3] = SECTION_CODE[sec.kind]; data[k3 + 1] = sec.hw; data[k3 + 2] = sec.hd;
@@ -1337,8 +1355,9 @@ export class SdfRenderer {
         this.profiles.set(key, pt);
       }
       u[`uProf${slot}`].value = pt.tex;
-      u[`uProfLo${slot}`].value.set(pt.min[0], pt.min[1]);
-      u[`uProfHi${slot}`].value.set(pt.max[0], pt.max[1]);
+      (u.uProfLo.value as THREE.Vector2[])[slot].set(pt.min[0], pt.min[1]);
+      (u.uProfHi.value as THREE.Vector2[])[slot].set(pt.max[0], pt.max[1]);
+      (u.uProfSz.value as THREE.Vector2[])[slot].set(pt.tex.image.width, pt.tex.image.height);
       slots.set(o, slot);
       slot++;
     }
