@@ -520,10 +520,9 @@ export class Viewport {
   /** The baked-field march into t: mode 0 shades (moving image), 1 writes where each ray meets the surface. */
   private drawMarch(t: THREE.WebGLRenderTarget, mode: 0 | 1) {
     this.bake.marchMat.uniforms.uMode.value = mode;
-    this.bake.useMarch(mode);
     const clear = this.renderer.getClearColor(new THREE.Color()), clearA = this.renderer.getClearAlpha();
     this.renderer.setClearColor(0x000000, mode ? 1 : 0);
-    if (mode) this.renderer.setClearColor(0x000000, 0); // (every pixel is written)
+    if (mode) this.renderer.setClearColor(new THREE.Color(-1, -1, -1), -1);
     this.renderer.setRenderTarget(t);
     this.renderer.render(this.bake.marchScene, this.camera);
     this.renderer.setRenderTarget(null);
@@ -541,9 +540,7 @@ export class Viewport {
     const c = this.renderer.domElement;
     if (!this.startRT || this.startRT.width !== c.width || this.startRT.height !== c.height) {
       this.startRT?.dispose();
-      // (the hit distance's float bits, then the cell masks of its window: see bake.ts)
-      this.startRT = new THREE.WebGLRenderTarget(c.width, c.height, { type: THREE.UnsignedIntType, format: THREE.RGBAIntegerFormat, depthBuffer: false });
-      this.startRT.texture.internalFormat = 'RGBA32UI';
+      this.startRT = new THREE.WebGLRenderTarget(c.width, c.height, { type: THREE.HalfFloatType, depthBuffer: false });
       this.startRT.texture.minFilter = this.startRT.texture.magFilter = THREE.NearestFilter;
     }
     this.drawMarch(this.startRT, 1);

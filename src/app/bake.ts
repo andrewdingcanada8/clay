@@ -24,17 +24,7 @@ const MARCH = /* glsl */ `
 precision highp float;
 precision highp sampler3D;
 in vec2 vNdc;
-#ifdef START
-out highp uvec4 fragColor;
-uniform highp usampler3D uCells; // per-cell object masks (FieldBake cells), or none
-uniform int uCellsOn;
-uniform vec3 uCellO;     // centre of cell (0, 0, 0)
-uniform float uCellH;    // cell size
-uniform float uCellNe;   // the normal-tap reach the cells' masks allow for
-uniform float uBack;     // the settled pass starts this far before the hit (viewport: uStartBack)
-#else
 out vec4 fragColor;
-#endif
 uniform sampler3D uTex;
 uniform vec3 uO;      // world position of voxel (0,0,0)'s centre
 uniform vec3 uSize;   // world size spanned by the voxel centres
@@ -68,37 +58,11 @@ bool boxHit(vec3 ro, vec3 rd, out float t0, out float t1) {
   t0 = max(max(mn.x, mn.y), mn.z); t1 = min(min(mx.x, mx.y), mx.z);
   return t1 > max(t0, 0.0);
 }
-#ifdef START
-// Where the settled pass starts (the hit distance, rounded as a half float) and the
-// object masks of the cells its window [t - back, t - back + 3h] passes: samples NS
-// apart cover it, each within half a spacing of its cell (the cells hold over that
-// margin plus the normal taps' reach). Outside the cells, or a wider reach: every bit.
-uvec4 startOut(float t, vec3 ro, vec3 rd) {
-  t = t < 0.0 ? -1.0 : unpackHalf2x16(packHalf2x16(vec2(t, 0.0))).x;
-  uvec4 o = uvec4(floatBitsToUint(t), 0xffffffffu, 0xffffffffu, 0xffffffffu);
-  if (uCellsOn == 0 || t < 0.0) return o;
-  float tb = t - uBack;
-  if (max(0.0008, uPixelAngle * (tb + 3.0 * uH) * 0.5) > uCellNe) return o;
-  ivec3 n = textureSize(uCells, 0);
-  uvec3 m = uvec3(0u);
-  for (int j = 0; j < NS; j++) {
-    vec3 q = ro + rd * (tb + (float(j) + 0.5) * 3.0 * uH / float(NS));
-    ivec3 c = ivec3(floor((q - uCellO) / uCellH + 0.5));
-    if (any(lessThan(c, ivec3(0))) || any(greaterThanEqual(c, n))) return o;
-    m |= texelFetch(uCells, c, 0).xyz;
-  }
-  return uvec4(o.x, m);
-}
-#endif
 void main() {
   vec4 a = uInvProjView * vec4(vNdc, -1.0, 1.0), b = uInvProjView * vec4(vNdc, 1.0, 1.0);
   vec3 ro = a.xyz / a.w, rd = normalize(b.xyz / b.w - ro);
   float t0, t1;
-#ifdef START
-  if (!boxHit(ro, rd, t0, t1)) { fragColor = startOut(-1.0, ro, rd); return; }
-#else
-  if (!boxHit(ro, rd, t0, t1)) discard;
-#endif
+  if (!boxHit(ro, rd, t0, t1)) { if (uMode == 1) { fragColor = vec4(-1.0); return; } discard; }
   float t = max(t0, 0.0);
   int kind = 0;
   bool hit = false;
@@ -110,17 +74,10 @@ void main() {
     t += max(d * 0.9, 0.5 * eps);
     if (t > t1) break;
   }
-#ifdef START
-  if (!hit) { fragColor = startOut(-1.0, ro, rd); return; }
-#else
-  if (!hit) discard;
-#endif
+  if (!hit) { if (uMode == 1) { fragColor = vec4(-1.0); return; } discard; }
   // a little closer: two steps on the interpolated field
   for (int i = 0; i < 2; i++) { t += sdf(ro + rd * t, kind); }
-#ifdef START
-  fragColor = startOut(t, ro, rd);
-  return;
-#else
+  if (uMode == 1) { fragColor = vec4(t); return; }
   vec3 p = ro + rd * t;
   vec4 clip = uProjView * vec4(p, 1.0);
   gl_FragDepth = clamp((clip.z / clip.w) * 0.5 + 0.5, 0.0, 1.0);
@@ -138,7 +95,6 @@ void main() {
   vec3 col = base * (0.38 + 0.22 * hemi + 0.62 * dif) * (0.55 + 0.45 * ao);
   col += 0.06 * pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 3.0);
   fragColor = vec4(pow(col, vec3(1.0 / 1.15)), 1.0);
-#endif
 }`;
 
 const tri = () => {
@@ -147,37 +103,20 @@ const tri = () => {
   return g;
 };
 
-/** Cell size in voxels (per-cell object masks), samples per settled window, Lipschitz slack. */
-const CELL = 2;
-const NS = 6;
-const LIP = 1.1;
-
 export class FieldBake {
   /** The field version the texture holds (complete), or -1. */
   readyVersion = -1;
   private target: THREE.WebGL3DRenderTarget | null = null;
-  /** Per-cell object masks (see raymarch.ts SDF_CELLS): baked after the field. */
-  private cells: THREE.WebGL3DRenderTarget | null = null;
   private job: { version: number; z: number; batch: number; fence: WebGLSync | null; at: number; t0: number } | null = null;
   private layerRate = 0; // layers per ms, learned
-  private cellRate = 0;
   private bakeScene = new THREE.Scene();
-  private cellScene = new THREE.Scene();
   private bakeCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   private bakeMat: THREE.ShaderMaterial;
-  private cellMat: THREE.ShaderMaterial;
   readonly marchMat: THREE.ShaderMaterial;
-  /** The march writing where each settled ray starts, and its cells' masks. */
-  readonly startMat: THREE.ShaderMaterial;
   readonly marchScene = new THREE.Scene();
-  private marchMesh: THREE.Mesh;
   private origin = new THREE.Vector3();
   private size = new THREE.Vector3();
   private h = 1;
-  private cellU = {
-    uCellO: { value: new THREE.Vector3() }, uCellH: { value: 1 }, uCellZ: { value: 0 }, uCellR: { value: 1 },
-    uCellFar: { value: 1 }, uCellNe: { value: 0 }, uCells: { value: null as THREE.Texture | null }, uCellsOn: { value: 0 },
-  };
   /** How long the last complete bake took (ms, wall clock) and its voxel count. */
   lastBake = { ms: 0, voxels: 0 };
 
@@ -189,41 +128,20 @@ export class FieldBake {
     const m = new THREE.Mesh(tri(), this.bakeMat);
     m.frustumCulled = false;
     this.bakeScene.add(m);
-    const cu = this.cellU;
-    this.cellMat = new THREE.ShaderMaterial({
-      glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: FRAG,
-      uniforms: { ...sdf.material.uniforms, uCellO: cu.uCellO, uCellH: cu.uCellH, uCellZ: cu.uCellZ, uCellR: cu.uCellR, uCellFar: cu.uCellFar },
-      defines: { SDF_CELLS: 1 }, depthTest: false, depthWrite: false,
-    });
-    const cm = new THREE.Mesh(tri(), this.cellMat);
-    cm.frustumCulled = false;
-    this.cellScene.add(cm);
     const su = sdf.material.uniforms;
-    const marchU = {
-      uTex: { value: null }, uO: { value: this.origin }, uSize: { value: this.size }, uH: { value: 1 },
-      uInvProjView: su.uInvProjView, uProjView: su.uProjView, uClip: su.uClip, uClipOn: su.uClipOn,
-      uClay: su.uClay, uCap: su.uCap, uMode: { value: 0 }, uPixelAngle: su.uPixelAngle,
-    };
     this.marchMat = new THREE.ShaderMaterial({
-      glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: MARCH, depthTest: true, depthWrite: true, uniforms: marchU,
-    });
-    this.startMat = new THREE.ShaderMaterial({
-      glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: MARCH, depthTest: false, depthWrite: false,
-      defines: { START: 1, NS },
-      uniforms: { ...marchU, uCells: cu.uCells, uCellsOn: cu.uCellsOn, uCellO: cu.uCellO, uCellH: cu.uCellH, uCellNe: cu.uCellNe, uBack: { value: 0 } },
+      glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: MARCH, depthTest: true, depthWrite: true,
+      uniforms: {
+        uTex: { value: null }, uO: { value: this.origin }, uSize: { value: this.size }, uH: { value: 1 },
+        uInvProjView: su.uInvProjView, uProjView: su.uProjView, uClip: su.uClip, uClipOn: su.uClipOn,
+        uClay: su.uClay, uCap: su.uCap, uMode: { value: 0 }, uPixelAngle: su.uPixelAngle,
+      },
     });
     const mm = new THREE.Mesh(tri(), this.marchMat);
     mm.frustumCulled = false;
     // the exact renderer's matrices are set in its onBeforeRender: share its camera upkeep
     mm.onBeforeRender = (r, s, c, g, mat, grp) => sdf.mesh.onBeforeRender(r, s, c, g, mat, grp);
     this.marchScene.add(mm);
-    this.marchMesh = mm;
-  }
-
-  /** Mode 0: the shading march (moving frames); 1: the settled pass's start (startMat). */
-  useMarch(mode: 0 | 1) {
-    this.marchMesh.material = mode ? this.startMat : this.marchMat;
-    this.startMat.uniforms.uBack.value = 0.1 * this.h;
   }
 
   get ready() { return this.readyVersion === this.sdf.fieldVersion && !!this.target; }
@@ -233,13 +151,7 @@ export class FieldBake {
   get voxel() { return this.h; }
 
   /** Forget the bake (the GPU context it lived in is gone). */
-  reset() {
-    this.target?.dispose(); this.target = null; this.cells?.dispose(); this.cells = null;
-    this.cellU.uCellsOn.value = 0; this.job = null; this.readyVersion = -1;
-  }
-
-  /** Field layers, then cell layers. */
-  private get layers() { return this.target!.depth + this.cells!.depth; }
+  reset() { this.target?.dispose(); this.target = null; this.job = null; this.readyVersion = -1; }
 
   /**
    * Advance the bake by one batch of layers if the field changed and is at rest.
@@ -256,24 +168,19 @@ export class FieldBake {
       this.start(v, now);
     }
     const j = this.job!;
-    const D = this.target!.depth;
     if (j.fence) {
       if (gl.clientWaitSync(j.fence, 0, 0) === gl.TIMEOUT_EXPIRED) return true;
       gl.deleteSync(j.fence); j.fence = null;
-      const rate = j.batch / Math.max(1, now - j.at);
-      if (j.z <= D) this.layerRate = rate; else this.cellRate = rate;
+      this.layerRate = j.batch / Math.max(1, now - j.at);
     }
-    const inField = j.z < D, rate = inField ? this.layerRate : this.cellRate;
-    const end = inField ? D : this.layers;
-    const n = Math.max(1, Math.min(end - j.z, rate > 0 ? Math.round(rate * BATCH_MS) : 2));
+    const t = this.target!;
+    const n = Math.max(1, Math.min(t.depth - j.z, this.layerRate > 0 ? Math.round(this.layerRate * BATCH_MS) : 2));
     this.drawLayers(renderer, j.z, n);
     j.fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
     gl.flush();
     j.z += n; j.batch = n; j.at = performance.now();
-    if (j.z >= this.layers) {
+    if (j.z >= t.depth) {
       this.readyVersion = v;
-      this.cellU.uCellsOn.value = 1;
-      const t = this.target!;
       this.lastBake = { ms: performance.now() - j.t0, voxels: t.width * t.height * t.depth };
       this.job = null;
       return false;
@@ -286,11 +193,11 @@ export class FieldBake {
     if (this.ready || this.sdf.bounds.isEmpty()) return 0;
     const t0 = performance.now();
     this.start(this.sdf.fieldVersion, t0);
-    this.drawLayers(renderer, 0, this.layers);
-    const px = new Float32Array(4);
+    this.drawLayers(renderer, 0, this.target!.depth);
+    const gl = renderer.getContext(), px = new Float32Array(4);
     renderer.readRenderTargetPixels(this.target! as unknown as THREE.WebGLRenderTarget, 0, 0, 1, 1, px, 0);
+    void gl;
     this.readyVersion = this.sdf.fieldVersion;
-    this.cellU.uCellsOn.value = 1;
     this.job = null;
     this.lastBake = { ms: performance.now() - t0, voxels: this.target!.width * this.target!.height * this.target!.depth };
     return this.lastBake.ms;
@@ -313,30 +220,7 @@ export class FieldBake {
       tex.generateMipmaps = false;
       tex.wrapS = tex.wrapT = tex.wrapR = THREE.ClampToEdgeWrapping;
     }
-    // cells: CELL voxels a side, centred on every CELL-th voxel centre
-    const cx = Math.ceil((nx - 1) / CELL) + 1, cy = Math.ceil((ny - 1) / CELL) + 1, cz = Math.ceil((nz - 1) / CELL) + 1;
-    if (!this.cells || this.cells.width !== cx || this.cells.height !== cy || this.cells.depth !== cz) {
-      this.cells?.dispose();
-      this.cells = new THREE.WebGL3DRenderTarget(cx, cy, cz, { type: THREE.UnsignedIntType, format: THREE.RGBAIntegerFormat, depthBuffer: false });
-      const tex = this.cells.texture;
-      tex.internalFormat = 'RGBA32UI';
-      tex.minFilter = tex.magFilter = THREE.NearestFilter;
-      tex.generateMipmaps = false;
-    }
-    const cu = this.cellU, H = CELL * h;
-    // a cell's mask holds over its box grown by the window's sample spacing and the
-    // normal taps' reach (the start pass checks that reach per pixel)
-    const cav = Math.max(0, ...(this.sdf.material.uniforms.uCavH.value as number[]));
-    cu.uCellNe.value = Math.max(0.25 * cav, 0.3 * h, 0.001); // (and pixel footprints up to 0.3 h)
-    const margin = (1.5 * h) / NS + cu.uCellNe.value + 1e-4;
-    cu.uCellR.value = LIP * Math.sqrt(3) * (H / 2 + margin);
-    cu.uCellFar.value = (Math.sqrt(3) / 2) * H + 4.5 * h;
-    cu.uCellO.value.copy(this.origin);
-    cu.uCellH.value = H;
-    cu.uCells.value = this.cells.texture;
-    cu.uCellsOn.value = 0;
     this.marchMat.uniforms.uTex.value = this.target.texture;
-    this.startMat.uniforms.uTex.value = this.target.texture;
     // the exact pass reads it too (occlusion) — its uBakeO / uBakeSize describe the same box
     this.sdf.material.uniforms.uBakeTex.value = this.target.texture;
     this.sdf.material.uniforms.uBakeSize.value.copy(this.size);
@@ -350,20 +234,10 @@ export class FieldBake {
     u.uBakeH.value = this.h;
     const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
     renderer.autoClear = false;
-    const D = t.depth, gate = u.uSweepGate.value;
     for (let z = z0; z < z0 + n; z++) {
-      if (z < D) {
-        u.uBakeZ.value = z;
-        renderer.setRenderTarget(t, z);
-        renderer.render(this.bakeScene, this.bakeCam);
-      } else {
-        // cells evaluate every sweep exactly (no stand-in bounds)
-        u.uSweepGate.value = 1e9;
-        this.cellU.uCellZ.value = z - D;
-        renderer.setRenderTarget(this.cells!, z - D);
-        renderer.render(this.cellScene, this.bakeCam);
-        u.uSweepGate.value = gate;
-      }
+      u.uBakeZ.value = z;
+      renderer.setRenderTarget(t, z);
+      renderer.render(this.bakeScene, this.bakeCam);
     }
     renderer.setRenderTarget(prev);
     renderer.autoClear = auto;

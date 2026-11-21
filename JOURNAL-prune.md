@@ -29,3 +29,10 @@ composite, IoU >= 0.999.
 | 3 | + absorption: an add k below g and f over the cell (no cut/mask before it in its group) drops the group's earlier steps (monotone smin: dropping adds only raises what it absorbs) | 646 | 1295 | 672 | 1309 | 5.52 | bit-identical | yes; sweeps-64 unchanged: probe showed its pixels got all-ones (pixel footprint > the 0.25h normal reach the cells allowed) |
 | 4 | ne 0.5h (pixels get masks everywhere) | 670 | 1295 | 674 | 1312 | 5.61 | bit-identical | sweeps-64 objs/map 9.43 -> 9.40 only: its 64 ribs are 0.88 apart with 0.6 radius, they overlap; every nearby rib really matters |
 | 5 | NS 6, LIP 1.1, ne 0.3h, far cut sqrt3/2 H + 4.5h (R composite 1.04 -> 0.77) | 660 | 1296 | 691 | 1270 | 5.42 | bit-identical | kept as the base; within noise of #3 |
+
+Per-cell pruning parked on branch claude/sdf-perf-prune-cells (cba5358): exact (bit-identical on all four scenes)
+but only ~5-8 % on the still frame (objs/map 6.19 -> 5.42), and it cannot help editing frames (cells are baked).
+Its window assumptions (0.1h back-off, 3 forward normal taps) also no longer match the hill-climb branch's settled
+pass (0.5-voxel back-off, tetrahedral taps), so it is reverted here before merging that branch.
+
+# Part 2: editing frames (msEdit)

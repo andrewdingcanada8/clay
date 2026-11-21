@@ -51,11 +51,7 @@ precision highp float;
 precision highp int;
 precision highp sampler3D;
 in vec2 vNdc;
-#ifdef SDF_CELLS
-layout(location = 0) out highp uvec4 pc_fragColor;
-#else
 layout(location = 0) out highp vec4 pc_fragColor;
-#endif
 uniform mat4 uInvProjView;
 uniform mat4 uProjView;
 uniform sampler2D uData;
@@ -87,9 +83,7 @@ uniform vec3 uBakeO;
 uniform float uBakeH;
 uniform float uBakeZ;
 uniform int uStartOn;
-// per pixel: the baked hit's distance (float bits) and the cell masks of the window
-// round it (objects 0-95; see bake.ts cells)
-uniform highp usampler2D uStartT;
+uniform sampler2D uStartT;
 uniform float uStartBack;
 uniform highp sampler3D uBakeTex;
 uniform vec3 uBakeSize;
@@ -709,114 +703,7 @@ bool boxHit(vec3 ro, vec3 rd, out float t0, out float t1) {
   t0 = max(max(lo.x, lo.y), lo.z); t1 = min(min(hi.x, hi.y), hi.z);
   return t1 > max(t0, 0.0);
 }
-#ifdef SDF_CELLS
-// Per-cell pruning (Lipschitz pruning, Barbier et al. 2025): which objects can change
-// the field anywhere within uCellR of this cell's centre. The program runs exactly at
-// the centre; every field in it is (close to) 1-Lipschitz, so over the ball an object's
-// distance is at least v - R and the running fold at most g + R. A step whose object
-// stays k past the fold over the whole ball is an exact no-op there (smooth min/max
-// with h = 0), and so is a shell that stays kS below the deepest one for the hollow
-// depth. Those objects' bits stay off; the settled pass ANDs them into its ray mask.
-uniform vec3 uCellO;   // centre of cell (0, 0, 0)
-uniform float uCellH;  // cell size
-uniform float uCellZ;  // the layer being written
-uniform float uCellR;  // radius the mask must hold over (Lipschitz slack included)
-uniform float uCellFar; // cells whose baked |field| exceeds this get every bit
-void setBit(inout uvec4 m, int i) { if (i < 128) m[i >> 5] |= 1u << uint(i & 31); }
-uvec4 cellMask(vec3 p) {
-  float R = uCellR, eps = 0.02;
-  sweepAll(p);
-  cId = ivec4(-1);
-  uvec4 m = uvec4(0u);
-  float G[${MAX_DEPTH}], F[${MAX_DEPTH}];
-  uvec4 M[${MAX_DEPTH}]; // the bits before each open group (a group whose fold is a no-op drops its own)
-  bool HC[${MAX_DEPTH}], hc = false; // the open group has a cut or mask step so far (see absorb)
-  int sp = 0;
-  float g = 1e5, f = 1e5;
-  for (int pc = 0; pc < ${MAX_PROG}; pc++) {
-    if (pc >= uProgLen) break;
-    vec4 ins = texelFetch(uData, ivec2(pc & ${ROWS - 1}, uProgRow + (pc >> ${Math.log2(ROWS)})), 0);
-    int op = int(ins.x + 0.5);
-    if (op == 1) {
-      if (sp < ${MAX_DEPTH}) { G[sp] = g; F[sp] = f; M[sp] = m; HC[sp] = hc; sp++; }
-      g = 1e5; f = 1e5; hc = false;
-      continue;
-    }
-    float v = 0.0, kv = ins.w;
-    bool fm = false, fs = false, fsolid = false;
-    if (op == 0) {
-      int i = int(ins.y + 0.5), fl = int(ins.z + 0.5);
-      v = sdObj(i, p);
-      fm = (fl & 4) == 4; fs = !fm && (fl & 1) == 1; fsolid = !fm && !fs && (fl & 2) == 2;
-      // (an opening's depth matters only to its body's hollow depth: see the group end)
-      bool need = fm || (fs ? v - R < kv - g + R + eps : v - R < (fsolid ? g : f) + R + kv + eps);
-      if (need) setBit(m, i);
-    } else {
-      int fl = int(ins.y + 0.5), u = int(ins.z + 0.5) - 1;
-      float gv = g;
-      if (u >= 0 && uHollow[u] == 1 && f - R < ${OPENING_EPS.toFixed(3)} + eps) {
-        // the hollow depth may be needed somewhere in the cell: keep the shells it
-        // can't skip exactly (openings, and any within kS of the deepest) and its cuts
-        ivec4 Rg = uGroupRange[u];
-        bool useGrid = u < ${MAX_GRIDS} && uUseGrid[min(u, ${MAX_GRIDS - 1})] == 1;
-        float kS = max(useGrid ? 2.0 * uCavH[min(u, ${MAX_GRIDS - 1})] : 0.0, uK[u]);
-        float top = -1e5;
-        int jt = -1;
-        for (int n = 0; n < ${MAX_LOOP}; n++) {
-          int i = Rg.x + n;
-          if (i >= Rg.y) break;
-          if (int(row(i, 6).z) != 0) { setBit(m, i); continue; }
-          float t = -sdObj(i, p);
-          if (t > top) { top = t; jt = i; }
-        }
-        for (int n = 0; n < ${MAX_LOOP}; n++) {
-          int i = Rg.x + n;
-          if (i >= Rg.y) break;
-          if (i == jt || -sdObj(i, p) + R + kS + eps > top - R) setBit(m, i);
-        }
-        for (int n = 0; n < ${MAX_LOOP}; n++) {
-          int i = Rg.z + n;
-          if (i >= Rg.w || uCutsBound[u] == 0) break;
-          setBit(m, i);
-        }
-        if (f < ${OPENING_EPS.toFixed(3)}) {
-          float cav = max(f - ${OPENING_EPS.toFixed(3)}, uT[u] - unitDepth(u, p, f));
-          if (-cav > gv) gv = -cav;
-        }
-      }
-      bool popped = sp > 0;
-      if (popped) { sp--; g = G[sp]; f = F[sp]; hc = HC[sp]; }
-      v = gv;
-      fm = (fl & 4) == 4; fs = !fm && (fl & 1) == 1;
-      // the whole group folds in as a no-op over the cell: none of its objects matter
-      // (it then runs empty: g = f = 1e5, nothing to hollow, and the fold returns g, f)
-      if (popped && !fm && (fs ? v - R >= kv - g + R + eps : v - R >= f + R + kv + eps)) m = M[sp];
-    }
-    bool mx = fm || fs;
-    float a = mx ? -g : g, w = fm ? -v : v;
-    // Absorption: an add at least k below both g and f over the cell sets them to itself
-    // whatever came before in this group, so the group's earlier steps can go. Dropping
-    // adds only raises what the fold sees before this step (smin is monotone), so it
-    // still absorbs; dropped cuts or masks could lower it, hence none may come first.
-    if (!mx && !fsolid && !hc && v + R + kv + eps <= g - R) {
-      uvec4 base = sp > 0 ? M[sp - 1] : uvec4(0u);
-      if (op == 0) { m = base; setBit(m, int(ins.y + 0.5)); }
-      else m = base | (m & ~M[sp]); // (keeps the closing group's own bits)
-    }
-    if (mx) hc = true;
-    float r = smin(a, w, kv);
-    g = mx ? -r : r;
-    if (!fsolid) { float rf = smin(mx ? -f : f, w, kv); f = mx ? -rf : rf; }
-  }
-  return m;
-}
-void main() {
-  gNoClip = true;
-  vec3 p = uCellO + vec3(gl_FragCoord.xy - 0.5, uCellZ) * uCellH;
-  if (abs(bakedField(p)) > uCellFar) { pc_fragColor = uvec4(0xffffffffu); return; }
-  pc_fragColor = cellMask(p);
-}
-#elif defined(SDF_BAKE)
+#ifdef SDF_BAKE
 // bake: the field at the voxel centres of layer uBakeZ (no clip plane, no culling)
 void main() {
   gNoClip = true;
@@ -835,12 +722,9 @@ void main() {
   // the baked field already found where (or whether) this ray meets the surface:
   // rays that miss stop here, before any per-ray setup
   float tStart = 0.0;
-  uvec4 cellBits = uvec4(0xffffffffu);
   if (uStartOn == 1) {
-    uvec4 st = texelFetch(uStartT, ivec2(gl_FragCoord.xy), 0);
-    float ts = uintBitsToFloat(st.x);
+    float ts = texelFetch(uStartT, ivec2(gl_FragCoord.xy), 0).r;
     if (ts < 0.0) discard;
-    cellBits = uvec4(st.yzw, 0xffffffffu);
     tStart = ts - uStartBack;
   }
   // normal samples reach up to max(pixel footprint, quarter texel) from the hit;
@@ -857,7 +741,7 @@ void main() {
   uvec4 marchMask = rayMask(ro, rd, t, t1, nReach, span, marchClu), aoMask = uStartOn == 1 ? marchMask : rayMask(ro, rd, t, t1, 4.0, aoSpan, aoClu);
   gClu = marchClu;
   gAOClu = uStartOn == 1 ? marchClu : aoClu;
-  gMask = marchMask & cellBits;
+  gMask = marchMask;
   gAOMask = aoMask;
   bool hit = false;
   // nothing near this ray: it can't hit (the cost view still reports the pixel)
@@ -994,13 +878,7 @@ export class SdfRenderer {
       uBakeH: { value: 1 },
       uBakeZ: { value: 0 },
       uStartOn: { value: 0 },
-      uStartT: { value: (() => {
-        // (an integer texture even when unused: the sampler is a usampler2D)
-        const t = new THREE.DataTexture(new Uint32Array(4), 1, 1, THREE.RGBAIntegerFormat, THREE.UnsignedIntType);
-        t.internalFormat = 'RGBA32UI';
-        t.needsUpdate = true;
-        return t;
-      })() },
+      uStartT: { value: null },
       uStartBack: { value: 1 },
       uBakeTex: { value: null },
       uBakeSize: { value: new THREE.Vector3(1, 1, 1) },
