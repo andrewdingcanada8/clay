@@ -165,5 +165,15 @@
   "result": "Composite 671 -> 629 ms (-6%) but diff 0.49% (limit 0.5%), grazing extra 67 px, IoU 0.998. The refined start leaves only ~2-3 march steps, so there is little to save; not worth the image risk.",
   "verdict": "rejected",
   "commit": ""
+ },
+ {
+  "id": 18,
+  "t": 1795232789010,
+  "title": "Clean full-suite rerun under the CPU lock",
+  "hyp": "Runs timed while agents build are unreliable",
+  "change": "Same merged build, full suite, now with the CPU mutex and contamination check",
+  "result": "pieces-9 1056 ms (unlocked, agents building) vs 662 ms clean: a 60% error from parallel builds. Other scenes within noise. Clean run is the incumbent reference.",
+  "verdict": "info",
+  "commit": ""
  }
 ]

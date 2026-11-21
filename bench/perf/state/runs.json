@@ -132,12 +132,18 @@
   "dir": "2026-11-21T03-32-18-639Z-full-merge",
   "label": "merged build, full suite",
   "kept": false,
-  "note": "14 scenes; strict gate fails on custom-section, grazing, pieces-4/9"
+  "note": "14 scenes; strict gate fails on custom-section, grazing, pieces-4/9 \u00b7 superseded: timed while agents built (pieces-9 1056 vs 662 ms clean)"
  },
  {
   "dir": "2026-11-21T03-38-27-504Z-snap2",
   "label": "snap v2 (facing rays only)",
   "kept": false,
   "note": "-6% composite, image near limit, grazing worse"
+ },
+ {
+  "dir": "2026-11-21T03-40-24-397Z-full-merge-clean",
+  "label": "merged build, full suite (clean, under CPU lock)",
+  "kept": false,
+  "note": "incumbent reference: composite 691 ms, geomean 1.366 fps"
  }
 ]
