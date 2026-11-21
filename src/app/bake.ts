@@ -242,14 +242,15 @@ export class FieldBake {
     }
     if (j.phase === 1) { this.classify(renderer); j.phase = 2; j.row = 0; j.level = 0; j.batch = 0; return true; }
     // 2: each level's brick samples (the exact field); 3: each level's atlas from them (copies)
-    while (j.phase <= 3) {
+    while (j.phase <= 4) {
       const L = this.levels[j.level];
-      const tgt = L && L.count ? (j.phase === 2 ? L.bakeTarget : L.copyTarget) : null;
+      const tgt = L && L.count ? (j.phase === 2 ? L.bakeTarget : j.phase === 3 ? L.copyTarget : L.curvTarget) : null;
       if (tgt && j.row < tgt.height * tgt.depth) {
         if (j.phase === 2) batch(tgt, (r0, n) => L.draw(renderer, this.origin, this.h, r0, n));
-        else batch(tgt, (r0, n) => L.copy(renderer, j.level, this.levels, this.ind!, this.cells, r0, n));
+        else if (j.phase === 3) batch(tgt, (r0, n) => L.copy(renderer, j.level, this.levels, this.ind!, this.cells, r0, n));
+        else batch(tgt, (r0, n) => L.curv(renderer, r0, n));
         // (copies are cheap: they don't teach the pace)
-        if (j.phase === 3) j.batch = 0;
+        if (j.phase >= 3) j.batch = 0;
         return true;
       }
       j.row = 0; j.level++;
@@ -287,6 +288,7 @@ export class FieldBake {
     this.classify(renderer);
     for (const L of this.levels) if (L.count) L.draw(renderer, this.origin, this.h, 0, L.bakeTarget.height * L.bakeTarget.depth);
     this.levels.forEach((L, i) => { if (L.count && L.copyTarget) L.copy(renderer, i, this.levels, this.ind!, this.cells, 0, L.copyTarget.height * L.copyTarget.depth); });
+    for (const L of this.levels) if (L.count && L.curvTarget) L.curv(renderer, 0, L.curvTarget.height * L.curvTarget.depth);
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
     this.brickVersion = this.sdf.fieldVersion;
     this.lastBake.brickMs = performance.now() - tb;
@@ -377,7 +379,7 @@ export class FieldBake {
     this.levels.forEach((L, i) => { L.layout(lists[i]); if (L.count) L.masks(renderer, this.origin, this.h); });
     const su = this.settledMat.uniforms;
     su.uTex.value = t.texture; su.uInd.value = this.ind; su.uH.value = this.h;
-    su.uAtlas0.value = this.levels[0].atlas!.texture; su.uAtlas1.value = this.levels[1].atlas!.texture;
+    su.uAtlas0.value = this.levels[0].readTex; su.uAtlas1.value = this.levels[1].readTex;
     this.lastBake.bricks = this.levels.map((l) => l.count);
     this.lastBake.samples = this.levels.reduce((a, l) => a + l.count * (l.core ? l.N : l.S) ** 3, 0);
     this.lastBake.classifyMs = performance.now() - t0;
