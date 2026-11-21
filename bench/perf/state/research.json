@@ -104,5 +104,208 @@
   "feeds": [
    "H27"
   ]
+ },
+ {
+  "title": "Claybook GDC 2018 deck",
+  "url": "https://media.gdcvault.com/gdc2018/presentations/Aaltonen_Sebastian_GPU_Based_Clay.pdf",
+  "takeaway": "8-bit +-4 voxel band SDF; per-8^3-tile culled brush lists at bake; no per-pixel CSG; geometric-series last step from 2 samples; sparse atlas measured 13% slower",
+  "feeds": "bake-only-hit",
+  "round": 2
+ },
+ {
+  "title": "Claybook sparse volume test",
+  "url": "https://media.gdcvault.com/gdc2018/presentations/Aaltonen_Sebastian_GPU_Based_Clay.pdf",
+  "takeaway": "Only ~10% of 8^3 tiles occupied; indirection+atlas costs ~13% per step",
+  "feeds": "sparse-bricks",
+  "round": 2
+ },
+ {
+  "title": "Dreams SIGGRAPH 2015 (Evans)",
+  "url": "https://advances.realtimerendering.com/s2015/AlexEvans_SIGGRAPH-2015-sml.pdf",
+  "takeaway": "fp16 8^3-ish blocks updated incrementally; brick engine rasterises brick cubes so no inner-loop indirection; compact poly smin enables >99% culling",
+  "feeds": "sparse-bricks",
+  "round": 2
+ },
+ {
+  "title": "Dreams soft-blend culling",
+  "url": "https://advances.realtimerendering.com/s2015/AlexEvans_SIGGRAPH-2015-sml.pdf",
+  "takeaway": "smin must revert to hard min beyond r; culling must include future blend radius of ancestors",
+  "feeds": "lipschitz-lists",
+  "round": 2
+ },
+ {
+  "title": "Path Tracing of SDF Grids (JCGT 2022)",
+  "url": "https://jcgt.org/published/0011/03/06/paper.pdf",
+  "takeaway": "Trilinear voxel = cubic along ray, analytic solve; blended analytic normals fix voxel-face normal discontinuities; 8^3 bricks with duplicated border, 8-bit snorm",
+  "feeds": "bake-only-hit",
+  "round": 2
+ },
+ {
+  "title": "Lipschitz Pruning paper",
+  "url": "https://onlinelibrary.wiley.com/doi/10.1111/cgf.70057",
+  "takeaway": "Up to 629x on 6023 nodes; gains scale with node count, ~2-4x for ~6 objects",
+  "feeds": "lipschitz-lists",
+  "round": 2
+ },
+ {
+  "title": "Lipschitz pruning meshing extension",
+  "url": "https://github.com/Lucas-Allara/Lipschitz-pruning-meshing",
+  "takeaway": "5.6-7.5 active nodes/cell at 256^3; incremental re-prune 107->6.8 ms",
+  "feeds": "lipschitz-lists",
+  "round": 2
+ },
+ {
+  "title": "Keeter MPR 2020",
+  "url": "https://www.mattkeeter.com/research/mpr/keeter_mpr20.pdf",
+  "takeaway": "Per-tile interval arithmetic tape shortening 64^2->8^2 pixel tiles on GPU",
+  "feeds": "lipschitz-lists",
+  "round": 2
+ },
+ {
+  "title": "GPU Gems 2 ch20 fast tricubic",
+  "url": "https://developer.nvidia.com/gpugems/gpugems2/part-iii-high-quality-rendering/chapter-20-fast-third-order-texture-filtering",
+  "takeaway": "Tricubic B-spline in 8 trilinear fetches, derivatives with more fetch sets; smooth bake normals",
+  "feeds": "bake-normals",
+  "round": 2
+ },
+ {
+  "title": "Piecewise SDF analytic intersections",
+  "url": "https://www.sciencedirect.com/science/article/pii/S009784932400116X",
+  "takeaway": "Trilinear for hit, tricubic for normals at small overhead",
+  "feeds": "bake-normals",
+  "round": 2
+ },
+ {
+  "title": "Texture gathers and coordinate precision",
+  "url": "https://www.reedbeta.com/blog/texture-gathers-and-coordinate-precision/",
+  "takeaway": "HW filtering has ~8 fractional bits; manual fp32 interpolation removes banding",
+  "feeds": "precision",
+  "round": 2
+ },
+ {
+  "title": "WebKit bug 252359",
+  "url": "https://lists.webkit.org/pipermail/webkit-unassigned/2023-February/1087828.html",
+  "takeaway": "iOS Safari misreported OES_texture_float_linear; use half-float for linear sampling",
+  "feeds": "precision",
+  "round": 2
+ },
+ {
+  "title": "WebKit bug 282111",
+  "url": "https://lists.webkit.org/pipermail/webkit-unassigned/2024-October/1192081.html",
+  "takeaway": "Oct 2024: iOS Safari still lacks OES_texture_float_linear",
+  "feeds": "precision",
+  "round": 2
+ },
+ {
+  "title": "ANGLE Metal format map / DisplayMtl",
+  "url": "https://github.com/google/angle/blob/main/src/libANGLE/renderer/metal/DisplayMtl.mm",
+  "takeaway": "8 draw buffers on Apple family 2+; max3DTextureSize 2048; R32F filterable only Apple7+ with supports32BitFloatFiltering",
+  "feeds": "mrt-gbuffer",
+  "round": 2
+ },
+ {
+  "title": "metal-benchmarks (Apple GPU microarch)",
+  "url": "https://github.com/philipturner/metal-benchmarks",
+  "takeaway": "12 KB I-cache, 8 KB L1D per core; prefers spilling to lowering occupancy; small shaders win",
+  "feeds": "split-exact-pass",
+  "round": 2
+ },
+ {
+  "title": "Reverse reprojection caching (Nehab 2007)",
+  "url": "https://gfx.cs.princeton.edu/pubs/Nehab_2007_ARS/NehEtAl07.pdf",
+  "takeaway": "Cache intermediate per-pixel results (t, normal) and reuse when valid",
+  "feeds": "hit-cache",
+  "round": 2
+ },
+ {
+  "title": "Temporal depth reprojection for raymarching",
+  "url": "https://jedjoud10.github.io/blog/depth-reproj",
+  "takeaway": "Rotation-only reprojection works; translation needs conservative march from dilated old depth",
+  "feeds": "hit-cache",
+  "round": 2
+ },
+ {
+  "title": "Water from still photo (march cache)",
+  "url": "https://arxiv.org/pdf/2210.02553",
+  "takeaway": "Precompute and reuse march results while view is fixed",
+  "feeds": "hit-cache",
+  "round": 2
+ },
+ {
+  "title": "Bevy deferred raymarch",
+  "url": "https://bevy.org/examples/shaders-advanced/deferred-raymarch/",
+  "takeaway": "SDF hit into G-buffer, shaded like a mesh",
+  "feeds": "hit-cache",
+  "round": 2
+ },
+ {
+  "title": "Browser isosurface study",
+  "url": "https://arxiv.org/pdf/2009.03254",
+  "takeaway": "MC 256^3 ~228-282 ms serial JS/WASM; data-parallel 1.3x",
+  "feeds": "mesh-display",
+  "round": 2
+ },
+ {
+  "title": "fast-surface-nets-rs",
+  "url": "https://github.com/bonsairobo/fast-surface-nets-rs",
+  "takeaway": "~20M tris/s/core, chunked with seamless stitching; WASM-able",
+  "feeds": "mesh-display",
+  "round": 2
+ },
+ {
+  "title": "fastNaiveSurfaceNets",
+  "url": "https://github.com/bigos91/fastNaiveSurfaceNets",
+  "takeaway": "0.1-0.4 ms per 32^3 chunk single-thread",
+  "feeds": "mesh-display",
+  "round": 2
+ },
+ {
+  "title": "Substance Modeler how it works",
+  "url": "https://helpx.adobe.com/substance-3d-modeler/technical-support/how-does-modeler-work.html",
+  "takeaway": "SDF sculpting app renders polygons in viewport (8^3 blocks, MC)",
+  "feeds": "mesh-display",
+  "round": 2
+ },
+ {
+  "title": "Womp pixel streaming",
+  "url": "https://buttondown.com/browsertech/archive/browsertech-digest-womp-and-the-rise-of-pixel/",
+  "takeaway": "Womp renders server-side; nothing to copy",
+  "feeds": "none",
+  "round": 2
+ },
+ {
+  "title": "Brixelizer",
+  "url": "https://gpuopen.com/manuals/fidelityfx_sdk/techniques/brixelizer/",
+  "takeaway": "R8_UNORM 3D atlas + uint brick map, 64^3 cascades",
+  "feeds": "sparse-bricks",
+  "round": 2
+ },
+ {
+  "title": "Wicked Engine normal from depth",
+  "url": "https://wickedengine.net/2019/09/improved-normal-reconstruction-from-depth",
+  "takeaway": "Best-triangle depth normals; edge-safe but depth-precision-limited",
+  "feeds": "ss-normals",
+  "round": 2
+ },
+ {
+  "title": "atyuwen accurate normal reconstruction",
+  "url": "https://atyuwen.github.io/posts/normal-reconstruction",
+  "takeaway": "5 taps/axis, ~9 fetches; fails under ~3px features",
+  "feeds": "ss-normals",
+  "round": 2
+ },
+ {
+  "title": "SwiftShader SamplerCore",
+  "url": "https://swiftshader.googlesource.com/SwiftShader/+/2f7f2ecb0520fc90f2ddea9aae27d82da39d9113/src/Pipeline/SamplerCore.cpp",
+  "takeaway": "Software sampler: fetch-heavy tricks under-rewarded on the headless proxy",
+  "feeds": "proxy-caveat",
+  "round": 2
+ },
+ {
+  "title": "RTSDF",
+  "url": "https://arxiv.org/pdf/2210.06160",
+  "takeaway": "SDF banding from low res and fixed steps; jitter + TAA",
+  "feeds": "precision",
+  "round": 2
  }
 ]

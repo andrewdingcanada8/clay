@@ -238,5 +238,45 @@
   "expect": "2\u20135\u00d7 with many groups",
   "status": "untested",
   "evidence": ""
+ },
+ {
+  "id": "H31",
+  "title": "Cache the exact hit across frames (G-buffer t + normal); reshade only",
+  "area": "display",
+  "expect": "20x+ on repeated settled frames",
+  "status": "refuted",
+  "evidence": "Already in place: a still view presents the cached front image; the headline is time to first sharp frame, which caching can't reduce."
+ },
+ {
+  "id": "H32",
+  "title": "One exact Newton step from the baked hit; normals from bake (tricubic / blended analytic)",
+  "area": "settled pass",
+  "expect": "~4-6x (6.5 -> ~1 maps/px)",
+  "status": "untested",
+  "evidence": "Research round 2"
+ },
+ {
+  "id": "H33",
+  "title": "Bake-time mask of where exact evaluation is needed (creases, thin rims); elsewhere finish from the bake",
+  "area": "bake",
+  "expect": "5-10x on top of H32",
+  "status": "untested",
+  "evidence": "Research round 2"
+ },
+ {
+  "id": "H34",
+  "title": "Exact evaluation in its own small pass, interleaved over frames; main shader has no map()",
+  "area": "shader shape",
+  "expect": "2-4x per frame on Apple GPUs",
+  "status": "untested",
+  "evidence": "Research round 2"
+ },
+ {
+  "id": "H35",
+  "title": "Precision rules: R16F linear only, R32F texelFetch, manual fp32 interpolation at the hit cell",
+  "area": "quality enabler",
+  "expect": "enables H32/H33",
+  "status": "untested",
+  "evidence": "Research round 2"
  }
 ]
