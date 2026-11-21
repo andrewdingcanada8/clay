@@ -103,5 +103,23 @@
   "label": "refined start, back 0.1 voxel",
   "kept": true,
   "note": ""
+ },
+ {
+  "dir": "2026-11-20T20-42-47-133Z-snap",
+  "label": "snap to the exact surface",
+  "kept": false,
+  "note": "fails gates: extra 369 px, IoU 0.9886"
+ },
+ {
+  "dir": "2026-11-20T20-43-20-237Z-band",
+  "label": "narrow-band bake",
+  "kept": false,
+  "note": "bake time unchanged (10.8 s)"
+ },
+ {
+  "dir": "2026-11-21T03-30-57-443Z-merge-smoke",
+  "label": "merge exact-field lineage",
+  "kept": true,
+  "note": "composite 680 ms"
  }
 ]

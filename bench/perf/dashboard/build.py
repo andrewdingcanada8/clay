@@ -74,7 +74,7 @@ if baseline and latest:
 scene_list = json.load(open(os.path.join(PERF, 'scenes', 'index.json')))
 data = {
     'updated': int(time.time() * 1000), 'branch': 'claude/sdf-perf-hillclimb',
-    'status': load('status.json', {}).get('text', ''), 'noise': load('status.json', {}).get('noise', ''),
+    'status': load('status.json', {}).get('text', ''), 'now': load('status.json', {}).get('now'), 'noise': load('status.json', {}).get('noise', ''),
     'baseline': baseline, 'runs': runs, 'scaling': scaling, 'sceneList': scene_list, 'stills': stills, 'compare': compare,
     'journal': load('journal.json', []), 'hypotheses': load('hypotheses.json', []), 'research': load('research.json', []),
 }

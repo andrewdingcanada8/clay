@@ -1,4 +1,19 @@
 {
- "text": "Settled frame 4.1\u00d7 the baseline (5.67 \u2192 1.37 s, headless), moving frames 35\u00d7 (full resolution, from the baked field). Every settled pixel now does ~6.5 exact field evaluations of ~6 objects each, only round the baked hit. Exact-field agent still working on the cost of each evaluation. Next: fewer objects per evaluation (finer pruning near the hit), cheaper sweeps, then the scaling sweep and stress scenes.",
- "noise": "Noise: 5 baseline runs of the composite scene, 5552\u20135777 ms (\u03c3 \u2248 1.5%). A change must beat the incumbent by > 3% and hold on a confirmation run."
+ "text": "Settled frame 8.3\u00d7 the baseline (5.67 \u2192 0.68 s headless) after merging the exact-field lineage into the bake lineage; moving frames ~40 ms. Target is now 100\u00d7 (~57 ms). Each settled pixel still does ~6.5 exact field evaluations of ~6 objects each: two agents attack those two numbers (per-cell pruning, fine bricks).",
+ "noise": "Noise: 5 baseline runs of the composite scene, 5552\u20135777 ms (\u03c3 \u2248 1.5%). A change must beat the incumbent by > 3% and hold on a confirmation run.",
+ "now": {
+  "current": "Full 14-scene suite on the merged build; snap retry (snap only when d\u22640 or |d|<0.05h)",
+  "agents": [
+   "Pruning lineage: per-cell object masks applied once per ray window (objects per evaluation 6.2 \u2192 ~1\u20132)",
+   "Bricks lineage: fine sparse bricks near the surface, so the settled frame needs few exact evaluations",
+   "Research round 2: brick maps, silhouette fidelity from sampled SDFs, Lipschitz pruning code, progressive refinement, iOS WebGL specifics"
+  ],
+  "queue": [
+   "Narrow-band bake from add objects only (bake time)",
+   "Integrate whichever lineage wins; combine pruning + bricks",
+   "Per-piece bake boxes for multi-piece scenes",
+   "Republish Clay Preview with the merged build"
+  ],
+  "updated": 1795232076831
+ }
 }

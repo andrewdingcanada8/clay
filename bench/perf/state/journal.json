@@ -115,5 +115,35 @@
   "result": "Kept 0.1 voxel: 1.52 \u2192 1.37 s (4.1\u00d7); IoU 0.9991.",
   "verdict": "kept",
   "commit": "f8b6396"
+ },
+ {
+  "id": 13,
+  "t": 1795232076696,
+  "title": "Snap to the surface at the first close exact evaluation",
+  "hyp": "Accept the first exact eval with |d|<0.3h and project along the ray: saves most march steps",
+  "change": "Projection p - n\u00b7d after one exact eval",
+  "result": "1002 ms but extra 369 px, IoU 0.9886: rays near silhouettes snap onto surfaces they would miss. Retry with snap only for d<=0 or |d|<0.05h.",
+  "verdict": "rejected",
+  "commit": ""
+ },
+ {
+  "id": 14,
+  "t": 1795232076724,
+  "title": "Narrow-band bake",
+  "hyp": "Bake only voxels near the surface, from a cheap lower bound",
+  "change": "Per-voxel lower bound from object boxes, grown for openings and cuts",
+  "result": "Bake 10.8 s, unchanged: growth for openings and cuts covers almost the whole box. Retry with bounds from add objects only (cuts and hollowing only raise the field).",
+  "verdict": "rejected",
+  "commit": ""
+ },
+ {
+  "id": 15,
+  "t": 1795232076751,
+  "title": "Merge the exact-field lineage into the bake lineage",
+  "hyp": "The exact-field agent's cheaper map() (one call site, leaner interpreter, ~2x alone) multiplies with the baked start",
+  "change": "Merge claude/sdf-perf-exact; the single call-site loop now carries the windowed fallback, 3-tap normals and baked AO",
+  "result": "Composite 1374 -> 680 ms (8.3x baseline); sweeps-64 1312 ms; image unchanged (diff 0.34%, IoU 0.9991)",
+  "verdict": "kept",
+  "commit": "849405b"
  }
 ]

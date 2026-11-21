@@ -5,6 +5,7 @@
   log.py journal <kept|rejected|info> <title> <hypothesis> <change> <result> [commit]
   log.py hyp <id> <status> <evidence>
   log.py status <text>
+  log.py now <current> [--agent a]... [--next q]...
 """
 import glob, json, os, sys, time
 
@@ -38,5 +39,13 @@ elif cmd == 'hyp':
 elif cmd == 'status':
     s = load('status.json', {})
     s['text'] = args[0]
+    save('status.json', s)
+elif cmd == 'now':
+    s = load('status.json', {})
+    n = {'current': args[0], 'agents': [], 'queue': [], 'updated': int(time.time() * 1000)}
+    it = iter(args[1:])
+    for k in it:
+        n['agents' if k == '--agent' else 'queue'].append(next(it))
+    s['now'] = n
     save('status.json', s)
 print('ok')
