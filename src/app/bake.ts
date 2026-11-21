@@ -10,11 +10,15 @@
 // openings, masks and symmetry come along. The clip plane is applied when drawing.
 import * as THREE from 'three';
 import { FRAG, type SdfRenderer } from './raymarch';
+import { dlog } from './debugLog';
 
 /** Voxels along the box's longest side. */
 const RES = 192;
-/** A batch of layers is sized to take about this long on the GPU. */
+/** A batch of rows is sized to take about this long on the GPU. */
 const BATCH_MS = 30;
+/** The first batch of a bake, before its pace is known: a few rows of one layer
+ *  (a whole layer of a big scene can take longer than a phone lets one frame run). */
+const FIRST_ROWS = 8;
 
 const VERT = 'out vec2 vNdc; void main(){ vNdc = position.xy; gl_Position = vec4(position.xy, 0.0, 1.0); }';
 
@@ -107,7 +111,9 @@ export class FieldBake {
   /** The field version the texture holds (complete), or -1. */
   readyVersion = -1;
   private target: THREE.WebGL3DRenderTarget | null = null;
-  private job: { version: number; z: number; batch: number; fence: WebGLSync | null; at: number; t0: number } | null = null;
+  private job: { version: number; row: number; batch: number; fence: WebGLSync | null; at: number; t0: number; n: number } | null = null;
+  /** Rows of voxels (all layers) baked per ms, learned from the last batches. */
+  private rowRate = 0;
   private layerRate = 0; // layers per ms, learned
   private bakeScene = new THREE.Scene();
   private bakeCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -171,21 +177,33 @@ export class FieldBake {
     if (j.fence) {
       if (gl.clientWaitSync(j.fence, 0, 0) === gl.TIMEOUT_EXPIRED) return true;
       gl.deleteSync(j.fence); j.fence = null;
-      this.layerRate = j.batch / Math.max(1, now - j.at);
+      const ms = Math.max(1, now - j.at);
+      // (to the nearest frame, so it errs slow: smaller batches)
+      this.rowRate = j.batch / ms;
+      if (j.n < 6 || j.n % 20 === 0) dlog('bake-batch', { n: j.n, rows: j.batch, ms, row: j.row });
     }
-    const t = this.target!;
-    const n = Math.max(1, Math.min(t.depth - j.z, this.layerRate > 0 ? Math.round(this.layerRate * BATCH_MS) : 2));
-    this.drawLayers(renderer, j.z, n);
+    const t = this.target!, total = t.height * t.depth;
+    const n = Math.max(1, Math.min(total - j.row, this.rowRate > 0 ? Math.round(this.rowRate * BATCH_MS) : FIRST_ROWS));
+    this.drawRows(renderer, j.row, n);
     j.fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
     gl.flush();
-    j.z += n; j.batch = n; j.at = performance.now();
-    if (j.z >= t.depth) {
+    j.row += n; j.batch = n; j.at = performance.now(); j.n++;
+    if (j.row >= total) {
       this.readyVersion = v;
       this.lastBake = { ms: performance.now() - j.t0, voxels: t.width * t.height * t.depth };
+      dlog('bake-done', { ms: this.lastBake.ms, batches: j.n, dims: `${t.width}x${t.height}x${t.depth}` });
       this.job = null;
       return false;
     }
     return true;
+  }
+
+  get lastBakeMs(): number | null { return this.lastBake?.ms ?? null; }
+
+  /** Bake progress, 0..1 (null: no bake running). */
+  get progress(): number | null {
+    if (!this.job || !this.target) return null;
+    return this.job.row / (this.target.height * this.target.depth);
   }
 
   /** The whole bake at once, waited on (for the benchmark harness). Returns ms. */
@@ -193,7 +211,7 @@ export class FieldBake {
     if (this.ready || this.sdf.bounds.isEmpty()) return 0;
     const t0 = performance.now();
     this.start(this.sdf.fieldVersion, t0);
-    this.drawLayers(renderer, 0, this.target!.depth);
+    this.drawRows(renderer, 0, this.target!.height * this.target!.depth);
     const gl = renderer.getContext(), px = new Float32Array(4);
     renderer.readRenderTargetPixels(this.target! as unknown as THREE.WebGLRenderTarget, 0, 0, 1, 1, px, 0);
     void gl;
@@ -225,20 +243,29 @@ export class FieldBake {
     this.sdf.material.uniforms.uBakeTex.value = this.target.texture;
     this.sdf.material.uniforms.uBakeSize.value.copy(this.size);
     this.marchMat.uniforms.uH.value = h;
-    this.job = { version, z: 0, batch: 0, fence: null, at: now, t0: now };
+    this.job = { version, row: 0, batch: 0, fence: null, at: now, t0: now, n: 0 };
+    this.rowRate = 0;
+    dlog('bake-start', { dims: `${nx}x${ny}x${nz}`, objects: this.sdf.material.uniforms.uObjCount.value });
   }
 
-  private drawLayers(renderer: THREE.WebGLRenderer, z0: number, n: number) {
-    const t = this.target!, u = this.sdf.material.uniforms;
+  /** Bake rows [r0, r0 + n) of the volume (row r: layer floor(r / height), row r % height). */
+  private drawRows(renderer: THREE.WebGLRenderer, r0: number, n: number) {
+    const t = this.target!, u = this.sdf.material.uniforms, H = t.height;
     u.uBakeO.value.copy(this.origin);
     u.uBakeH.value = this.h;
     const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
     renderer.autoClear = false;
-    for (let z = z0; z < z0 + n; z++) {
+    for (let r = r0; r < r0 + n;) {
+      const z = Math.floor(r / H), y = r % H, rows = Math.min(H - y, r0 + n - r);
       u.uBakeZ.value = z;
+      // a band of rows of this layer only
+      t.scissor.set(0, y, t.width, rows);
+      t.scissorTest = y > 0 || rows < H;
       renderer.setRenderTarget(t, z);
       renderer.render(this.bakeScene, this.bakeCam);
+      r += rows;
     }
+    t.scissorTest = false;
     renderer.setRenderTarget(prev);
     renderer.autoClear = auto;
   }

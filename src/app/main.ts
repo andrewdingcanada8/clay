@@ -175,6 +175,7 @@ const viewportEl = document.getElementById('viewport')!;
 const panel = document.getElementById('panel')!;
 const statusEl = document.getElementById('status')!;
 const view = new Viewport(viewportEl);
+try { if (localStorage.getItem('clay.hud')) view.setHud(true); } catch { /* storage unavailable */ }
 const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
 const applyTheme = () => {
   const attr = document.documentElement.getAttribute('data-theme');
@@ -787,6 +788,8 @@ function viewPanel() {
       <p class="hint">Turns the camera once around the piece and times every frame on this device.</p>
       <div class="row"><button class="btn" data-act="measure-fps" ${ui.fps === 'measuring…' ? 'disabled' : ''}>Measure this piece</button>
       <button class="btn" data-act="device-bench" ${ui.fps === 'measuring…' ? 'disabled' : ''}>Run the benchmark scene</button></div>
+      <div class="row"><button class="btn" data-act="toggle-hud">${view.hudOn ? 'Hide' : 'Show'} the frame counter</button></div>
+      <p class="hint">The counter (top left of the view) shows what the view is doing — orbiting, editing, or still (baking, refining, sharp) — its frames per second, and how long it took to go sharp after an edit.</p>
       <p class="hint">The benchmark scene is the performance test (a bit of everything); its timings are saved for Claude to compare with the test machine. Your piece comes back afterwards.</p>
       ${ui.fps ? `<div class="stats">${escapeHtml(ui.fps)}</div>` : ''}</div>
     <div class="row"><button class="btn danger" data-act="new">New empty scene</button></div>`;
@@ -1119,6 +1122,11 @@ panel.addEventListener('click', (e) => {
     case 'close-gallery': ui.showGallery = false; renderPanel(); break;
     case 'new-piece': newPiece(); break;
     case 'measure-fps': measureFps(); break;
+    case 'toggle-hud': {
+      view.setHud(!view.hudOn);
+      try { localStorage.setItem('clay.hud', view.hudOn ? '1' : ''); } catch { /* storage unavailable */ }
+      renderPanel(); break;
+    }
     case 'device-bench': void runDeviceBench(); break;
     case 'save-piece': savePiece(); break;
     case 'new':
