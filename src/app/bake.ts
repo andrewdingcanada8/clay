@@ -180,7 +180,7 @@ export class FieldBake {
       const ms = Math.max(1, now - j.at);
       // (to the nearest frame, so it errs slow: smaller batches)
       this.rowRate = j.batch / ms;
-      if (j.n < 6 || j.n % 20 === 0) dlog('bake-batch', { n: j.n, rows: j.batch, ms, row: j.row });
+      if (j.n < 30 || j.n % 20 === 0) dlog('bake-batch', { n: j.n, rows: j.batch, ms, row: j.row });
     }
     const t = this.target!, total = t.height * t.depth;
     const n = Math.max(1, Math.min(total - j.row, this.rowRate > 0 ? Math.round(this.rowRate * BATCH_MS) : FIRST_ROWS));

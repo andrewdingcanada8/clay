@@ -597,8 +597,14 @@ export class Viewport {
   }
 
   /** The image drawn while moving: the baked field when it is ready, else the exact field. */
+  private lowLogAt = 0;
   private drawLow(t: THREE.WebGLRenderTarget) {
-    if (this.bake.ready) this.drawMarch(t, 0); else this.drawSdf(t);
+    if (this.bake.ready) { this.drawMarch(t, 0); return; }
+    // a whole frame of the exact field (moving, editing, or no bake yet): logged, so a
+    // GPU loss right after one points at it
+    const now = performance.now();
+    if (now - this.lowLogAt > 1000) { this.lowLogAt = now; dlog('exact-frame', { w: t.width, h: t.height, moving: this.moving, editing: this.sdf.interactive }); }
+    this.drawSdf(t);
   }
 
   /** Where each settled ray starts, from the baked field (null: no bake yet). */
@@ -669,7 +675,11 @@ export class Viewport {
     const r = this.targets(), key = this.sdfKey(), drifting = key !== this.lastKey;
     this.lastKey = key;
     if (key === this.frontKey) { this.band.active = false; this.present(r.front); return; }
-    if (this.lowKey !== key) { this.drawLow(r.low); this.lowKey = key; }
+    // at rest with a bake to run, keep the last image up rather than drawing a whole
+    // frame of the exact field (a heavy scene's whole frame can outlast what a phone
+    // lets one frame run); the bake's image follows in a moment
+    const bakeWait = !this.moving && !this.sdf.interactive && (this.bakePending() || this.bake.busy) && !!this.lowKey;
+    if (this.lowKey !== key && !bakeWait) { this.drawLow(r.low); this.lowKey = key; }
     // (and come back next frame: once it holds still, the bands start)
     if (this.moving || drifting) { this.band.active = false; this.present(r.low); this.needsRender = true; return; }
     // the bake runs first, alone on the GPU: a sharp image drawn now would be redrawn
