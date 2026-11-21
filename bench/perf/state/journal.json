@@ -225,5 +225,15 @@
   "result": "Bit-identical image; objects/eval 6.19 -> 5.4; 5-7% faster. Small because the composite's objects really overlap. Agent redirected to the editing regime.",
   "verdict": "info",
   "commit": ""
+ },
+ {
+  "id": 24,
+  "t": 1795269521713,
+  "title": "Full suite on the repaired build (all three regimes)",
+  "hyp": "Confirm the gate repair across all scenes",
+  "change": "Full 14-scene suite, clean under the CPU lock",
+  "result": "Diff gate passes on 13/14 (grazing 2.0%). IoU slightly short on custom-section (0.9985) and pieces-9 (0.9988): missed silhouette pixels. Still composite 858 ms (6.6x baseline); orbit 46 ms; editing 725 ms; bake 4.3 s.",
+  "verdict": "info",
+  "commit": ""
  }
 ]

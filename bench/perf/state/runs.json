@@ -169,5 +169,11 @@
   "label": "bricks lineage (agent prototype)",
   "kept": false,
   "note": "composite 100 ms settled (57x baseline); bake 27 s headless"
+ },
+ {
+  "dir": "2026-11-21T13-50-12-355Z-full-repaired",
+  "label": "repaired build, full suite",
+  "kept": true,
+  "note": "strict diff on 13/14 scenes; IoU short on custom-section 0.9985, pieces-9 0.9988; grazing 2.0%"
  }
 ]
