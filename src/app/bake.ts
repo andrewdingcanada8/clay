@@ -70,15 +70,19 @@ void main() {
   float t = max(t0, 0.0);
   int kind = 0;
   bool hit = false;
-  float d = 1e5;
+  float d = 1e5, tNear = -1.0;
   for (int i = 0; i < 160; i++) {
     d = sdf(ro + rd * t, kind);
     float eps = max(0.25 * uH, uPixelAngle * t * 0.5);
     if (d < eps) { hit = true; break; }
+    // a near approach: a wall thinner than a voxel can stay positive in the texture
+    if (tNear < 0.0 && d < 0.5 * uH) tNear = t;
     t += max(d * 0.9, 0.5 * eps);
     if (t > t1) break;
   }
-  if (!hit) { if (uMode == 1) { fragColor = vec4(-1.0); return; } discard; }
+  if (!hit) { if (uMode == 1) { fragColor = vec4(tNear); return; } discard; }
+  // the exact pass starts at an earlier, separate near approach (it decides what is there)
+  if (uMode == 1 && tNear >= 0.0 && t - tNear > 2.0 * uH) { fragColor = vec4(tNear); return; }
   // a little closer: two steps on the interpolated field
   for (int i = 0; i < 2; i++) { t += sdf(ro + rd * t, kind); }
   if (uMode == 1) { fragColor = vec4(t); return; }
