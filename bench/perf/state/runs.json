@@ -157,5 +157,17 @@
   "label": "three regimes, merged build (clean)",
   "kept": false,
   "note": "orbit / still / editing measured apart"
+ },
+ {
+  "dir": "2026-11-21T05-01-55-922Z-repair0.5",
+  "label": "gate repair: tetra normals + 0.5-voxel back-off",
+  "kept": true,
+  "note": "strict on 5 of 6 failing scenes; +24% time"
+ },
+ {
+  "dir": "2026-11-21T04-50-55-283Z-bricks-1",
+  "label": "bricks lineage (agent prototype)",
+  "kept": false,
+  "note": "composite 100 ms settled (57x baseline); bake 27 s headless"
  }
 ]

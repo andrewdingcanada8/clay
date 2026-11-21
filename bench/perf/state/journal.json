@@ -195,5 +195,35 @@
   "result": "Composite on iPhone: settled 18 ms (vs 691 headless), orbit 1-2 ms, bake 109 ms. The phone is ~38x faster than the proxy on the settled frame. The 4-jug piece still lost the GPU context 0.4-0.9 s after its field changed at rest (4 hollow bodies), on the build before the row-strip bake; fixed further by skipping the whole exact frame while the bake is pending (7239f50). Awaiting a rerun.",
   "verdict": "info",
   "commit": ""
+ },
+ {
+  "id": 21,
+  "t": 1795268931877,
+  "title": "Strict-gate repair: tetrahedral normals + 0.5-voxel back-off (regime: still)",
+  "hyp": "Bisect: 3-sample normals broke creases; starting at the refined baked hit missed inner-silhouette pixels",
+  "change": "4 tetrahedral normal taps; start the exact window 0.5 voxel before the baked hit",
+  "result": "Strict now on composite 0.07%, csg 0.08%, custom-section 0.41%, pieces-4 0.08%, pieces-9 0.17%; grazing 2.0% (thin slabs, since bake v1). Still frame composite 652 -> 810 ms. Orbit unaffected; editing unaffected (exact path only used with a bake).",
+  "verdict": "kept",
+  "commit": "34d33d9"
+ },
+ {
+  "id": 22,
+  "t": 1795268931904,
+  "title": "Bricks lineage, first result (agent, regime: still; bake cost)",
+  "hyp": "Fine sparse bricks near the surface let the settled frame avoid most exact evaluations",
+  "change": "Coarse 192^3 bake, then (N+1)^3-sample bricks of the exact field in a band (N=4, N=8 where the coarse field bends); settled pass marches and shades from bricks",
+  "result": "Settled: composite 100 ms (57x baseline), sweeps-64 108, pieces-9 81, close-up 147, grazing 235, custom-section 108. Strict on composite, sweeps-64, close-up. Bake 4-30x longer (composite 27 s headless): time to sharp after an edit is the cost. Orbit unchanged; editing unaffected.",
+  "verdict": "info",
+  "commit": ""
+ },
+ {
+  "id": 23,
+  "t": 1795268931932,
+  "title": "Pruning lineage, first result (agent, regime: still)",
+  "hyp": "Per-cell object masks (Lipschitz pruning) cut objects per evaluation",
+  "change": "Cells of 2 voxels after the bake; masks ANDed into the settled ray mask once per ray",
+  "result": "Bit-identical image; objects/eval 6.19 -> 5.4; 5-7% faster. Small because the composite's objects really overlap. Agent redirected to the editing regime.",
+  "verdict": "info",
+  "commit": ""
  }
 ]
