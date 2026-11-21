@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 import { FRAG, type SdfRenderer } from './raymarch';
 import { dlog } from './debugLog';
-import { drawRows, BRICK_NEAR, BRICK_B, BRICK_N, BRICK_SHARP, BRICK_THR, BrickLevel, CLASSIFY, SETTLED } from './bricks';
+import { drawRows, ATLAS_W, BRICK_NEAR, BRICK_B, BRICK_N, BRICK_SHARP, BRICK_THR, BrickLevel, CLASSIFY, SETTLED } from './bricks';
 
 /** Voxels along the box's longest side. */
 const RES = 192;
@@ -130,6 +130,10 @@ export class FieldBake {
   brickVersion = -1;
   private ind: THREE.Data3DTexture | null = null;
   private levels: BrickLevel[];
+  /** What the settled pass reads: every level's values and second differences (RGBA). */
+  private readAtlas: THREE.WebGL3DRenderTarget | null = null;
+  private zOff = [0, 0];
+  private indS: THREE.Data3DTexture | null = null;
   private classMat: THREE.ShaderMaterial;
   private classScene = new THREE.Scene();
   private classRT: THREE.WebGLRenderTarget | null = null;
@@ -170,9 +174,9 @@ export class FieldBake {
     this.settledMat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: SETTLED, depthTest: true, depthWrite: true,
       uniforms: {
-        uTex: { value: null }, uInd: { value: null }, uAtlas0: { value: null }, uAtlas1: { value: null },
+        uTex: { value: null }, uIndS: { value: null }, uAtlasR: { value: null },
         uO: { value: this.origin }, uSize: { value: this.size }, uH: { value: 1 },
-        uCells: { value: this.cells }, uSlots0: { value: this.levels[0].slots }, uSlots1: { value: this.levels[1].slots },
+        uCells: { value: this.cells },
         uInvProjView: su.uInvProjView, uProjView: su.uProjView, uClip: su.uClip, uClipOn: su.uClipOn,
         uClay: su.uClay, uCap: su.uCap, uPixelAngle: su.uPixelAngle, uPixelSize: su.uPixelSize, uFlat: su.uFlat,
       },
@@ -244,11 +248,11 @@ export class FieldBake {
     // 2: each level's brick samples (the exact field); 3: each level's atlas from them (copies)
     while (j.phase <= 4) {
       const L = this.levels[j.level];
-      const tgt = L && L.count ? (j.phase === 2 ? L.bakeTarget : j.phase === 3 ? L.copyTarget : L.curvTarget) : null;
+      const tgt = L && L.count ? (j.phase === 2 ? L.bakeTarget : j.phase === 3 ? L.copyTarget : L.atlas) : null;
       if (tgt && j.row < tgt.height * tgt.depth) {
         if (j.phase === 2) batch(tgt, (r0, n) => L.draw(renderer, this.origin, this.h, r0, n));
         else if (j.phase === 3) batch(tgt, (r0, n) => L.copy(renderer, j.level, this.levels, this.ind!, this.cells, r0, n));
-        else batch(tgt, (r0, n) => L.curv(renderer, r0, n));
+        else { const lv = j.level; batch(tgt, (r0, n) => L.curv(renderer, this.readAtlas!, this.zOff[lv], r0, n)); }
         // (copies are cheap: they don't teach the pace)
         if (j.phase >= 3) j.batch = 0;
         return true;
@@ -288,7 +292,7 @@ export class FieldBake {
     this.classify(renderer);
     for (const L of this.levels) if (L.count) L.draw(renderer, this.origin, this.h, 0, L.bakeTarget.height * L.bakeTarget.depth);
     this.levels.forEach((L, i) => { if (L.count && L.copyTarget) L.copy(renderer, i, this.levels, this.ind!, this.cells, 0, L.copyTarget.height * L.copyTarget.depth); });
-    for (const L of this.levels) if (L.count && L.curvTarget) L.curv(renderer, 0, L.curvTarget.height * L.curvTarget.depth);
+    this.levels.forEach((L, i) => { if (L.count) L.curv(renderer, this.readAtlas!, this.zOff[i], 0, L.atlas!.height * L.atlas!.depth); });
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
     this.brickVersion = this.sdf.fieldVersion;
     this.lastBake.brickMs = performance.now() - tb;
@@ -378,8 +382,33 @@ export class FieldBake {
     this.ind.needsUpdate = true;
     this.levels.forEach((L, i) => { L.layout(lists[i]); if (L.count) L.masks(renderer, this.origin, this.h); });
     const su = this.settledMat.uniforms;
-    su.uTex.value = t.texture; su.uInd.value = this.ind; su.uH.value = this.h;
-    su.uAtlas0.value = this.levels[0].readTex; su.uAtlas1.value = this.levels[1].readTex;
+    // the read atlas: level 0's layers, then level 1's; each cell's brick start and N
+    const L0 = this.levels[0], L1 = this.levels[1];
+    const d0 = L0.count ? L0.atlas!.depth : 0, d1 = L1.count ? L1.atlas!.depth : 0, D = Math.max(1, d0 + d1);
+    this.zOff = [0, d0];
+    if (!this.readAtlas || this.readAtlas.depth !== D) {
+      this.readAtlas?.dispose();
+      this.readAtlas = new THREE.WebGL3DRenderTarget(ATLAS_W, ATLAS_W, D, { type: THREE.HalfFloatType, format: THREE.RGBAFormat, depthBuffer: false });
+      const tex = this.readAtlas.texture;
+      tex.minFilter = tex.magFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+      tex.wrapS = tex.wrapT = tex.wrapR = THREE.ClampToEdgeWrapping;
+    }
+    const es = new Float32Array(cx * cy * cz * 4);
+    for (let c = 0; c < cx * cy * cz; c++) {
+      const v = ind[c];
+      if (!v) continue;
+      const lv = v > 0 ? 0 : 1, L = this.levels[lv], s = Math.abs(v) - 1, [sx, sy] = L.slots;
+      es[c * 4] = (s % sx) * L.S; es[c * 4 + 1] = (Math.floor(s / sx) % sy) * L.S;
+      es[c * 4 + 2] = Math.floor(s / (sx * sy)) * L.S + this.zOff[lv]; es[c * 4 + 3] = L.N;
+    }
+    this.indS?.dispose();
+    this.indS = new THREE.Data3DTexture(es, cx, cy, cz);
+    this.indS.format = THREE.RGBAFormat; this.indS.type = THREE.FloatType;
+    this.indS.minFilter = this.indS.magFilter = THREE.NearestFilter;
+    this.indS.needsUpdate = true;
+    su.uTex.value = t.texture; su.uIndS.value = this.indS; su.uH.value = this.h;
+    su.uAtlasR.value = this.readAtlas.texture;
     this.lastBake.bricks = this.levels.map((l) => l.count);
     this.lastBake.samples = this.levels.reduce((a, l) => a + l.count * (l.core ? l.N : l.S) ** 3, 0);
     this.lastBake.classifyMs = performance.now() - t0;

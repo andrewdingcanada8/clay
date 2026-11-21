@@ -34,11 +34,9 @@ export const NORMAL_E = +(Q.get('ne') ?? 1);
 /** Brick reads: take off trilinear's curvature error, ½Σ w(1-w)·(second difference along each
  *  axis); the second differences are baked beside the values (RGBA: d, Δ²x, Δ²y, Δ²z). */
 export const QUAD_CORR = Q.get('qc') !== '0';
-/** Brick reads: trilinear by hand from exact texel reads (fp32 weights; with QUAD_CORR, the
- *  second differences from 6 more reads instead of the curvature atlas). */
-export const MANUAL_TRI = Q.get('mt') === '1';
 /** Atlas slots per row and per column. */
-export const SLOTS_XY = 40;
+/** Atlas width and height in texels (each level fits as many slots across as it can). */
+export const ATLAS_W = 360;
 
 export const VERT = 'out vec2 vNdc; void main(){ vNdc = position.xy; gl_Position = vec4(position.xy, 0.0, 1.0); }';
 
@@ -105,15 +103,14 @@ precision highp sampler3D;
 in vec2 vNdc;
 out vec4 fragColor;
 uniform sampler3D uTex;
-uniform sampler3D uInd;
-uniform sampler3D uAtlas0;
-uniform sampler3D uAtlas1;
+// per cell: where its brick starts in the read atlas (texels) and its N (0: no brick)
+uniform sampler3D uIndS;
+// every level's bricks, values and second differences (RGBA), one level after another in z
+uniform sampler3D uAtlasR;
 uniform vec3 uO;
 uniform vec3 uSize;
 uniform float uH;
 uniform ivec3 uCells;
-uniform ivec3 uSlots0;
-uniform ivec3 uSlots1;
 uniform mat4 uInvProjView;
 uniform mat4 uProjView;
 uniform vec4 uClip;
@@ -137,56 +134,19 @@ float bakedField(vec3 p) {
   return texture(uTex, (q * (n - 1.0) + 0.5) / n).r;
 }
 ivec3 slotOf(int slot, ivec3 s) { return ivec3(slot % s.x, (slot / s.x) % s.y, slot / (s.x * s.y)); }
-// trilinear by hand in fp32 from exact texel reads (l in [0, n])
-float tri3(sampler3D t, ivec3 base, vec3 l, int n) {
-  ivec3 i0 = min(ivec3(floor(l)), ivec3(n - 1));
-  vec3 w = l - vec3(i0);
-  ivec3 q = base + i0;
-  float a = texelFetch(t, q, 0).r, b = texelFetch(t, q + ivec3(1, 0, 0), 0).r;
-  float c = texelFetch(t, q + ivec3(0, 1, 0), 0).r, d = texelFetch(t, q + ivec3(1, 1, 0), 0).r;
-  float e = texelFetch(t, q + ivec3(0, 0, 1), 0).r, f = texelFetch(t, q + ivec3(1, 0, 1), 0).r;
-  float g = texelFetch(t, q + ivec3(0, 1, 1), 0).r, h = texelFetch(t, q + ivec3(1, 1, 1), 0).r;
-  float v = mix(mix(mix(a, b, w.x), mix(c, d, w.x), w.y), mix(mix(e, f, w.x), mix(g, h, w.x), w.y), w.z);
-${QUAD_CORR && MANUAL_TRI ? `
-  // trilinear overestimates a convex field (and under-, a concave one) by about
-  // half w(1 - w) times the second difference along each axis: take that off
-  // (second differences along the cell's base lines, inside the brick)
-  vec3 d2;
-  for (int k = 0; k < 3; k++) {
-    ivec3 e1 = ivec3(k == 0, k == 1, k == 2);
-    int i = i0[k];
-    float fm = texelFetch(t, base + i0 + e1 * (max(i - 1, 0) - i), 0).r;
-    float f0 = a, f1 = k == 0 ? b : k == 1 ? c : e;
-    float f2 = texelFetch(t, base + i0 + e1 * (min(i + 2, n) - i), 0).r;
-    // at index i (needs i >= 1) and i + 1 (needs i + 1 <= n - 1)
-    float da = fm - 2.0 * f0 + f1, db = f0 - 2.0 * f1 + f2;
-    da = i >= 1 ? da : db; db = i + 1 <= n - 1 ? db : da;
-    d2[k] = mix(da, db, w[k]);
-  }
-  v -= 0.5 * dot(w * (1.0 - w), d2);` : ''}
-  return v;
-}
 // the field from the brick holding p, else the coarse field; level: -1 none, 0 smooth, 1 sharp
 float field(vec3 p, out int level) {
   vec3 g = (p - uO) / uH;
   vec3 cf = floor(g * ${f(1 / BRICK_B)});
   ivec3 c = clamp(ivec3(cf), ivec3(0), uCells - 1);
-  float s = texelFetch(uInd, c, 0).r;
-  int slot = max(int(abs(s) + 0.5) - 1, 0);
-  vec3 u = g - cf * ${BRICK_B.toFixed(1)};
-  vec3 l0 = clamp(u * ${f(BRICK_N[0] / BRICK_B)}, 0.0, ${BRICK_N[0].toFixed(1)});
-  vec3 l1 = clamp(u * ${f(BRICK_N[1] / BRICK_B)}, 0.0, ${BRICK_N[1].toFixed(1)});
-${MANUAL_TRI ? `
-  float f0 = tri3(uAtlas0, slotOf(slot, uSlots0) * ${BRICK_N[0] + 1}, l0, ${BRICK_N[0]});
-  float f1 = tri3(uAtlas1, slotOf(slot, uSlots1) * ${BRICK_N[1] + 1}, l1, ${BRICK_N[1]});` : `
-  vec4 q0 = texture(uAtlas0, (vec3(slotOf(slot, uSlots0)) * ${(BRICK_N[0] + 1).toFixed(1)} + 0.5 + l0) / vec3(textureSize(uAtlas0, 0)));
-  vec4 q1 = texture(uAtlas1, (vec3(slotOf(slot, uSlots1)) * ${(BRICK_N[1] + 1).toFixed(1)} + 0.5 + l1) / vec3(textureSize(uAtlas1, 0)));
-  float f0 = q0.r, f1 = q1.r;${QUAD_CORR ? `
-  vec3 w0 = fract(l0), w1 = fract(l1);
-  f0 -= 0.5 * dot(w0 * (1.0 - w0), q0.gba);
-  f1 -= 0.5 * dot(w1 * (1.0 - w1), q1.gba);` : ''}`}
-  level = ivec3(cf) != c || s == 0.0 ? -1 : s > 0.0 ? 0 : 1;
-  return level == 0 ? f0 : level == 1 ? f1 : coarse(p);
+  vec4 e = texelFetch(uIndS, c, 0);
+  vec3 l = clamp((g - cf * ${BRICK_B.toFixed(1)}) * (e.w * ${f(1 / BRICK_B)}), 0.0, e.w);
+  vec4 q = texture(uAtlasR, (e.xyz + 0.5 + l) / vec3(textureSize(uAtlasR, 0)));
+  float fb = q.r;${QUAD_CORR ? `
+  vec3 w = fract(l);
+  fb -= 0.5 * dot(w * (1.0 - w), q.gba);` : ''}
+  level = ivec3(cf) != c || e.w == 0.0 ? -1 : e.w == ${BRICK_N[0].toFixed(1)} ? 0 : 1;
+  return level >= 0 ? fb : coarse(p);
 }
 bool boxHit(vec3 ro, vec3 rd, out float t0, out float t1) {
   vec3 lo = uO, hi = uO + uSize;
@@ -301,16 +261,15 @@ void main() {
 
 /** Draw rows [r0, r0 + n) of a 3D target (row r: layer floor(r / height), row r % height),
  *  each layer's band of rows scissored; setZ is told the layer before each draw. */
-export function drawRows(renderer: THREE.WebGLRenderer, t: THREE.WebGL3DRenderTarget, scene: THREE.Scene, cam: THREE.Camera, setZ: (z: number) => void, r0: number, n: number) {
-  const H = t.height;
+export function drawRows(renderer: THREE.WebGLRenderer, t: THREE.WebGL3DRenderTarget, scene: THREE.Scene, cam: THREE.Camera, setZ: (z: number) => void, r0: number, n: number, zOff = 0, H = t.height) {
   const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
   renderer.autoClear = false;
   for (let r = r0; r < r0 + n;) {
     const z = Math.floor(r / H), y = r % H, rows = Math.min(H - y, r0 + n - r);
     setZ(z);
     t.scissor.set(0, y, t.width, rows);
-    t.scissorTest = y > 0 || rows < H;
-    renderer.setRenderTarget(t, z);
+    t.scissorTest = y > 0 || rows < t.height;
+    renderer.setRenderTarget(t, z + zOff);
     renderer.render(scene, cam);
     r += rows;
   }
@@ -357,8 +316,6 @@ export class BrickLevel {
   core: THREE.WebGL3DRenderTarget | null = null;
   private copyScene = new THREE.Scene();
   readonly copyMat: THREE.ShaderMaterial;
-  /** Values and second differences (QUAD_CORR): what the settled pass reads. */
-  curvTex: THREE.WebGL3DRenderTarget | null = null;
   private curvScene = new THREE.Scene();
   private curvMat: THREE.ShaderMaterial;
   slotTex: THREE.DataTexture | null = null;
@@ -430,8 +387,8 @@ export class BrickLevel {
   layout(cells: number[]) {
     const count = cells.length / 3;
     this.count = count;
-    const az = Math.max(1, Math.ceil(count / (SLOTS_XY * SLOTS_XY)));
-    this.slots.set([SLOTS_XY, SLOTS_XY, az]);
+    const sx = Math.floor(ATLAS_W / this.S), az = Math.max(1, Math.ceil(count / (sx * sx)));
+    this.slots.set([sx, sx, az]);
     const rows = Math.max(1, Math.ceil(count / 4096));
     const st = new Float32Array(4096 * rows * 4);
     for (let s = 0; s < count; s++) { st[s * 4] = cells[s * 3]; st[s * 4 + 1] = cells[s * 3 + 1]; st[s * 4 + 2] = cells[s * 3 + 2]; }
@@ -440,7 +397,7 @@ export class BrickLevel {
     this.slotTex.minFilter = this.slotTex.magFilter = THREE.NearestFilter;
     this.slotTex.needsUpdate = true;
     const make = (old: THREE.WebGL3DRenderTarget | null, S: number, rgba = false) => {
-      const W = SLOTS_XY * S, D = count ? az * S : 1;
+      const W = sx * S, D = count ? az * S : 1;
       if (old && old.width === W && old.height === W && old.depth === D) return old;
       old?.dispose();
       const t = new THREE.WebGL3DRenderTarget(W, W, D, { type: THREE.HalfFloatType, format: rgba ? THREE.RGBAFormat : THREE.RedFormat, depthBuffer: false });
@@ -452,22 +409,18 @@ export class BrickLevel {
     };
     this.atlas = make(this.atlas, this.S);
     if (APRON_COPY) this.core = make(this.core, this.N);
-    if (QUAD_CORR && !MANUAL_TRI) this.curvTex = make(this.curvTex, this.S, true);
   }
 
   /** Fill the atlas from the cores (after every level's core is baked). */
   /** The target the brick samples are baked into, and the one the copy pass fills (or null). */
   get bakeTarget() { return (APRON_COPY ? this.core : this.atlas)!; }
   get copyTarget() { return APRON_COPY ? this.atlas : null; }
-  get curvTarget() { return this.curvTex; }
-  /** What the settled pass reads. */
-  get readTex() { return (this.curvTex ?? this.atlas)!.texture; }
-
-  /** Rows [r0, r0 + n) of the curvature atlas. */
-  curv(renderer: THREE.WebGLRenderer, r0: number, n: number) {
+  /** Rows [r0, r0 + n) of this level's part of the read atlas (from layer zOff on): its
+   *  values and second differences. */
+  curv(renderer: THREE.WebGLRenderer, read: THREE.WebGL3DRenderTarget, zOff: number, r0: number, n: number) {
     const u = this.curvMat.uniforms;
     u.uAtlas.value = this.atlas!.texture;
-    drawRows(renderer, this.curvTex!, this.curvScene, this.cam, (z) => { u.uZ.value = z; }, r0, n);
+    drawRows(renderer, read, this.curvScene, this.cam, (z) => { u.uZ.value = z; }, r0, n, zOff, this.atlas!.height);
   }
 
   copy(renderer: THREE.WebGLRenderer, level: number, levels: BrickLevel[], ind: THREE.Data3DTexture, cells: Int32Array, r0: number, n: number) {
@@ -492,5 +445,5 @@ export class BrickLevel {
     drawRows(renderer, this.bakeTarget, this.scene, this.cam, (z) => { u.uBakeZ.value = z; }, r0, n);
   }
 
-  dispose() { this.maskRT?.dispose(); this.maskRT = null; this.atlas?.dispose(); this.atlas = null; this.core?.dispose(); this.core = null; this.curvTex?.dispose(); this.curvTex = null; this.slotTex?.dispose(); this.slotTex = null; this.count = 0; }
+  dispose() { this.maskRT?.dispose(); this.maskRT = null; this.atlas?.dispose(); this.atlas = null; this.core?.dispose(); this.core = null; this.slotTex?.dispose(); this.slotTex = null; this.count = 0; }
 }
