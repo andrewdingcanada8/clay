@@ -36,3 +36,20 @@ Its window assumptions (0.1h back-off, 3 forward normal taps) also no longer mat
 pass (0.5-voxel back-off, tetrahedral taps), so it is reverted here before merging that branch.
 
 # Part 2: editing frames (msEdit)
+
+Harness: `bench.sh edit-<n> --scenes composite,sweeps-64,blend-heavy,csg-chain,pieces-4` (msMean settled, msEdit).
+NOTE: the harness' benchEdit re-sends the *same* doc (setDoc(doc, true)), so it measures a no-op edit. For real
+drags I use scratchpad drag.mjs (run under the bench lock): it moves one object 0.05 per frame through
+setSdfDoc(interactive) + setSdfGrids (grids of the bodies around it dropped, as main.sync does), times the edit
+frame (drawLow at the moving resolution, 200x193), and compares the last frame with the full exact path
+(msExact = the old edit frame, same doc).
+
+Edit frame before: setDoc(interactive) + the whole exact field at the moving resolution (full march from the box,
+4 normal taps, 4 exact occlusion taps): ~3.3x the per-pixel cost of a settled pixel with a bake.
+
+| # | attempt | settled ms (comp / sw64 / blend / csg / p4) | harness msEdit (no-op edit) | real drag msEdit vs msExact (drag.mjs) | edit image vs exact | verdict |
+|---|---|---|---|---|---|---|
+| e0 | reference (merge of hill-climb c369965) | 827 / 1647 / 479 / 573 / 858 | 687 / 1816 / 315 / 321 / 812 | - | - | - |
+| e1 | stale-bake reuse mid-drag: FieldSnapshot at bake start (program shape, per-object key + world box grown by rayMask's reach + 2.1 for taps, per-body key incl. grid identity + box); dirtyBoxes = boxes of changed objects/bodies (old and new), merged to <= 8; drawLow with a stale bake: start pass from it, rays clear of dirty boxes take the settled window path (baked AO), others march exactly from their first dirty box | - | - | comp tab og 366 vs 765; cup ol 565 vs 776; body torus o5 745 vs 767 (body grid dropped: whole body dirty); sw64 rib 585 vs 1867; blend 221 vs 333; csg 244 vs 323; p4 tab 351 vs 773 | diff>24 <= 0.024 %, missed <= 6 px of ~8300 | -> |
+| e2 | + dirty rays end at max(last dirty exit, baked hit) + 3h (the stale field holds past the boxes) | 1028 / 1720 / 630 / 743 / 1072 (A/B 994 vs 795) | 293 / 499 / 178 / 203 / 288 | about the same as e1 | same, csg missed 12 / 8483 | no: settled +25 %; the per-pixel `useStart` replacing uniform `uStartOn == 1` slows the settled shader on SwiftShader |
+| e3 | the per-pixel choice only in a shader variant (SDF_DIRTY, second material swapped in by setDirty); the settled shader is unchanged | 801 / 1656 / 470 / 578 / 881 (bit-identical images) | 272 / 471 / 163 / 193 / 280 | comp og 355 vs 744; ol 537 vs 779; o5 737 vs 716; sw64 591 vs 1765; blend 226 vs 333; csg 228 vs 325; p4 og 368 vs 798 | as e2 | yes |

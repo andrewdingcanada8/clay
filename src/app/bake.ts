@@ -9,7 +9,7 @@
 // Distances come from the same shader (FRAG with SDF_BAKE), so blends, hollow walls,
 // openings, masks and symmetry come along. The clip plane is applied when drawing.
 import * as THREE from 'three';
-import { FRAG, type SdfRenderer } from './raymarch';
+import { FRAG, type FieldSnapshot, type SdfRenderer } from './raymarch';
 import { dlog } from './debugLog';
 
 /** Voxels along the box's longest side. */
@@ -125,6 +125,12 @@ export class FieldBake {
   private h = 1;
   /** How long the last complete bake took (ms, wall clock) and its voxel count. */
   lastBake = { ms: 0, voxels: 0 };
+  /** The fields whose voxels the texture may hold (the last complete bake and any
+   *  partial ones since), and whether a bake on its current grid has completed. */
+  private snaps: FieldSnapshot[] = [];
+  private geomOk = false;
+  private dirtyKey = -1;
+  private dirtyMemo: { min: [number, number, number]; max: [number, number, number] }[] | null = null;
 
   constructor(private sdf: SdfRenderer) {
     this.bakeMat = new THREE.ShaderMaterial({
@@ -157,7 +163,21 @@ export class FieldBake {
   get voxel() { return this.h; }
 
   /** Forget the bake (the GPU context it lived in is gone). */
-  reset() { this.target?.dispose(); this.target = null; this.job = null; this.readyVersion = -1; }
+  reset() { this.target?.dispose(); this.target = null; this.job = null; this.readyVersion = -1; this.snaps = []; this.geomOk = false; }
+
+  /**
+   * Mid-drag (the field changed since the bake): where the baked texture may be wrong, as
+   * world boxes; everywhere else it still holds the field exactly. null: unusable (no
+   * complete bake on this grid, or the program's shape changed). Once per field version.
+   */
+  staleDirty(): { min: [number, number, number]; max: [number, number, number] }[] | null {
+    if (!this.target || !this.geomOk || !this.snaps.length || this.snaps.length > 3) return null;
+    if (this.dirtyKey !== this.sdf.fieldVersion) {
+      this.dirtyKey = this.sdf.fieldVersion;
+      this.dirtyMemo = this.sdf.dirtyBoxes(this.snaps);
+    }
+    return this.dirtyMemo;
+  }
 
   /**
    * Advance the bake by one batch of layers if the field changed and is at rest.
@@ -190,6 +210,7 @@ export class FieldBake {
     j.row += n; j.batch = n; j.at = performance.now(); j.n++;
     if (j.row >= total) {
       this.readyVersion = v;
+      this.done();
       this.lastBake = { ms: performance.now() - j.t0, voxels: t.width * t.height * t.depth };
       dlog('bake-done', { ms: this.lastBake.ms, batches: j.n, dims: `${t.width}x${t.height}x${t.depth}` });
       this.job = null;
@@ -216,9 +237,16 @@ export class FieldBake {
     renderer.readRenderTargetPixels(this.target! as unknown as THREE.WebGLRenderTarget, 0, 0, 1, 1, px, 0);
     void gl;
     this.readyVersion = this.sdf.fieldVersion;
+    this.done();
     this.job = null;
     this.lastBake = { ms: performance.now() - t0, voxels: this.target!.width * this.target!.height * this.target!.depth };
     return this.lastBake.ms;
+  }
+
+  private done() {
+    this.snaps = this.snaps.slice(-1);
+    this.geomOk = true;
+    this.dirtyKey = -1;
   }
 
   private start(version: number, now: number) {
@@ -227,8 +255,14 @@ export class FieldBake {
     const h = Math.max(ext.x, ext.y, ext.z, 1e-3) / RES;
     const pad = 3 * h;
     const nx = Math.max(2, Math.ceil((ext.x + 2 * pad) / h) + 1), ny = Math.max(2, Math.ceil((ext.y + 2 * pad) / h) + 1), nz = Math.max(2, Math.ceil((ext.z + 2 * pad) / h) + 1);
+    const ox = b.min.x - pad, oy = b.min.y - pad, oz = b.min.z - pad;
+    // a different grid: the old voxels mean nothing on it until this bake completes
+    if (h !== this.h || ox !== this.origin.x || oy !== this.origin.y || oz !== this.origin.z || !this.target
+      || this.target.width !== nx || this.target.height !== ny || this.target.depth !== nz) { this.geomOk = false; this.snaps = []; }
+    this.snaps.push(this.sdf.snapshot());
+    this.dirtyKey = -1;
     this.h = h;
-    this.origin.set(b.min.x - pad, b.min.y - pad, b.min.z - pad);
+    this.origin.set(ox, oy, oz);
     this.size.set((nx - 1) * h, (ny - 1) * h, (nz - 1) * h);
     if (!this.target || this.target.width !== nx || this.target.height !== ny || this.target.depth !== nz) {
       this.target?.dispose();
