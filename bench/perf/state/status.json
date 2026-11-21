@@ -1,19 +1,18 @@
 {
- "text": "Settled frame 8.3\u00d7 the baseline (5.67 \u2192 0.68 s headless) after merging the exact-field lineage into the bake lineage; moving frames ~40 ms. Target is now 100\u00d7 (~57 ms). Each settled pixel still does ~6.5 exact field evaluations of ~6 objects each: two agents attack those two numbers (per-cell pruning, fine bricks).",
+ "text": "Still frame 8.7\u00d7 the baseline headless (5.67 \u2192 0.65 s); on the user's iPhone the composite scene settles in 18 ms, orbits in 1\u20132 ms and bakes in 109 ms. Strict image gate fails on 4 scenes (sharp creases, thin rims) since earlier kept steps: being repaired first. The 4-jug piece crashed the iPhone right after its field changed at rest; fixes are live in Clay Preview, awaiting a rerun. Editing (drag frames) is now measured: about as slow as a still frame, since the bake can't help mid-drag.",
  "noise": "Noise: 5 baseline runs of the composite scene, 5552\u20135777 ms (\u03c3 \u2248 1.5%). A change must beat the incumbent by > 3% and hold on a confirmation run.",
  "now": {
-  "current": "Fixing the strict-gate failures on sharp-edged and thin-walled scenes: tetrahedral 4-tap normals first, then the thin-wall start",
+  "current": "Overnight, autonomous. Gate repair: tetrahedral normals + 0.3/0.5-voxel back-off before the baked hit",
   "agents": [
-   "Pruning lineage: per-cell object masks applied once per ray window",
-   "Bricks lineage: fine sparse bricks near the surface",
-   "Research round 2: brick maps, silhouettes from sampled SDFs, Lipschitz pruning, progressive refinement, iOS WebGL"
+   "Pruning lineage: per-cell object masks (cuts objects per evaluation; also helps editing)",
+   "Bricks lineage: fine sparse bricks near the surface (still frame; lengthens the bake)"
   ],
   "queue": [
-   "Snap v2 (queued): snap only where the ray faces the surface",
-   "Clean full-suite rerun under the new CPU locks (queued)",
-   "Grazing scene: 15.9 field evaluations per pixel, the slowest scene",
-   "Integrate pruning / bricks when they report"
+   "Keep the cheapest repair that passes the strict gate on all scenes",
+   "Integrate pruning / bricks as they report; measure all three regimes",
+   "Editing regime: cheaper exact field mid-drag (after the still-frame target)",
+   "Narrow-band bake (time to sharp after an edit)"
   ],
-  "updated": 1795232366447
+  "updated": 1795236664331
  }
 }
