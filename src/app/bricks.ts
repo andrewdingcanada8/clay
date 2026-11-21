@@ -243,6 +243,26 @@ void main() {
   fragColor = vec4(v, 0.0, 0.0, 1.0);
 }`;
 
+/** Draw rows [r0, r0 + n) of a 3D target (row r: layer floor(r / height), row r % height),
+ *  each layer's band of rows scissored; setZ is told the layer before each draw. */
+export function drawRows(renderer: THREE.WebGLRenderer, t: THREE.WebGL3DRenderTarget, scene: THREE.Scene, cam: THREE.Camera, setZ: (z: number) => void, r0: number, n: number) {
+  const H = t.height;
+  const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
+  renderer.autoClear = false;
+  for (let r = r0; r < r0 + n;) {
+    const z = Math.floor(r / H), y = r % H, rows = Math.min(H - y, r0 + n - r);
+    setZ(z);
+    t.scissor.set(0, y, t.width, rows);
+    t.scissorTest = y > 0 || rows < H;
+    renderer.setRenderTarget(t, z);
+    renderer.render(scene, cam);
+    r += rows;
+  }
+  t.scissorTest = false;
+  renderer.setRenderTarget(prev);
+  renderer.autoClear = auto;
+}
+
 export const tri = () => {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
@@ -344,27 +364,21 @@ export class BrickLevel {
   }
 
   /** Fill the atlas from the cores (after every level's core is baked). */
-  copy(renderer: THREE.WebGLRenderer, level: number, levels: BrickLevel[], ind: THREE.Data3DTexture, cells: Int32Array) {
+  /** The target the brick samples are baked into, and the one the copy pass fills (or null). */
+  get bakeTarget() { return (APRON_COPY ? this.core : this.atlas)!; }
+  get copyTarget() { return APRON_COPY ? this.atlas : null; }
+
+  copy(renderer: THREE.WebGLRenderer, level: number, levels: BrickLevel[], ind: THREE.Data3DTexture, cells: Int32Array, r0: number, n: number) {
     if (!APRON_COPY || !this.count) return;
     const u = this.copyMat.uniforms;
     u.uCore0.value = levels[0].core!.texture; u.uCore1.value = levels[1].core!.texture;
     u.uInd.value = ind; u.uSlotTab.value = this.slotTex;
     u.uSlots0.value = levels[0].slots; u.uSlots1.value = levels[1].slots; u.uCells.value = cells; u.uLevel.value = level;
-    const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
-    renderer.autoClear = false;
-    for (let z = 0; z < this.atlas!.depth; z++) {
-      u.uZ.value = z;
-      renderer.setRenderTarget(this.atlas!, z);
-      renderer.render(this.copyScene, this.cam);
-    }
-    renderer.setRenderTarget(prev);
-    renderer.autoClear = auto;
+    drawRows(renderer, this.atlas!, this.copyScene, this.cam, (z) => { u.uZ.value = z; }, r0, n);
   }
 
-  /** Atlas layers that hold bricks. */
-  get layers() { return this.count ? (APRON_COPY ? this.core! : this.atlas!).depth : 0; }
-
-  draw(renderer: THREE.WebGLRenderer, origin: THREE.Vector3, h: number, z0: number, n: number) {
+  /** Bake rows [r0, r0 + n) of the brick samples. */
+  draw(renderer: THREE.WebGLRenderer, origin: THREE.Vector3, h: number, r0: number, n: number) {
     const u = this.uniforms;
     u.uBakeO.value.copy(origin);
     u.uBakeH.value = h;
@@ -373,15 +387,7 @@ export class BrickLevel {
     (u.uBrickSlots.value as Int32Array).set(this.slots);
     u.uBrickCell.value = BRICK_B;
     u.uBrickStep.value = BRICK_B / this.N;
-    const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
-    renderer.autoClear = false;
-    for (let z = z0; z < z0 + n; z++) {
-      u.uBakeZ.value = z;
-      renderer.setRenderTarget(APRON_COPY ? this.core! : this.atlas!, z);
-      renderer.render(this.scene, this.cam);
-    }
-    renderer.setRenderTarget(prev);
-    renderer.autoClear = auto;
+    drawRows(renderer, this.bakeTarget, this.scene, this.cam, (z) => { u.uBakeZ.value = z; }, r0, n);
   }
 
   dispose() { this.maskRT?.dispose(); this.maskRT = null; this.atlas?.dispose(); this.atlas = null; this.core?.dispose(); this.core = null; this.slotTex?.dispose(); this.slotTex = null; this.count = 0; }

@@ -10,6 +10,8 @@ A web 3D modeler for clay forms: pottery and architectural pieces. Its core feat
 
 The status of everything planned is in [CHECKLIST.md](CHECKLIST.md).
 
+The SDF view performance work (a measured hill climb with a frozen benchmark) is described in [docs/AUTORESEARCH.md](docs/AUTORESEARCH.md); the harness is in [bench/perf/](bench/perf/README.md).
+
 ## How shelling works
 
 Both kernels read the same parametric document (`src/engine/document.ts`). Each object has a mode:

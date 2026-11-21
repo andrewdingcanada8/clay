@@ -801,7 +801,7 @@ void main() {
   for (int it = min(uGroupCount, 0); it < 216; it++) {
     vec3 q;
     if (phase == 0) q = ro + rd * t;
-    else if (phase <= 3) q = p + vec3(phase == 1, phase == 2, phase == 3) * ne;
+    else if (phase <= 4) { int j = phase - 1; q = p + 0.5773 * (2.0 * vec3((((j + 3) >> 1) & 1), ((j >> 1) & 1), (j & 1)) - 1.0) * ne; }
     else q = p + n * (0.15 + 0.6 * float(phase - 5));
     float m = map(q);
     if (phase == 0) {
@@ -842,10 +842,11 @@ void main() {
       ne = max(0.0008, uPixelAngle * t * 0.5);
       if (kind == 2 && gCavH > 0.0) ne = max(ne, 0.25 * gCavH);
       phase = 1;
-    } else if (phase <= 3) {
-      n[phase - 1] = m - d;
+    } else if (phase <= 4) {
+      int j = phase - 1;
+      n += (2.0 * vec3((((j + 3) >> 1) & 1), ((j >> 1) & 1), (j & 1)) - 1.0) * m;
       phase++;
-      if (phase < 4) continue;
+      if (phase < 5) continue;
       n = normalize(n);
       if (dot(n, rd) > 0.0) n = -n;
       if (uPass != 0) break;

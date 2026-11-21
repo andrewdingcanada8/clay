@@ -103,5 +103,59 @@
   "label": "refined start, back 0.1 voxel",
   "kept": true,
   "note": ""
+ },
+ {
+  "dir": "2026-11-20T20-42-47-133Z-snap",
+  "label": "snap to the exact surface",
+  "kept": false,
+  "note": "fails gates: extra 369 px, IoU 0.9886"
+ },
+ {
+  "dir": "2026-11-20T20-43-20-237Z-band",
+  "label": "narrow-band bake",
+  "kept": false,
+  "note": "bake time unchanged (10.8 s)"
+ },
+ {
+  "dir": "2026-11-21T03-30-57-443Z-merge-smoke",
+  "label": "merge exact-field lineage",
+  "kept": true,
+  "note": "composite 680 ms"
+ },
+ {
+  "dir": "2026-11-20T20-31-52-668Z-full-baseline",
+  "label": "baseline, full suite",
+  "kept": false,
+  "note": "all 14 scenes, reference stills"
+ },
+ {
+  "dir": "2026-11-21T03-32-18-639Z-full-merge",
+  "label": "merged build, full suite",
+  "kept": false,
+  "note": "14 scenes; strict gate fails on custom-section, grazing, pieces-4/9 \u00b7 superseded: timed while agents built (pieces-9 1056 vs 662 ms clean)"
+ },
+ {
+  "dir": "2026-11-21T03-38-27-504Z-snap2",
+  "label": "snap v2 (facing rays only)",
+  "kept": false,
+  "note": "-6% composite, image near limit, grazing worse"
+ },
+ {
+  "dir": "2026-11-21T03-40-24-397Z-full-merge-clean",
+  "label": "merged build, full suite (clean, under CPU lock)",
+  "kept": false,
+  "note": "incumbent reference: composite 691 ms, geomean 1.366 fps"
+ },
+ {
+  "dir": "2026-11-21T03-46-21-370Z-tetra",
+  "label": "tetrahedral 4-tap normals",
+  "kept": false,
+  "note": "partial gate fix: composite 0.19%, grazing 2.08%, pieces-9 0.67%; custom-section unchanged; +10% time"
+ },
+ {
+  "dir": "2026-11-21T04-18-57-787Z-regimes-clean",
+  "label": "three regimes, merged build (clean)",
+  "kept": false,
+  "note": "orbit / still / editing measured apart"
  }
 ]

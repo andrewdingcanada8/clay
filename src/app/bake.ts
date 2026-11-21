@@ -10,12 +10,15 @@
 // openings, masks and symmetry come along. The clip plane is applied when drawing.
 import * as THREE from 'three';
 import { FRAG, type SdfRenderer } from './raymarch';
-import { BRICK_B, BRICK_N, BRICK_SHARP, BRICK_THR, BrickLevel, CLASSIFY, SETTLED } from './bricks';
+import { dlog } from './debugLog';
+import { drawRows, BRICK_B, BRICK_N, BRICK_SHARP, BRICK_THR, BrickLevel, CLASSIFY, SETTLED } from './bricks';
 
 /** Voxels along the box's longest side. */
 const RES = 192;
 /** A batch of layers is sized to take about this long on the GPU. */
 const BATCH_MS = 30;
+/** The first batch, before the pace is known: this many rows of voxels. */
+const FIRST_ROWS = 8;
 
 const VERT = 'out vec2 vNdc; void main(){ vNdc = position.xy; gl_Position = vec4(position.xy, 0.0, 1.0); }';
 
@@ -108,7 +111,9 @@ export class FieldBake {
   /** The field version the texture holds (complete), or -1. */
   readyVersion = -1;
   private target: THREE.WebGL3DRenderTarget | null = null;
-  private job: { version: number; z: number; batch: number; fence: WebGLSync | null; at: number; t0: number; phase: number; tb: number; level: number } | null = null;
+  private job: { version: number; row: number; batch: number; fence: WebGLSync | null; at: number; t0: number; n: number; phase: number; tb: number; level: number } | null = null;
+  /** Texels baked per ms, learned from the last batches. */
+  private texRate = 0;
   private layerRate = 0; // layers per ms, learned
   private bakeScene = new THREE.Scene();
   private bakeCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -208,43 +213,61 @@ export class FieldBake {
     if (j.fence) {
       if (gl.clientWaitSync(j.fence, 0, 0) === gl.TIMEOUT_EXPIRED) return true;
       gl.deleteSync(j.fence); j.fence = null;
-      this.layerRate = j.batch / Math.max(1, now - j.at);
+      const ms = Math.max(1, now - j.at);
+      // (to the nearest frame, so it errs slow: smaller batches)
+      if (j.batch > 0) this.texRate = j.batch / ms;
+      if (j.n < 30 || j.n % 20 === 0) dlog('bake-batch', { n: j.n, texels: j.batch, ms, phase: j.phase, row: j.row });
     }
-    if (j.phase === 0) {
-      const t = this.target!;
-      const n = Math.max(1, Math.min(t.depth - j.z, this.layerRate > 0 ? Math.round(this.layerRate * BATCH_MS) : 2));
-      this.drawLayers(renderer, j.z, n);
+    const t = this.target!;
+    // one paced batch of rows of the current target (rows of texels across all its layers)
+    const batch = (target: THREE.WebGL3DRenderTarget, draw: (r0: number, n: number) => void) => {
+      const total = target.height * target.depth;
+      const n = Math.max(1, Math.min(total - j.row, this.texRate > 0 ? Math.round(this.texRate * BATCH_MS / target.width) : Math.ceil(FIRST_ROWS * t.width / target.width)));
+      draw(j.row, n);
       j.fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
       gl.flush();
-      j.z += n; j.batch = n; j.at = performance.now();
-      if (j.z >= t.depth) {
+      j.row += n; j.batch = n * target.width; j.at = performance.now(); j.n++;
+      return j.row >= total;
+    };
+    if (j.phase === 0) {
+      if (batch(t, (r0, n) => this.drawRows(renderer, r0, n))) {
         this.readyVersion = v;
         this.lastBake.ms = performance.now() - j.t0;
         this.lastBake.voxels = t.width * t.height * t.depth;
-        // next: find the band cells (waits on the GPU: a readback), then bake their bricks
-        j.phase = 1; j.z = 0; j.tb = performance.now();
+        dlog('bake-done', { ms: this.lastBake.ms, batches: j.n, dims: `${t.width}x${t.height}x${t.depth}` });
+        // next: find the band cells (a readback, once the GPU is done), then bake their bricks
+        j.phase = 1; j.row = 0; j.tb = performance.now();
       }
       return true;
     }
-    if (j.phase === 1) { this.classify(renderer); j.phase = 2; j.z = 0; j.level = 0; return true; }
-    while (j.level < this.levels.length && j.z >= this.levels[j.level].layers) { j.level++; j.z = 0; }
-    if (j.level < this.levels.length) {
-      const L = this.levels[j.level], a = (L.core ?? L.atlas)!;
-      // (a brick layer costs about what a coarse layer of the same area does)
-      const area = this.target!.width * this.target!.height, aArea = a.width * a.height;
-      const rate = this.layerRate * area / aArea;
-      const n = Math.max(1, Math.min(L.layers - j.z, rate > 0 ? Math.round(rate * BATCH_MS) : 2));
-      L.draw(renderer, this.origin, this.h, j.z, n);
-      j.fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-      gl.flush();
-      j.z += n; j.batch = n * aArea / area; j.at = performance.now();
-      return true;
+    if (j.phase === 1) { this.classify(renderer); j.phase = 2; j.row = 0; j.level = 0; j.batch = 0; return true; }
+    // 2: each level's brick samples (the exact field); 3: each level's atlas from them (copies)
+    while (j.phase <= 3) {
+      const L = this.levels[j.level];
+      const tgt = L && L.count ? (j.phase === 2 ? L.bakeTarget : L.copyTarget) : null;
+      if (tgt && j.row < tgt.height * tgt.depth) {
+        if (j.phase === 2) batch(tgt, (r0, n) => L.draw(renderer, this.origin, this.h, r0, n));
+        else batch(tgt, (r0, n) => L.copy(renderer, j.level, this.levels, this.ind!, this.cells, r0, n));
+        // (copies are cheap: they don't teach the pace)
+        if (j.phase === 3) j.batch = 0;
+        return true;
+      }
+      j.row = 0; j.level++;
+      if (j.level >= this.levels.length) { j.level = 0; j.phase++; }
     }
-    this.levels.forEach((L, i) => L.copy(renderer, i, this.levels, this.ind!, this.cells));
     this.brickVersion = v;
     this.lastBake.brickMs = performance.now() - j.tb;
+    dlog('bricks-done', { ms: this.lastBake.brickMs, bricks: this.lastBake.bricks, samples: this.lastBake.samples });
     this.job = null;
     return false;
+  }
+
+  get lastBakeMs(): number | null { return this.lastBake?.ms ?? null; }
+
+  /** Bake progress, 0..1 (null: no bake running). */
+  get progress(): number | null {
+    if (!this.job || !this.target) return null;
+    return this.job.phase === 0 ? 0.5 * this.job.row / (this.target.height * this.target.depth) : 0.5 + 0.5 * this.job.phase / 4;
   }
 
   /** The whole bake at once, waited on (for the benchmark harness). Returns ms. */
@@ -252,7 +275,7 @@ export class FieldBake {
     if (this.ready || this.sdf.bounds.isEmpty()) return 0;
     const t0 = performance.now();
     this.start(this.sdf.fieldVersion, t0);
-    this.drawLayers(renderer, 0, this.target!.depth);
+    this.drawRows(renderer, 0, this.target!.height * this.target!.depth);
     const gl = renderer.getContext(), px = new Float32Array(4);
     renderer.readRenderTargetPixels(this.target! as unknown as THREE.WebGLRenderTarget, 0, 0, 1, 1, px, 0);
     void gl;
@@ -262,8 +285,8 @@ export class FieldBake {
     this.lastBake.voxels = this.target!.width * this.target!.height * this.target!.depth;
     const tb = performance.now();
     this.classify(renderer);
-    for (const L of this.levels) if (L.layers) L.draw(renderer, this.origin, this.h, 0, L.layers);
-    this.levels.forEach((L, i) => L.copy(renderer, i, this.levels, this.ind!, this.cells));
+    for (const L of this.levels) if (L.count) L.draw(renderer, this.origin, this.h, 0, L.bakeTarget.height * L.bakeTarget.depth);
+    this.levels.forEach((L, i) => { if (L.count && L.copyTarget) L.copy(renderer, i, this.levels, this.ind!, this.cells, 0, L.copyTarget.height * L.copyTarget.depth); });
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
     this.brickVersion = this.sdf.fieldVersion;
     this.lastBake.brickMs = performance.now() - tb;
@@ -293,23 +316,18 @@ export class FieldBake {
     this.sdf.material.uniforms.uBakeTex.value = this.target.texture;
     this.sdf.material.uniforms.uBakeSize.value.copy(this.size);
     this.marchMat.uniforms.uH.value = h;
-    this.job = { version, z: 0, batch: 0, fence: null, at: now, t0: now, phase: 0, tb: now, level: 0 };
+    this.job = { version, row: 0, batch: 0, fence: null, at: now, t0: now, n: 0, phase: 0, tb: now, level: 0 };
+    this.texRate = 0;
     this.brickVersion = -1;
+    dlog('bake-start', { dims: `${nx}x${ny}x${nz}`, objects: this.sdf.material.uniforms.uObjCount.value });
   }
 
-  private drawLayers(renderer: THREE.WebGLRenderer, z0: number, n: number) {
-    const t = this.target!, u = this.sdf.material.uniforms;
+  /** Bake rows [r0, r0 + n) of the volume (row r: layer floor(r / height), row r % height). */
+  private drawRows(renderer: THREE.WebGLRenderer, r0: number, n: number) {
+    const u = this.sdf.material.uniforms;
     u.uBakeO.value.copy(this.origin);
     u.uBakeH.value = this.h;
-    const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
-    renderer.autoClear = false;
-    for (let z = z0; z < z0 + n; z++) {
-      u.uBakeZ.value = z;
-      renderer.setRenderTarget(t, z);
-      renderer.render(this.bakeScene, this.bakeCam);
-    }
-    renderer.setRenderTarget(prev);
-    renderer.autoClear = auto;
+    drawRows(renderer, this.target!, this.bakeScene, this.bakeCam, (z) => { u.uBakeZ.value = z; }, r0, n);
   }
 
   /** Find the band cells and the sharp ones (a GPU pass, read back), lay out the atlases and the indirection. */
