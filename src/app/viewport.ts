@@ -310,7 +310,7 @@ export class Viewport {
     holder.replaceWith(r.domElement);
     this.renderer = r;
     // (images of the old context are gone with it)
-    this.rt = null; this.lowKey = this.frontKey = ''; this.band.active = false; this.fence = null; this.shadow = null;
+    this.rt = null; this.lowKey = this.frontKey = ''; this.band.active = false; this.fence = null; this.lowFence = null; this.shadow = null;
     this.bake.reset(); this.startRT = null; this.bandStart = null;
     this.orbit.disconnect(); this.orbit.connect(r.domElement);
     this.gizmo.disconnect(); this.gizmo.connect(r.domElement);
@@ -598,6 +598,7 @@ export class Viewport {
 
   /** The image drawn while moving: the baked field when it is ready, else the exact field. */
   private lowLogAt = 0;
+  private lowFence: WebGLSync | null = null;
   private drawLow(t: THREE.WebGLRenderTarget) {
     if (this.bake.ready) { this.drawMarch(t, 0); return; }
     // a whole frame of the exact field (moving, editing, or no bake yet): logged, so a
@@ -671,7 +672,8 @@ export class Viewport {
     if (this.mode !== 'sdf' || !this.sdf.mesh.visible) { this.band.active = false; this.renderer.render(this.scene, this.camera); return; }
     this.camera.updateMatrixWorld();
     // the bake advances while the view and the field are still (one GPU-paced batch a frame)
-    if (this.bakePending() || this.bake.busy) this.bake.step(this.renderer, now);
+    // (paused while the view moves or a drag edits: it would compete with the frames shown)
+    if ((this.bakePending() || this.bake.busy) && !this.moving && !this.sdf.interactive) this.bake.step(this.renderer, now);
     const r = this.targets(), key = this.sdfKey(), drifting = key !== this.lastKey;
     this.lastKey = key;
     if (key === this.frontKey) { this.band.active = false; this.present(r.front); return; }
@@ -679,7 +681,20 @@ export class Viewport {
     // frame of the exact field (a heavy scene's whole frame can outlast what a phone
     // lets one frame run); the bake's image follows in a moment
     const bakeWait = !this.moving && !this.sdf.interactive && (this.bakePending() || this.bake.busy) && !!this.lowKey;
-    if (this.lowKey !== key && !bakeWait) { this.drawLow(r.low); this.lowKey = key; }
+    // a moving image waits until the GPU has finished the last one (an exact-field frame
+    // of a heavy scene can take longer than a display frame: without the wait the work
+    // piles up until the phone resets the GPU); the last image stays up meanwhile
+    const gl0 = this.renderer.getContext() as WebGL2RenderingContext;
+    let lowBusy = false;
+    if (this.lowFence) {
+      if (gl0.clientWaitSync(this.lowFence, 0, 0) === gl0.TIMEOUT_EXPIRED) lowBusy = true;
+      else { gl0.deleteSync(this.lowFence); this.lowFence = null; }
+    }
+    if (this.lowKey !== key && !bakeWait && !lowBusy) {
+      this.drawLow(r.low); this.lowKey = key;
+      if (!this.bake.ready) { this.lowFence = gl0.fenceSync(gl0.SYNC_GPU_COMMANDS_COMPLETE, 0); gl0.flush(); }
+    }
+    if (lowBusy) this.needsRender = true;
     // (and come back next frame: once it holds still, the bands start)
     if (this.moving || drifting) { this.band.active = false; this.present(r.low); this.needsRender = true; return; }
     // the bake runs first, alone on the GPU: a sharp image drawn now would be redrawn
