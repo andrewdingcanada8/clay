@@ -24,6 +24,9 @@ export const BRICK_SHARP = +(Q.get('bs') ?? 0.6);
 export const BRICK_REACH = +(Q.get('br') ?? 3);
 /** Occlusion taps read the bricks where they reach the band (else the coarse field). */
 export const AO_FINE = Q.get('ao') === '1';
+/** Bake each brick's own N³ samples only (a core atlas), then fill the shared faces from
+ *  the neighbours' cores in a copy pass (no map()): about half the samples of (N+1)³. */
+export const APRON_COPY = Q.get('ap') !== '0';
 /** Atlas slots per row and per column. */
 export const SLOTS_XY = 40;
 
@@ -190,6 +193,56 @@ void main() {
   fragColor = vec4(pow(col, vec3(1.0 / 1.15)), 1.0);
 }`;
 
+/** Fills a level's atlas (N+1 samples per side) from the cores (N per side): the +1 face
+ *  comes from the neighbour cell's core (the other level's, interpolated, where the
+ *  neighbour has the other kind of brick) or, with no neighbour, extrapolated. */
+export const COPY = /* glsl */ `
+precision highp float;
+precision highp int;
+precision highp sampler3D;
+out vec4 fragColor;
+uniform sampler3D uCore0;
+uniform sampler3D uCore1;
+uniform sampler3D uInd;
+uniform sampler2D uSlotTab;
+uniform ivec3 uSlots0;
+uniform ivec3 uSlots1;
+uniform ivec3 uCells;
+uniform int uLevel;
+uniform float uZ;
+const int N0 = ${BRICK_N[0]}, N1 = ${BRICK_N[1]};
+ivec3 slotOf(int slot, ivec3 s) { return ivec3(slot % s.x, (slot / s.x) % s.y, slot / (s.x * s.y)); }
+// a core's value at l (its own fine units, clamped to its samples), interpolated
+float coreAt(int lv, int slot, vec3 l) {
+  vec3 c0 = clamp(l, 0.0, float(N0 - 1)), c1 = clamp(l, 0.0, float(N1 - 1));
+  float a = texture(uCore0, (vec3(slotOf(slot, uSlots0) * N0) + c0 + 0.5) / vec3(textureSize(uCore0, 0))).r;
+  float b = texture(uCore1, (vec3(slotOf(slot, uSlots1) * N1) + c1 + 0.5) / vec3(textureSize(uCore1, 0))).r;
+  return lv == 0 ? a : b;
+}
+void main() {
+  int N = uLevel == 0 ? N0 : N1, S = N + 1;
+  ivec3 sl3 = uLevel == 0 ? uSlots0 : uSlots1;
+  ivec3 a = ivec3(ivec2(gl_FragCoord.xy), int(uZ + 0.5));
+  ivec3 sl = a / S, l = a - sl * S;
+  int slot = (sl.z * sl3.y + sl.y) * sl3.x + sl.x;
+  ivec3 cell = ivec3(texelFetch(uSlotTab, ivec2(slot & 4095, slot >> 12), 0).xyz + 0.5);
+  ivec3 over = ivec3(greaterThanEqual(l, ivec3(N)));
+  float own = coreAt(uLevel, slot, vec3(min(l, ivec3(N - 1))));
+  ivec3 nc = cell + over;
+  float s = all(lessThan(nc, uCells)) ? texelFetch(uInd, min(nc, uCells - 1), 0).r : 0.0;
+  int lv = s > 0.0 ? 0 : 1, ns = max(int(abs(s) + 0.5) - 1, 0);
+  vec3 ll = vec3(l - over * N) * (float(lv == 0 ? N0 : N1) / float(N));
+  float nb = coreAt(lv, ns, ll);
+  // no neighbour: linear extrapolation along each axis that steps out
+  vec3 lc = vec3(min(l, ivec3(N - 1)));
+  float ex = own;
+  if (over.x == 1) ex += own - coreAt(uLevel, slot, lc - vec3(1.0, 0.0, 0.0));
+  if (over.y == 1) ex += own - coreAt(uLevel, slot, lc - vec3(0.0, 1.0, 0.0));
+  if (over.z == 1) ex += own - coreAt(uLevel, slot, lc - vec3(0.0, 0.0, 1.0));
+  float v = over == ivec3(0) ? own : s != 0.0 ? nb : ex;
+  fragColor = vec4(v, 0.0, 0.0, 1.0);
+}`;
+
 export const tri = () => {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
@@ -200,6 +253,10 @@ export const tri = () => {
 export class BrickLevel {
   readonly S: number;
   atlas: THREE.WebGL3DRenderTarget | null = null;
+  /** Each brick's own samples (APRON_COPY), N per side; the atlas is filled from these. */
+  core: THREE.WebGL3DRenderTarget | null = null;
+  private copyScene = new THREE.Scene();
+  readonly copyMat: THREE.ShaderMaterial;
   slotTex: THREE.DataTexture | null = null;
   readonly slots = new Int32Array(3);
   count = 0;
@@ -212,8 +269,18 @@ export class BrickLevel {
     this.S = N + 1;
     const mat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: frag, uniforms,
-      defines: { SDF_BRICK: 1, BRICK_S: this.S }, depthTest: false, depthWrite: false,
+      defines: { SDF_BRICK: 1, BRICK_S: APRON_COPY ? N : this.S }, depthTest: false, depthWrite: false,
     });
+    this.copyMat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: COPY, depthTest: false, depthWrite: false,
+      uniforms: {
+        uCore0: { value: null }, uCore1: { value: null }, uInd: { value: null }, uSlotTab: { value: null },
+        uSlots0: { value: null }, uSlots1: { value: null }, uCells: { value: null }, uLevel: { value: 0 }, uZ: { value: 0 },
+      },
+    });
+    const cm = new THREE.Mesh(tri(), this.copyMat);
+    cm.frustumCulled = false;
+    this.copyScene.add(cm);
     const m = new THREE.Mesh(tri(), mat);
     m.frustumCulled = false;
     this.scene.add(m);
@@ -261,19 +328,41 @@ export class BrickLevel {
     this.slotTex = new THREE.DataTexture(st, 4096, rows, THREE.RGBAFormat, THREE.FloatType);
     this.slotTex.minFilter = this.slotTex.magFilter = THREE.NearestFilter;
     this.slotTex.needsUpdate = true;
-    const W = SLOTS_XY * this.S, D = count ? az * this.S : 1;
-    if (!this.atlas || this.atlas.width !== W || this.atlas.height !== W || this.atlas.depth !== D) {
-      this.atlas?.dispose();
-      this.atlas = new THREE.WebGL3DRenderTarget(W, W, D, { type: THREE.HalfFloatType, format: THREE.RedFormat, depthBuffer: false });
-      const tex = this.atlas.texture;
+    const make = (old: THREE.WebGL3DRenderTarget | null, S: number) => {
+      const W = SLOTS_XY * S, D = count ? az * S : 1;
+      if (old && old.width === W && old.height === W && old.depth === D) return old;
+      old?.dispose();
+      const t = new THREE.WebGL3DRenderTarget(W, W, D, { type: THREE.HalfFloatType, format: THREE.RedFormat, depthBuffer: false });
+      const tex = t.texture;
       tex.minFilter = tex.magFilter = THREE.LinearFilter;
       tex.generateMipmaps = false;
       tex.wrapS = tex.wrapT = tex.wrapR = THREE.ClampToEdgeWrapping;
+      return t;
+    };
+    this.atlas = make(this.atlas, this.S);
+    if (APRON_COPY) this.core = make(this.core, this.N);
+  }
+
+  /** Fill the atlas from the cores (after every level's core is baked). */
+  copy(renderer: THREE.WebGLRenderer, level: number, levels: BrickLevel[], ind: THREE.Data3DTexture, cells: Int32Array) {
+    if (!APRON_COPY || !this.count) return;
+    const u = this.copyMat.uniforms;
+    u.uCore0.value = levels[0].core!.texture; u.uCore1.value = levels[1].core!.texture;
+    u.uInd.value = ind; u.uSlotTab.value = this.slotTex;
+    u.uSlots0.value = levels[0].slots; u.uSlots1.value = levels[1].slots; u.uCells.value = cells; u.uLevel.value = level;
+    const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
+    renderer.autoClear = false;
+    for (let z = 0; z < this.atlas!.depth; z++) {
+      u.uZ.value = z;
+      renderer.setRenderTarget(this.atlas!, z);
+      renderer.render(this.copyScene, this.cam);
     }
+    renderer.setRenderTarget(prev);
+    renderer.autoClear = auto;
   }
 
   /** Atlas layers that hold bricks. */
-  get layers() { return this.count ? this.atlas!.depth : 0; }
+  get layers() { return this.count ? (APRON_COPY ? this.core! : this.atlas!).depth : 0; }
 
   draw(renderer: THREE.WebGLRenderer, origin: THREE.Vector3, h: number, z0: number, n: number) {
     const u = this.uniforms;
@@ -288,12 +377,12 @@ export class BrickLevel {
     renderer.autoClear = false;
     for (let z = z0; z < z0 + n; z++) {
       u.uBakeZ.value = z;
-      renderer.setRenderTarget(this.atlas!, z);
+      renderer.setRenderTarget(APRON_COPY ? this.core! : this.atlas!, z);
       renderer.render(this.scene, this.cam);
     }
     renderer.setRenderTarget(prev);
     renderer.autoClear = auto;
   }
 
-  dispose() { this.maskRT?.dispose(); this.maskRT = null; this.atlas?.dispose(); this.atlas = null; this.slotTex?.dispose(); this.slotTex = null; this.count = 0; }
+  dispose() { this.maskRT?.dispose(); this.maskRT = null; this.atlas?.dispose(); this.atlas = null; this.core?.dispose(); this.core = null; this.slotTex?.dispose(); this.slotTex = null; this.count = 0; }
 }

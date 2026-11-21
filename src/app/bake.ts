@@ -229,7 +229,7 @@ export class FieldBake {
     if (j.phase === 1) { this.classify(renderer); j.phase = 2; j.z = 0; j.level = 0; return true; }
     while (j.level < this.levels.length && j.z >= this.levels[j.level].layers) { j.level++; j.z = 0; }
     if (j.level < this.levels.length) {
-      const L = this.levels[j.level], a = L.atlas!;
+      const L = this.levels[j.level], a = (L.core ?? L.atlas)!;
       // (a brick layer costs about what a coarse layer of the same area does)
       const area = this.target!.width * this.target!.height, aArea = a.width * a.height;
       const rate = this.layerRate * area / aArea;
@@ -240,6 +240,7 @@ export class FieldBake {
       j.z += n; j.batch = n * aArea / area; j.at = performance.now();
       return true;
     }
+    this.levels.forEach((L, i) => L.copy(renderer, i, this.levels, this.ind!, this.cells));
     this.brickVersion = v;
     this.lastBake.brickMs = performance.now() - j.tb;
     this.job = null;
@@ -262,6 +263,7 @@ export class FieldBake {
     const tb = performance.now();
     this.classify(renderer);
     for (const L of this.levels) if (L.layers) L.draw(renderer, this.origin, this.h, 0, L.layers);
+    this.levels.forEach((L, i) => L.copy(renderer, i, this.levels, this.ind!, this.cells));
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
     this.brickVersion = this.sdf.fieldVersion;
     this.lastBake.brickMs = performance.now() - tb;
@@ -359,7 +361,7 @@ export class FieldBake {
     su.uTex.value = t.texture; su.uInd.value = this.ind; su.uH.value = this.h;
     su.uAtlas0.value = this.levels[0].atlas!.texture; su.uAtlas1.value = this.levels[1].atlas!.texture;
     this.lastBake.bricks = this.levels.map((l) => l.count);
-    this.lastBake.samples = this.levels.reduce((a, l) => a + l.count * l.S ** 3, 0);
+    this.lastBake.samples = this.levels.reduce((a, l) => a + l.count * (l.core ? l.N : l.S) ** 3, 0);
     this.lastBake.classifyMs = performance.now() - t0;
   }
 
