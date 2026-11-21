@@ -175,5 +175,17 @@
   "label": "repaired build, full suite",
   "kept": true,
   "note": "strict diff on 13/14 scenes; IoU short on custom-section 0.9985, pieces-9 0.9988; grazing 2.0%"
+ },
+ {
+  "dir": "2026-11-21T13-58-36-881Z-near0.5",
+  "label": "near-approach start (0.5 voxel)",
+  "kept": true,
+  "note": "IoU strict on every scene; +9%"
+ },
+ {
+  "dir": "2026-11-21T14-05-43-023Z-near0.75",
+  "label": "near-approach start (0.75 voxel)",
+  "kept": false,
+  "note": "same gates as 0.5, slower"
  }
 ]

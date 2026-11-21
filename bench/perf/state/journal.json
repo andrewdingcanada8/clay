@@ -235,5 +235,15 @@
   "result": "Diff gate passes on 13/14 (grazing 2.0%). IoU slightly short on custom-section (0.9985) and pieces-9 (0.9988): missed silhouette pixels. Still composite 858 ms (6.6x baseline); orbit 46 ms; editing 725 ms; bake 4.3 s.",
   "verdict": "info",
   "commit": ""
+ },
+ {
+  "id": 25,
+  "t": 1795270262696,
+  "title": "Near-approach start depths (regime: still)",
+  "hyp": "Walls thinner than a voxel stay positive in the baked texture, so the baked march steps past them",
+  "change": "Start the exact window at an earlier near approach (baked d < 0.5 voxel) when it is >2 voxels before the baked hit, or when the bake finds no hit",
+  "result": "Missed px: composite 16 -> 1, grazing 28 -> 4; IoU strict on every scene (custom-section 0.9992, pieces-9 0.9998). Composite 858 -> 934 ms. 0.75 voxel: same gates, slower (rejected). Orbit and editing unaffected.",
+  "verdict": "kept",
+  "commit": "d33ec1f"
  }
 ]
