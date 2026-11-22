@@ -603,7 +603,11 @@ export class Viewport {
     this.bake.drawCone(this.renderer, this.camera, t.width, t.height);
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.setRenderTarget(t);
+    const box = this.sdf.bounds;
+    const tMax = this.camera.position.distanceTo(box.getCenter(new THREE.Vector3())) + box.getSize(new THREE.Vector3()).length();
+    this.bake.settledMat.uniforms.uTMax.value = tMax;
     this.renderer.render(this.bake.settledScene, this.camera);
+    this.bake.refine(this.renderer, this.camera, t, tMax);
     this.renderer.setRenderTarget(null);
     this.renderer.setClearColor(clear, clearA);
   }

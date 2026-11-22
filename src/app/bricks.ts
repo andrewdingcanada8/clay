@@ -40,6 +40,13 @@ export const QUAD_CORR = Q.get('qc') !== '0';
 export const CONE_PX = +(Q.get('cp') ?? 4);
 const CONE_R = CONE_PX * 0.71 + 0.7;
 const CONE_MARGIN = +(Q.get('cg') ?? 2);
+/** Exact refinement: pixels whose hit lies where a brick sample's second difference exceeds
+ *  FLAG_CREASE fine spacings, or whose ray passed that near such a place within FLAG_NEAR fine
+ *  spacings of the surface without touching it, are resolved by the exact pass. */
+export const REFINE = Q.get('rf') !== '0';
+export const FLAG_CREASE = +(Q.get('fc') ?? 0.45);
+export const FLAG_NEAR = +(Q.get('fn') ?? 0.5);
+const FLAG_HITS = Q.get('fh') !== '0', FLAG_MISSES = Q.get('fm') !== '0';
 /** Atlas width and height in texels (each level fits as many slots across as it can). */
 export const ATLAS_W = 360;
 
@@ -130,6 +137,10 @@ uniform float uPixelSize;
 uniform int uFlat;
 // where each block of CONE_PX × CONE_PX rays may start (cone pre-pass); >= 1e9: none hits
 uniform sampler2D uConeT;
+// pixels to resolve exactly (uFlagOn): written as alpha 0.5 with the start distance / uTMax in rgb
+uniform int uFlagOn;
+uniform float uTMax;
+float gCrease = 0.0; // the last brick read's largest second difference, in fine spacings
 float coarse(vec3 p) {
   vec3 q = (p - uO) / uSize;
   vec3 c = clamp(q, 0.0, 1.0);
@@ -152,7 +163,9 @@ float field(vec3 p, out int level) {
   vec4 e = texelFetch(uIndS, c, 0);
   vec3 l = clamp((g - cf * ${BRICK_B.toFixed(1)}) * (e.w * ${f(1 / BRICK_B)}), 0.0, e.w);
   vec4 q = texture(uAtlasR, (e.xyz + 0.5 + l) * uInvA);
-  float fb = q.r;${QUAD_CORR ? `
+  float fb = q.r;
+  // (second differences over one fine spacing hf = B h / N, in units of hf)
+  gCrease = max(max(abs(q.g), abs(q.b)), abs(q.a)) * e.w / (${BRICK_B.toFixed(1)} * uH);${QUAD_CORR ? `
   vec3 w = fract(l);
   fb -= 0.5 * dot(w * (1.0 - w), q.gba);` : ''}
   level = ivec3(cf) != c || e.w == 0.0 ? -1 : e.w == ${BRICK_N[0].toFixed(1)} ? 0 : 1;
@@ -176,8 +189,8 @@ void main() {
   if (tc >= 1e9) discard;
   float t = max(max(t0, 0.0), tc);
   int kind = 0, level = -1;
-  bool hit = false, done = false;
-  float d = 1e5, eps = 0.0;
+  bool hit = false, done = false, nearCrease = false;
+  float d = 1e5, eps = 0.0, tNear = 0.0;
   for (int i = 0; i < 240; i++) {
     vec3 p = ro + rd * t;
     d = field(p, level);
@@ -185,10 +198,23 @@ void main() {
     if (uClipOn == 1) { float c = -(dot(p, uClip.xyz) + uClip.w); if (c > d) { d = c; kind = 1; } }
     eps = clamp((uPixelAngle * t + uPixelSize) * 0.35, 0.0008, 0.008);
     if (d < eps) { hit = true; break; }
+    // passing close by a crease without touching: the exact pass decides
+    if (!nearCrease && level >= 0 && gCrease > ${FLAG_CREASE.toFixed(3)} && d < eps + ${FLAG_NEAR.toFixed(3)} * uH * ${f(BRICK_B / BRICK_N[0])}) { nearCrease = true; tNear = t; }
     t += max(d * 0.92, eps * 0.5);
     if (t > t1) { done = true; break; }
   }
   if (!hit && !done && d < 8.0 * eps) hit = true;
+  // alpha 128: the exact pass looks only round the start (the bricks saw nothing further);
+  // 129: past it too (the bricks hit there)
+  bool creaseHit = hit && level >= 0 && gCrease > ${FLAG_CREASE.toFixed(3)};
+  // (a ray that passed near a crease but hit something else further on keeps its brick hit)
+  bool flag = uFlagOn == 1 && (hit ? ${FLAG_HITS ? 'creaseHit' : 'false'} : ${FLAG_MISSES ? 'nearCrease' : 'false'});
+  if (flag) {
+    float x = floor(clamp((hit ? t : tNear) / uTMax, 0.0, 1.0) * 16777215.0);
+    fragColor = vec4(floor(x / 65536.0), mod(floor(x / 256.0), 256.0), mod(x, 256.0), hit ? 129.0 : 128.0) / 255.0;
+    gl_FragDepth = 1.0;
+    return;
+  }
   if (!hit) discard;
   vec3 p = ro + rd * t;
   vec4 clip = uProjView * vec4(p, 1.0);
@@ -363,6 +389,32 @@ void main() {
     if (t > t1) { gone = true; break; }
   }
   fragColor = vec4(gone ? 1e10 : t);
+}`;
+
+/** Scatter the exactly resolved pixels back into the frame: one point per list entry. */
+export const SCATTER_V = /* glsl */ `
+precision highp float;
+precision highp int;
+uniform sampler2D uList;
+uniform sampler2D uRes;
+uniform vec2 uViewSize;
+flat out vec4 vRes;
+void main() {
+  ivec2 c = ivec2(gl_VertexID & 255, gl_VertexID >> 8);
+  vec4 en = texelFetch(uList, c, 0);
+  vRes = texelFetch(uRes, c, 0);
+  gl_Position = vec4((en.xy + 0.5) / uViewSize * 2.0 - 1.0, 0.0, 1.0);
+  gl_PointSize = 1.0;
+}`;
+export const SCATTER_F = /* glsl */ `
+precision highp float;
+flat in vec4 vRes;
+out vec4 fragColor;
+void main() {
+  if (vRes.z < 0.5) { fragColor = vec4(0.0); gl_FragDepth = 1.0; return; }
+  float v = vRes.x;
+  fragColor = vec4(mod(v, 256.0), mod(floor(v / 256.0), 256.0), floor(v / 65536.0), 255.0) / 255.0;
+  gl_FragDepth = vRes.y;
 }`;
 
 export const tri = () => {

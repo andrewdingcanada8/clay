@@ -11,12 +11,15 @@
 import * as THREE from 'three';
 import { FRAG, type SdfRenderer } from './raymarch';
 import { dlog } from './debugLog';
-import { CONE, CONE_PX, drawRows, ATLAS_W, BRICK_NEAR, BRICK_B, BRICK_N, BRICK_SHARP, BRICK_THR, BrickLevel, CLASSIFY, SETTLED } from './bricks';
+import { REFINE, SCATTER_F, SCATTER_V, CONE, CONE_PX, drawRows, ATLAS_W, BRICK_NEAR, BRICK_B, BRICK_N, BRICK_SHARP, BRICK_THR, BrickLevel, CLASSIFY, SETTLED } from './bricks';
 
 /** Voxels along the box's longest side. */
 const RES = 192;
 /** A batch of layers is sized to take about this long on the GPU. */
 const BATCH_MS = 30;
+/** (prototype: time the refinement's steps, ?rt=1) */
+const LIST_WIN = (typeof location !== 'undefined' && new URLSearchParams(location.search).get('lw') || '1,1.5').split(',').map(Number);
+const DEBUG_TIMES = typeof location !== 'undefined' && new URLSearchParams(location.search).get('rt') === '1';
 /** The first batch, before the pace is known: this many rows of voxels. */
 const FIRST_ROWS = 8;
 
@@ -144,6 +147,16 @@ export class FieldBake {
   readonly settledMat: THREE.ShaderMaterial;
   readonly settledScene = new THREE.Scene();
   readonly coneScene = new THREE.Scene();
+  // exact refinement of flagged pixels (REFINE): the list, the exact pass over it, the scatter
+  private listScene = new THREE.Scene();
+  private listTex: THREE.DataTexture | null = null;
+  private listRT: THREE.WebGLRenderTarget | null = null;
+  private scatterScene = new THREE.Scene();
+  private scatterGeo = new THREE.BufferGeometry();
+  private scatterMat: THREE.ShaderMaterial;
+  private readBuf = new Uint8Array(4);
+  /** Pixels the last settled frame resolved exactly, and how many it drew. */
+  lastRefine = { flagged: 0, covered: 0 };
   private coneRT: THREE.WebGLRenderTarget | null = null;
   private cells = new Int32Array(3);
 
@@ -180,7 +193,7 @@ export class FieldBake {
     this.settledMat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: SETTLED, depthTest: true, depthWrite: true,
       uniforms: {
-        uTex: { value: null }, uIndS: { value: null }, uAtlasR: { value: null }, uInvA: { value: new THREE.Vector3(1, 1, 1) }, uInvN: { value: new THREE.Vector3(1, 1, 1) }, uNm1: { value: new THREE.Vector3(1, 1, 1) }, uConeT: { value: null },
+        uTex: { value: null }, uIndS: { value: null }, uAtlasR: { value: null }, uInvA: { value: new THREE.Vector3(1, 1, 1) }, uInvN: { value: new THREE.Vector3(1, 1, 1) }, uNm1: { value: new THREE.Vector3(1, 1, 1) }, uConeT: { value: null }, uFlagOn: { value: REFINE ? 1 : 0 }, uTMax: { value: 1 },
         uO: { value: this.origin }, uSize: { value: this.size }, uH: { value: 1 },
         uCells: { value: this.cells },
         uInvProjView: su.uInvProjView, uProjView: su.uProjView, uClip: su.uClip, uClipOn: su.uClipOn,
@@ -203,6 +216,21 @@ export class FieldBake {
     cm2.frustumCulled = false;
     cm2.onBeforeRender = (r, s, c, g, mat, grp) => sdf.mesh.onBeforeRender(r, s, c, g, mat, grp);
     this.coneScene.add(cm2);
+    const lm = new THREE.Mesh(tri(), new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: FRAG, uniforms: sdf.material.uniforms,
+      defines: { SDF_LIST: 1 }, depthTest: false, depthWrite: false,
+    }));
+    lm.frustumCulled = false;
+    lm.onBeforeRender = (r, s, c, g, mat, grp) => sdf.mesh.onBeforeRender(r, s, c, g, mat, grp);
+    this.listScene.add(lm);
+    this.scatterMat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3, vertexShader: SCATTER_V, fragmentShader: SCATTER_F,
+      uniforms: { uList: { value: null }, uRes: { value: null }, uViewSize: { value: new THREE.Vector2(1, 1) } },
+      depthTest: false, depthWrite: true, blending: THREE.NoBlending,
+    });
+    const pts = new THREE.Points(this.scatterGeo, this.scatterMat);
+    pts.frustumCulled = false;
+    this.scatterScene.add(pts);
   }
 
   /** The cone pre-pass for a W × H frame, into its own target (the settled pass reads it). */
@@ -222,6 +250,77 @@ export class FieldBake {
     renderer.render(this.coneScene, camera);
     renderer.setRenderTarget(prev);
     this.settledMat.uniforms.uConeT.value = this.coneRT.texture;
+  }
+
+  /**
+   * Resolve the pixels the bricks pass flagged (alpha 0.5, start distance in rgb) with the
+   * exact settled pass, one fragment per flagged pixel in a compact list, and put the results
+   * back into frame t. Returns the number of flagged pixels.
+   */
+  refine(renderer: THREE.WebGLRenderer, camera: THREE.Camera, t: THREE.WebGLRenderTarget, tMax: number) {
+    if (!REFINE) return 0;
+    const W = t.width, H = t.height;
+    if (this.readBuf.length !== W * H * 4) this.readBuf = new Uint8Array(W * H * 4);
+    const px = this.readBuf;
+    const T0 = performance.now();
+    renderer.readRenderTargetPixels(t, 0, 0, W, H, px);
+    const T1 = performance.now();
+    let n = 0, covered = 0;
+    for (let i = 3; i < px.length; i += 4) { if (px[i] === 128 || px[i] === 129) n++; else if (px[i]) covered++; }
+    this.lastRefine = { flagged: n, covered };
+    (window as unknown as { __refine: unknown }).__refine = this.lastRefine;
+    if (!n) return 0;
+    const rows = Math.ceil(n / 256);
+    if (!this.listTex || this.listTex.image.height < rows) {
+      this.listTex?.dispose();
+      this.listTex = new THREE.DataTexture(new Float32Array(256 * rows * 4), 256, rows, THREE.RGBAFormat, THREE.FloatType);
+      this.listTex.minFilter = this.listTex.magFilter = THREE.NearestFilter;
+    }
+    const L = this.listTex.image.data as Float32Array;
+    L.fill(0);
+    let k = 0;
+    for (let i = 0; i < W * H; i++) {
+      const al = px[i * 4 + 3];
+      if (al !== 128 && al !== 129) continue;
+      const v = px[i * 4] * 65536 + px[i * 4 + 1] * 256 + px[i * 4 + 2];
+      L[k * 4] = i % W; L[k * 4 + 1] = Math.floor(i / W); L[k * 4 + 2] = (v / 16777215) * tMax; L[k * 4 + 3] = al - 127;
+      k++;
+    }
+    this.listTex.needsUpdate = true;
+    const T2 = performance.now();
+    const lh = this.listTex.image.height;
+    if (!this.listRT || this.listRT.height !== lh) {
+      this.listRT?.dispose();
+      this.listRT = new THREE.WebGLRenderTarget(256, lh, { type: THREE.FloatType, format: THREE.RGBAFormat, depthBuffer: false });
+      this.listRT.texture.minFilter = this.listRT.texture.magFilter = THREE.NearestFilter;
+    }
+    // the exact pass over the list (misses discard: the target clears to 0, no hit)
+    const u = this.sdf.material.uniforms;
+    u.uStartOn.value = 1; u.uStartT.value = this.listTex; u.uStartBack.value = 0.5 * this.h;
+    u.uBakeO.value.copy(this.origin); u.uViewSize.value.set(W, H); u.uListWin.value.set(LIST_WIN[0], LIST_WIN[1]);
+    const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
+    const clear = renderer.getClearColor(new THREE.Color()), clearA = renderer.getClearAlpha();
+    renderer.setClearColor(0x000000, 0);
+    renderer.setRenderTarget(this.listRT);
+    renderer.render(this.listScene, camera);
+    u.uStartOn.value = 0;
+    if (DEBUG_TIMES) { const b = new Float32Array(4); renderer.readRenderTargetPixels(this.listRT, 0, 0, 1, 1, b); }
+    const T3 = performance.now();
+    // back into the frame, one point each
+    if (!this.scatterGeo.getAttribute('position') || this.scatterGeo.getAttribute('position').count < n) {
+      this.scatterGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(Math.max(n, 1024) * 3 * 2), 3));
+    }
+    this.scatterGeo.setDrawRange(0, n);
+    const su = this.scatterMat.uniforms;
+    su.uList.value = this.listTex; su.uRes.value = this.listRT.texture; su.uViewSize.value.set(W, H);
+    renderer.autoClear = false;
+    renderer.setRenderTarget(t);
+    renderer.render(this.scatterScene, this.bakeCam);
+    renderer.setRenderTarget(prev);
+    renderer.autoClear = auto;
+    renderer.setClearColor(clear, clearA);
+    if (DEBUG_TIMES) { renderer.readRenderTargetPixels(t, 0, 0, 1, 1, new Uint8Array(4)); Object.assign(this.lastRefine, { readMs: T1 - T0, listMs: T2 - T1, exactMs: T3 - T2, scatterMs: performance.now() - T3 }); }
+    return n;
   }
 
   /** The bricks match the field (the settled frame can come from them). */

@@ -93,6 +93,9 @@ uniform float uBakeZ;
 uniform int uStartOn;
 uniform sampler2D uStartT;
 uniform float uStartBack;
+uniform vec2 uViewSize; // SDF_LIST: the frame's size (pixels)
+uniform vec2 uListWin;  // SDF_LIST: the window before / after the start (voxels)
+float gDepth = 1.0;
 uniform highp sampler3D uBakeTex;
 uniform vec3 uBakeSize;
 // fine bricks (bake.ts): atlas slots per axis, cell size in voxels, fine step in voxels
@@ -750,8 +753,16 @@ void main() {
 }
 #else
 void main() {
-  vec4 a = uInvProjView * vec4(vNdc, -1.0, 1.0);
-  vec4 b = uInvProjView * vec4(vNdc, 1.0, 1.0);
+#ifdef SDF_LIST
+  // a list of pixels (uStartT: x, y, start distance, 1) to resolve exactly, one per fragment
+  vec4 en = texelFetch(uStartT, ivec2(gl_FragCoord.xy), 0);
+  if (en.w < 0.5) discard;
+  vec2 ndc = (en.xy + 0.5) / uViewSize * 2.0 - 1.0;
+#else
+  vec2 ndc = vNdc;
+#endif
+  vec4 a = uInvProjView * vec4(ndc, -1.0, 1.0);
+  vec4 b = uInvProjView * vec4(ndc, 1.0, 1.0);
   vec3 ro = a.xyz / a.w;
   vec3 rd = normalize(b.xyz / b.w - ro);
   float t0, t1;
@@ -761,7 +772,11 @@ void main() {
   // rays that miss stop here, before any per-ray setup
   float tStart = 0.0;
   if (uStartOn == 1) {
+#ifdef SDF_LIST
+    float ts = en.z;
+#else
     float ts = texelFetch(uStartT, ivec2(gl_FragCoord.xy), 0).r;
+#endif
     if (ts < 0.0) discard;
     tStart = ts - uStartBack;
   }
@@ -775,7 +790,12 @@ void main() {
   // only objects near that stretch of the ray are switched on, and the march ends
   // with it (the bake puts the surface there).
   float t1Full = t1;
+#ifdef SDF_LIST
+  // (listed pixels start from the bricks' hit or near point: a narrower window)
+  if (uStartOn == 1) { t = max(t, tStart - uListWin.x * uBakeH); t1 = min(t1, tStart + uListWin.y * uBakeH); }
+#else
   if (uStartOn == 1) { t = max(t, tStart - 2.0 * uBakeH); t1 = min(t1, tStart + 3.0 * uBakeH); }
+#endif
   uvec4 marchMask = rayMask(ro, rd, t, t1, nReach, span, marchClu), aoMask = uStartOn == 1 ? marchMask : rayMask(ro, rd, t, t1, 4.0, aoSpan, aoClu);
   gClu = marchClu;
   gAOClu = uStartOn == 1 ? marchClu : aoClu;
@@ -814,7 +834,12 @@ void main() {
         if (t > t1) {
           // past the window round the baked hit without meeting the surface (a ray
           // that grazes an edge the bake rounded over): the rest of the ray, with its objects
+#ifdef SDF_LIST
+          // (a listed pixel whose bricks saw nothing past this window: done)
+          if (en.w > 1.5 && t1 < t1Full) {
+#else
           if (uStartOn == 1 && t1 < t1Full) {
+#endif
             vec2 sp2; uint c2;
             gMask = rayMask(ro, rd, t, t1Full, nReach, sp2, c2);
             gClu = c2;
@@ -835,6 +860,7 @@ void main() {
       p = ro + rd * t;
       vec4 clip = uProjView * vec4(p, 1.0);
       gl_FragDepth = clamp((clip.z / clip.w) * 0.5 + 0.5, 0.0, 1.0);
+      gDepth = gl_FragDepth;
       if (uFlat == 1) { pc_fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
       kind = gKind; // set by the last map() call, at p
       // the inner wall comes from an interpolated grid: take its normal over half a
@@ -883,6 +909,11 @@ void main() {
   col += 0.06 * pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 3.0);
   pc_fragColor = vec4(pow(col, vec3(1.0 / 1.15)), 1.0);
   if (uFlat == 2) pc_fragColor = vec4(float(min(gMapN, 255)) / 255.0, float(min(gObjN >> 8, 255)) / 255.0, float(gObjN & 255) / 255.0, 1.0);
+#ifdef SDF_LIST
+  // the colour as 8-bit channels packed in one float, the depth, hit
+  vec3 c8 = floor(clamp(pc_fragColor.rgb, 0.0, 1.0) * 255.0 + 0.5);
+  pc_fragColor = vec4(c8.r + c8.g * 256.0 + c8.b * 65536.0, gDepth, 1.0, 0.0);
+#endif
 }
 #endif
 `;
@@ -919,6 +950,8 @@ export class SdfRenderer {
       uStartOn: { value: 0 },
       uStartT: { value: null },
       uStartBack: { value: 1 },
+      uViewSize: { value: new THREE.Vector2(1, 1) },
+      uListWin: { value: new THREE.Vector2(2, 3) },
       uBakeTex: { value: null },
       uBakeSize: { value: new THREE.Vector3(1, 1, 1) },
       uBrickSlots: { value: new Int32Array(3) },
