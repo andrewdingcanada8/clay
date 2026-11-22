@@ -35,6 +35,8 @@ const DIRTY_NR = +(typeof location !== 'undefined' && new URLSearchParams(locati
 const DEBUG_TIMES = typeof location !== 'undefined' && new URLSearchParams(location.search).get('rt') === '1';
 /** The first batch, before the pace is known: this many rows of voxels. */
 const FIRST_ROWS = 8;
+/** At most this many texels of the exact field per bake batch. */
+const MAP_MAX = 32768;
 /** Two-level coarse bake: map() only where the half-resolution field is within this many
  *  voxels of the surface (0: one level, every voxel exactly). */
 const COARSE_BAND = +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('cb') || 5);
@@ -228,7 +230,9 @@ export class FieldBake {
   private want(kind: string, last: number) {
     const r = kind === 'map' ? this.texRate : this.rates.get(kind) ?? this.texRate;
     if (!(r > 0)) return 0;
-    return kind === 'map' || !last ? r * BATCH_MS : Math.min(r * BATCH_MS, 4 * last);
+    // (and never more than MAP_MAX texels of the field in one batch, whatever the rate says:
+    // a phone resets the GPU when one submission runs too long)
+    return kind === 'map' ? Math.min(r * BATCH_MS, MAP_MAX) : !last ? r * BATCH_MS : Math.min(r * BATCH_MS, 4 * last);
   }
   private layerRate = 0; // layers per ms, learned
   private bakeScene = new THREE.Scene();
@@ -758,7 +762,9 @@ export class FieldBake {
       // what the frame time says, and the next batch doubles); one that outlasted a frame
       // is measured. (Without this the rate shrank every batch, to one row a frame.)
       if (j.batch > 0) {
-        const measured = j.batch / ms, rate = (j.polls ?? 0) === 0 ? Math.max(measured, (2 * j.batch) / BATCH_MS) : measured;
+        // (a late first poll — the frame itself arrived late because the GPU was busy — is
+        // no proof of speed: only a batch done within a normal frame grows)
+        const measured = j.batch / ms, rate = (j.polls ?? 0) === 0 && ms <= 40 ? Math.max(measured, (2 * j.batch) / BATCH_MS) : measured;
         if (!j.kind || j.kind === 'map') this.texRate = rate; else this.rates.set(j.kind, rate);
       }
       j.polls = 0;

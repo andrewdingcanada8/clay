@@ -569,6 +569,13 @@ export class Viewport {
   // ---------- drawing
 
   /** What the SDF image shows: camera, scene, canvas size (any change redraws it). */
+  private lastCam = '';
+  private camKey(): string {
+    const e = this.camera.matrixWorld.elements, p = this.camera.projectionMatrix.elements, c = this.renderer.domElement;
+    let k = `${c.width}x${c.height}|`;
+    for (let i = 0; i < 16; i++) k += `${e[i].toFixed(5)},${p[i].toFixed(5)},`;
+    return k;
+  }
   private sdfKey(): string {
     const e = this.camera.matrixWorld.elements, p = this.camera.projectionMatrix.elements;
     const c = this.renderer.domElement;
@@ -742,7 +749,10 @@ export class Viewport {
     // the bake advances while the view and the field are still (one GPU-paced batch a frame)
     // (paused while the view moves or a drag edits: it would compete with the frames shown)
     if ((this.bakePending() || this.bake.busy) && !this.moving && !this.wasDrifting && !this.sdf.interactive) this.bake.step(this.renderer, now);
-    const r = this.targets(), key = this.sdfKey(), drifting = key !== this.lastKey;
+    // (drifting: the camera itself still moving — a glide after release; a change of the
+    // field or of the bake's state at rest is not a drift)
+    const r = this.targets(), key = this.sdfKey(), cam = this.camKey(), drifting = cam !== this.lastCam;
+    this.lastCam = cam;
     // (the camera still gliding after release: the bake waits for it to stop, like a drag)
     this.wasDrifting = drifting;
     this.lastKey = key;
