@@ -2,6 +2,7 @@ import './debugLog'; // first: catches errors from everything after it
 import './styles.css';
 import { dlog, dlogInfo } from './debugLog';
 import benchScene from '../../bench/perf/scenes/composite.json';
+import { Recorder } from './recorder';
 import * as THREE from 'three';
 import {
   type LayerOp, type ObjectMode, type PrimitiveType, type Quality, type SceneDoc, type SceneObject, type Symmetry, type Transform,
@@ -299,6 +300,7 @@ function sync(interactive: boolean) {
   // SDF: the GPU draws the document straight away; only stale cavity grids rebuild.
   view.setMode('sdf');
   view.setSdfDoc(r, interactive);
+  rec?.doc(doc, interactive);
   const grids = currentGrids(r);
   view.setSdfGrids(grids);
   const missing: number[] = [];
@@ -1314,6 +1316,7 @@ lostOverlay.addEventListener('click', (e) => {
   if ((e.target as HTMLElement).closest('[data-gl="retry"]')) { dlog('retry-tapped', {}, true); showLost(false); setTimeout(rebuildView, 50); }
 });
 view.onContextLost = () => {
+  rec?.event('lost');
   lostAt = Date.now();
   // come back at a lower resolution, so the frame that was too heavy isn't drawn again
   view.safer();
@@ -1763,21 +1766,41 @@ async function runDeviceBench() {
 // again at each phase (loading, baking, sharp, measuring, done / timeout / error / lost),
 // so a run that never finishes is a data point too. The bake goes through the app's own
 // paced loop, exactly as after an edit, and its time is the time to a sharp image.
+// "Record session" records what the user does (Recorder) for replay in the test browser.
 const DIAG_LIMIT_MS = 180000;
-let diagEl: HTMLDivElement | null = null, diagRunning = false;
+let diagEl: HTMLDivElement | null = null, diagRunning = false, rec: Recorder | null = null;
 async function diagDb() {
   try {
     const claude = (window as unknown as { claude?: { use(n: string): Promise<unknown> } }).claude;
     return claude?.use ? ((await claude.use('db')) as { collection(p: string): { doc(id: string): { set(d: unknown): Promise<unknown> } } } | null) : null;
   } catch { return null; }
 }
+const DIAG_STATE_COLOR: Record<string, string> = { idle: '#888', running: '#3b82f6', done: '#16a34a', failed: '#dc2626' };
+function diagStatus(state: 'idle' | 'running' | 'done' | 'failed', title: string, detail = '', progress: number | null = null) {
+  const el = diagEl?.querySelector('[data-d="status"]') as HTMLElement | null;
+  if (!el) return;
+  el.style.borderColor = DIAG_STATE_COLOR[state];
+  const t = el.querySelector('[data-d="st-title"]') as HTMLElement;
+  t.textContent = title; t.style.color = DIAG_STATE_COLOR[state];
+  (el.querySelector('[data-d="st-detail"]') as HTMLElement).textContent = detail;
+  const bar = el.querySelector('[data-d="st-bar"]') as HTMLElement;
+  bar.style.display = progress === null ? 'none' : 'block';
+  (bar.firstElementChild as HTMLElement).style.width = `${Math.round((progress ?? 0) * 100)}%`;
+  for (const b of diagEl!.querySelectorAll<HTMLButtonElement>('[data-d="scene"],[data-d="piece"],[data-d="record"],[data-d="close"]')) b.disabled = state === 'running';
+}
 function openDiagnostics() {
   if (diagEl) return;
   const el = document.createElement('div');
-  el.style.cssText = 'position:fixed;inset:0;z-index:50;background:var(--bg,#fff);color:inherit;display:flex;flex-direction:column;gap:10px;padding:16px;overflow:auto;user-select:text';
+  el.style.cssText = 'position:fixed;inset:0;z-index:50;background:var(--bg,#fff);color:inherit;display:flex;flex-direction:column;gap:12px;padding:16px;overflow:auto;user-select:text';
   el.innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0">Diagnostics</h3><button class="btn" data-d="close">Close</button></div>
-    <p class="hint">Each run is saved the moment it starts and at every step, so Claude sees it even if it never finishes (limit ${DIAG_LIMIT_MS / 60000} min). Time to sharp is measured through the app's own paced bake.</p>
-    <div class="row"><button class="btn" data-d="scene">Benchmark scene</button><button class="btn" data-d="piece">This piece</button></div>
+    <div data-d="status" style="border:2px solid #888;border-radius:10px;padding:12px;display:grid;gap:6px">
+      <div data-d="st-title" style="font-weight:700;font-size:18px">Ready</div>
+      <div data-d="st-detail" class="hint" style="margin:0">Pick a test. Each run is saved the moment it starts and at every step (limit ${DIAG_LIMIT_MS / 60000} min), so a run that never finishes still counts.</div>
+      <div data-d="st-bar" style="display:none;height:8px;border-radius:4px;background:rgba(127,127,127,.25);overflow:hidden"><div style="height:100%;width:0;background:#3b82f6;transition:width .2s"></div></div>
+    </div>
+    <div class="row" style="flex-wrap:wrap"><button class="btn" data-d="scene">Test: benchmark scene</button><button class="btn" data-d="piece">Test: this piece</button></div>
+    <div class="row"><button class="btn" data-d="record">Record session…</button></div>
+    <p class="hint" style="margin:0">Record session: use the app as usual; every camera move and edit is recorded so Claude can replay it exactly. Tap <b>Mark</b> on the red bar whenever something looks wrong (add a note), and <b>Stop</b> when done.</p>
     <pre data-d="log" style="white-space:pre-wrap;font:12px/1.4 ui-monospace,Menlo,monospace;margin:0"></pre>`;
   document.body.appendChild(el);
   diagEl = el;
@@ -1785,6 +1808,7 @@ function openDiagnostics() {
     const a = (e.target as HTMLElement).closest('[data-d]')?.getAttribute('data-d');
     if (a === 'close' && !diagRunning) { el.remove(); diagEl = null; }
     else if ((a === 'scene' || a === 'piece') && !diagRunning) void runDiag(a);
+    else if (a === 'record' && !diagRunning && !rec) { el.remove(); diagEl = null; startRecording(); }
   });
 }
 async function runDiag(kind: 'scene' | 'piece') {
@@ -1793,55 +1817,100 @@ async function runDiag(kind: 'scene' | 'piece') {
   const lines: string[] = [];
   const say = (s: string) => { lines.push(s); if (logEl) logEl.textContent = lines.join('\n'); };
   const id = `d${Date.now()}`, t0 = performance.now();
-  const rec: Record<string, unknown> = { at: Date.now(), kind, scene: kind === 'scene' ? 'composite' : current.name, status: 'started', phases: [] as unknown[], ...view.gpuReport() };
+  const name = kind === 'scene' ? 'benchmark scene' : `"${current.name}"`;
+  const rec0: Record<string, unknown> = { at: Date.now(), kind, scene: kind === 'scene' ? 'composite' : current.name, status: 'started', phases: [] as unknown[], ...view.gpuReport() };
   let db: Awaited<ReturnType<typeof diagDb>> | undefined;
-  const save = async () => { db ??= await diagDb(); try { await db?.collection('benchRuns').doc(id).set(rec); } catch { /* offline */ } };
+  const save = async () => { db ??= await diagDb(); try { await db?.collection('benchRuns').doc(id).set(rec0); } catch { /* offline */ } };
+  let phase = 'starting', progress: number | null = null;
+  const tick = window.setInterval(() => diagStatus('running', `Running: ${name}`, `${phase} · ${((performance.now() - t0) / 1000).toFixed(1)} s`, progress), 200);
   const step = (status: string, extra: Record<string, unknown> = {}) => {
     const t = Math.round(performance.now() - t0);
-    Object.assign(rec, extra); rec.status = status; rec.elapsedMs = t;
-    (rec.phases as unknown[]).push({ status, t, ...extra });
+    Object.assign(rec0, extra); rec0.status = status; rec0.elapsedMs = t;
+    (rec0.phases as unknown[]).push({ status, t, ...extra });
     dlog('diag', { id, status, t, ...extra }, true);
-    say(`${(t / 1000).toFixed(1).padStart(6)} s  ${status}${Object.keys(extra).length ? '  ' + JSON.stringify(extra) : ''}`);
+    // (the screen shows the short values; the arrays are saved)
+    const brief = Object.entries(extra).filter(([, v]) => !Array.isArray(v)).map(([k, v]) => `${k} ${typeof v === 'number' ? Math.round(v * 10) / 10 : v}`).join(' · ');
+    say(`${(t / 1000).toFixed(1).padStart(6)} s  ${status}${brief ? '  ' + brief : ''}`);
     void save();
   };
   const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
   const late = () => performance.now() - t0 > DIAG_LIMIT_MS;
   const keep = cloneDoc(doc), keepCam = view.cameraState();
   const prevLost = view.onContextLost;
-  view.onContextLost = () => { step('lost'); prevLost(); };
+  let final: [state: 'done' | 'failed', title: string, detail: string] = ['failed', 'Failed', ''];
+  view.onContextLost = () => { step('lost'); final = ['failed', 'Failed: the GPU was reset (lost)', `during ${phase}, after ${((performance.now() - t0) / 1000).toFixed(1)} s. Saved for Claude.`]; prevLost(); };
   try {
-    step('started', { scene: rec.scene });
+    diagStatus('running', `Running: ${name}`, 'starting', null);
+    step('started', { scene: rec0.scene });
     if (kind === 'scene') { doc = loadable(cloneDoc((benchScene as unknown as { doc: SceneDoc }).doc)); sync(false); }
-    step('loading');
+    phase = 'loading the scene'; step('loading');
     await wait(300);
     while ((busy || document.querySelector('.chip.busy')) && !late()) await wait(250);
-    if (late()) { step('timeout', { phase: 'loading' }); return; }
-    step('baking');
+    if (late()) { step('timeout', { phase: 'loading' }); final = ['failed', 'Timed out while loading', 'Saved as a data point.']; return; }
+    phase = 'baking'; step('baking'); progress = 0;
     const tb = performance.now();
     let lastPct = -1;
     for (;;) {
       const s = view.sharpState();
       if (s.ready && !s.busy && !s.refining) break;
-      if (late()) { step('timeout', { phase: 'baking', progress: s.baking }); return; }
+      if (late()) { step('timeout', { phase: 'baking', progress: s.baking }); final = ['failed', 'Timed out while baking', `at ${Math.round((s.baking ?? 0) * 100)}%. Saved as a data point.`]; return; }
+      progress = s.baking ?? (s.refining ? 0.99 : progress);
+      phase = s.baking !== null ? `baking ${Math.round(s.baking * 100)}%` : s.refining ? 'refining the sharp image' : 'baking';
       const pct = s.baking === null ? -1 : Math.floor(s.baking * 100);
-      if (pct >= lastPct + 10) { lastPct = pct; say(`          baking ${pct}%`); rec.progress = s.baking; void save(); }
+      if (pct >= lastPct + 10) { lastPct = pct; rec0.progress = s.baking; void save(); }
       await wait(250);
     }
-    step('sharp', { sharpMs: Math.round(performance.now() - tb) });
-    step('measuring');
+    const sharpMs = Math.round(performance.now() - tb);
+    step('sharp', { sharpMs });
+    phase = 'measuring an orbit'; progress = null; step('measuring');
     await wait(50);
     const v = view as unknown as { benchFrame(m: boolean): void };
     const out = view.benchDevice(8, () => 0, (m) => v.benchFrame(m));
     const med = (a: number[]) => [...a].sort((x, y) => x - y)[a.length >> 1];
     step('done', { settled: med(out.settledMs), moving: med(out.movingMs), settledMs: out.settledMs, movingMs: out.movingMs, w: out.w, h: out.h });
+    final = ['done', 'Done', `sharp after ${(sharpMs / 1000).toFixed(1)} s · still frame ${med(out.settledMs).toFixed(0)} ms · orbit frame ${med(out.movingMs).toFixed(0)} ms. Saved for Claude.`];
   } catch (err) {
     step('error', { msg: String((err as Error)?.message ?? err).slice(0, 300) });
+    final = ['failed', 'Failed with an error', String((err as Error)?.message ?? err).slice(0, 200)];
   } finally {
+    clearInterval(tick);
     view.onContextLost = prevLost;
     if (kind === 'scene') { doc = keep; sync(false); view.setCameraState(keepCam); }
     diagRunning = false;
+    diagStatus(final[0], final[1], final[2], null);
   }
 }
+
+function startRecording() {
+  rec = new Recorder({ piece: current.name, ...view.gpuReport(), ua: navigator.userAgent }, cloneDoc(doc), view.cameraState());
+  dlog('rec-start', { id: rec.id }, true);
+  const bar = document.createElement('div');
+  bar.style.cssText = 'position:fixed;left:8px;right:8px;top:max(8px,env(safe-area-inset-top));z-index:60;display:flex;gap:8px;align-items:center;padding:8px 10px;border-radius:10px;background:#b91c1c;color:#fff;font:600 13px system-ui';
+  bar.innerHTML = `<span data-r="t" style="flex:1">● REC 0:00</span><button class="btn" data-r="mark" style="background:#fff;color:#b91c1c">Mark</button><button class="btn" data-r="stop" style="background:#fff;color:#111">Stop</button>`;
+  document.body.appendChild(bar);
+  const tick = window.setInterval(() => {
+    if (!rec) return;
+    const s = Math.floor(rec.elapsedMs / 1000);
+    (bar.querySelector('[data-r="t"]') as HTMLElement).textContent = `● REC ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}${rec.marks ? ` · ${rec.marks} mark${rec.marks > 1 ? 's' : ''}` : ''}`;
+  }, 500);
+  bar.addEventListener('click', (e) => {
+    const a = (e.target as HTMLElement).closest('[data-r]')?.getAttribute('data-r');
+    if (!rec) return;
+    if (a === 'mark') {
+      const note = window.prompt('What looks wrong here? (optional)') ?? '';
+      rec.mark(note, view.cameraState(), view.stateLabel());
+      dlog('rec-mark', { id: rec.id, note }, true);
+      toast('Marked');
+    } else if (a === 'stop') {
+      const r = rec; rec = null;
+      clearInterval(tick);
+      void r.stop().then(() => toast(`Recording saved (${r.marks} mark${r.marks === 1 ? '' : 's'})`));
+      dlog('rec-stop', { id: r.id, marks: r.marks }, true);
+      bar.remove();
+    }
+  });
+}
+view.onFrame = (now) => { if (rec) rec.frame(now, view.cameraState(), view.stateLabel()); };
 
 function closeCards() {
   ui.menuFor = ui.renameFor = ui.flagFor = ui.deleteFor = null;
@@ -1940,6 +2009,8 @@ sync(false);
   /** for scripts/example-thumbs.mjs */
   loadExample,
   openDoc: (d: SceneDoc, v: ViewState | null = null) => loadDoc(d, { id: null, name: 'test' }, v),
+  /** replay a recorded document change: set it as an edit would */
+  applyDoc: (d: SceneDoc, interactive: boolean) => { doc = d; sync(interactive); },
   exampleIds: () => exampleList.map((e) => e.id),
   setKernel: (k: SceneDoc['kernel']) => { if (doc.kernel !== k) update((d) => { d.kernel = k; }); },
   busy: () => busy || !!document.querySelector('.chip.busy'),

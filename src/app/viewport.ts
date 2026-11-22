@@ -149,6 +149,8 @@ export class Viewport {
     this.camera.position.set(38, 30, 50);
     this.orbit = new OrbitControls(this.camera, this.renderer.domElement);
     this.orbit.enableDamping = true;
+    // (the glide after release stops about three times sooner than three.js's default 0.05)
+    this.orbit.dampingFactor = 0.15;
     this.orbit.addEventListener('change', () => this.invalidate());
     // Raymarching costs per pixel: render at reduced resolution while moving,
     // then one full-resolution frame once the view settles.
@@ -210,6 +212,7 @@ export class Viewport {
         if (drewLast) this.hudFrame(now - drewLast);
       }
       this.hudTick(now);
+      this.onFrame(now);
     };
     requestAnimationFrame(loop);
   }
@@ -253,6 +256,17 @@ export class Viewport {
     const c = this.renderer.domElement;
     this.hud.textContent = `${regime}${state ? ' · ' + state : ''}\n${ms ? `${Math.round(1000 / ms)} fps · ${ms.toFixed(0)} ms` : '–'}  ${c.width}×${c.height} @${this.renderer.getPixelRatio().toFixed(2)}${this.sharpInfo ? '\n' + this.sharpInfo : ''}`;
     if (this.moving || this.sdf.interactive) this.hudMs.length = Math.min(this.hudMs.length, 30); else if (state === 'sharp') this.hudMs.length = 0;
+  }
+
+  /** Called on every turn of the view's loop (the session recorder listens). */
+  onFrame: (now: number) => void = () => {};
+  /** What the view is doing, in a word or two (the frame counter's first line). */
+  stateLabel(): string {
+    const bp = this.bake.progress;
+    if (this.mode !== 'sdf') return 'mesh';
+    if (this.sdf.interactive) return 'editing';
+    if (this.moving) return 'orbit';
+    return bp !== null ? `baking ${Math.round(bp * 100)}%` : this.band.active ? 'refining' : 'sharp';
   }
 
   /** Called when the GPU context is lost (the phone's graphics reset) and when it comes back. */
