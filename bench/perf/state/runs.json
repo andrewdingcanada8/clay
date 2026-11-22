@@ -229,5 +229,11 @@
   "label": "refine: decisive composite (24 frames)",
   "kept": true,
   "note": "composite 57 ms = 99.5x"
+ },
+ {
+  "dir": "2026-11-22T17-42-35-282Z-full-edit2",
+  "label": "editing lineage 2 merged (full suite)",
+  "kept": true,
+  "note": "still 55 ms (103x); drag 117 ms (6.2x vs exact drag frame)"
  }
 ]

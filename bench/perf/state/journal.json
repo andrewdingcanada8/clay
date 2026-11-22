@@ -355,5 +355,15 @@
   "result": "Composite 98 -> 57 ms (24-frame decisive run; 52-60 across runs) = 99.5x baseline. Full suite: 47-125 ms except grazing 309. IoU strict on all 14; diff strict on 13/14 (grazing 2.35%, aa 0.36%). Orbit and editing unchanged; bake slightly longer, brick memory ~2x.",
   "verdict": "kept",
   "commit": "d91302e"
+ },
+ {
+  "id": 37,
+  "t": 1795369773985,
+  "title": "Merge editing lineage 2: drag frames from the stale bricks image + exact list of changed pixels (regime: editing)",
+  "hyp": "Mid-drag, the stale bricks image holds everywhere the moved objects can't reach; only changed pixels need the exact field, coarse to fine",
+  "change": "Changed pixels found on the CPU inside the dirty boxes' screen rect; exact on a 4-px then 2-px grid then the rest, interpolating only where samples agree; occlusion from the stale bake; shader warmed when the bricks finish",
+  "result": "Drag frames: composite 427 -> 117 ms (6.2x vs the 725 ms exact drag frame), sweeps-64 886 -> 188, pieces-4 388 -> 34, csg 269 -> 74, blend 287 -> 107, custom 668 -> 301. Edit-frame quality within gate (worst diff 0.36%, IoU 0.9989 vs exact). Still and orbit images identical; still composite 55 ms (103x).",
+  "verdict": "kept",
+  "commit": "646a92c"
  }
 ]

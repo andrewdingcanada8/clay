@@ -59,6 +59,8 @@ Updated: 2026-11-22 (device fix 3 published)
 ## 18:50 UTC: editing lineage 2 merged (c9657fa), tests 468 pass, pushed. Agent msEdit: composite 400->120, sweeps-64 857->187, pieces-4 388->32, csg 257->72, blend 287->112, custom 667->301.
 - Running: bench job full-edit2 on bench/perf/ref/dist-edit2-merged. Then log, publish Clay Preview + dashboard.
 
+## 19:40 UTC: full-edit2 confirmed: still 55 ms (103x), drag 117 ms (6.2x), images identical. Clay Preview v10 = bench/perf/ref/dist-edit2-merged. Next: bake time (time to sharp after edit).
+
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.
