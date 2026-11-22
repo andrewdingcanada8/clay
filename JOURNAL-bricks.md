@@ -48,3 +48,17 @@ Loose floor: diff>24 <= 2 %, IoU >= 0.995.
 | 12 | probes (quality on the cone build; samples from probe.log), composite / pieces-9 / custom-section: bt=1.2 | | samples 8.14M / 3.41M / 10.7M (base 8.49 / 3.66 / 12.2) | | identical | kept as default |
 | 12b | bt=1.2 & bl=1 | | 7.40M / 3.21M / 9.48M (-13 % / -12 % / -22 %) | | 0.22/11/0.9995; 0.66/22/0.9974; 0.85/87/0.9976 | kept as default |
 | 12c | + bs=0.4 / bs=0.3 | | 8.86M / 10.1M (composite) | | best: bs 0.3: pieces-9 0.53/21/0.9981, custom-section 0.63/69/0.9981 | more N=8 bricks buy a little; still not strict on the hard scenes (silhouette at sharp edges) |
+| 13 | merge main (near-approach start depths etc.), full suite bench bricks-11-full (not contaminated) | composite 58, sweeps-8 75, -16 76, -32 83, -64 77, pieces-1 63, -4 61, -9 53, blend-heavy 60, shell-heavy 67, csg-chain 47, custom-section 76, grazing 227, close-up 92 | 18984 / 16938 / 22349 / 32223 / 47366 / 30677 / 17482 / 12920 / 5706 / 11400 / 2839 / 25864 / 72156 / 33929 (current main about 2.7-24 s) | | strict pass: composite 0.22 % / 0.9995, close-up, blend-heavy, pieces-1, shell-heavy 0.9991, csg-chain 0.9990, sweeps-8/16/32/64. Fail strict: pieces-4 IoU 0.9989 (diff 0.37), pieces-9 0.66 % / 0.9974, custom-section 0.85 % / 0.9976 (loose pass), grazing 3.53 % (aa 0.50 %) / 0.9981 (loose IoU pass) | kept |
+
+## Where it stands (after #13)
+- Settled: composite 58 ms (base 691 ms; original baseline ~5800 ms); 47-92 ms on every scene but grazing
+  (227 ms: large thin slabs, ~245k bricks, long grazing rays).
+- Strict gates fail only where trilinear bricks round sharp silhouettes (pieces-4/9, custom-section) and on grazing.
+  Next: flag cells where the bricks disagree with exact (bake a few exact check points per sharp brick and
+  compare), mark pixels whose ray passed such a cell near eps, and resolve only those pixels with the exact
+  pass in a separate draw (points or small scissors: on SwiftShader an exact map() inside the bricks shader
+  costs every pixel, taken or not).
+- Bake: 4-10x the coarse bake (composite ~7.4M brick samples; N=8 sharp bricks are ~75 % of them).
+  Next: a cheaper sharp level (N=8 only where a crease lies within a fine voxel of the surface, judged on the
+  N=4 samples), per-sample object culling that pays (cell masks were neutral here), and cells fully inside
+  thin slabs (grazing).
