@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 import { FRAG, type FieldSnapshot, type SdfRenderer } from './raymarch';
 import { dlog } from './debugLog';
-import { REFINE, SCATTER_F, SCATTER_V, CONE, CONE_PX, drawRows, ATLAS_W, BRICK_NEAR, BRICK_B, BRICK_N, BRICK_SHARP, BRICK_THR, BrickLevel, CLASSIFY, SETTLED } from './bricks';
+import { LIST_W, REFINE, SCATTER_F, SCATTER_V, CONE, CONE_PX, drawRows, ATLAS_W, BRICK_NEAR, BRICK_B, BRICK_N, BRICK_SHARP, BRICK_THR, BrickLevel, CLASSIFY, SETTLED } from './bricks';
 
 /** Voxels along the box's longest side. */
 const RES = 192;
@@ -326,10 +326,10 @@ export class FieldBake {
     (window as unknown as { __refine: unknown }).__refine = this.lastRefine;
     if (!n) return 0;
     // (4 consecutive entries fill one 2×2 quad: neighbouring pixels run side by side)
-    const rows = 2 * Math.ceil(n / 512);
+    const rows = 2 * Math.ceil(n / (2 * LIST_W));
     if (!this.listTex || this.listTex.image.height < rows) {
       this.listTex?.dispose();
-      this.listTex = new THREE.DataTexture(new Float32Array(256 * rows * 4), 256, rows, THREE.RGBAFormat, THREE.FloatType);
+      this.listTex = new THREE.DataTexture(new Float32Array(LIST_W * rows * 4), LIST_W, rows, THREE.RGBAFormat, THREE.FloatType);
       this.listTex.minFilter = this.listTex.magFilter = THREE.NearestFilter;
     }
     const L = this.listTex.image.data as Float32Array;
@@ -339,7 +339,7 @@ export class FieldBake {
       const al = px[i * 4 + 3];
       if (al !== 128 && al !== 129) continue;
       const v = px[i * 4] * 65536 + px[i * 4 + 1] * 256 + px[i * 4 + 2];
-      const q = k >> 2, o = (((q >> 7) * 2 + ((k >> 1) & 1)) * 256 + (q & 127) * 2 + (k & 1)) * 4;
+      const q = k >> 2, hq = LIST_W >> 1, o = ((Math.floor(q / hq) * 2 + ((k >> 1) & 1)) * LIST_W + (q % hq) * 2 + (k & 1)) * 4;
       L[o] = i % W; L[o + 1] = Math.floor(i / W); L[o + 2] = (v / 16777215) * tMax; L[o + 3] = al - 127;
       k++;
     }
@@ -348,7 +348,7 @@ export class FieldBake {
     const lh = this.listTex.image.height;
     if (!this.listRT || this.listRT.height !== lh) {
       this.listRT?.dispose();
-      this.listRT = new THREE.WebGLRenderTarget(256, lh, { type: THREE.FloatType, format: THREE.RGBAFormat, depthBuffer: false });
+      this.listRT = new THREE.WebGLRenderTarget(LIST_W, lh, { type: THREE.FloatType, format: THREE.RGBAFormat, depthBuffer: false });
       this.listRT.texture.minFilter = this.listRT.texture.magFilter = THREE.NearestFilter;
     }
     // the exact pass over the list (misses discard: the target clears to 0, no hit)

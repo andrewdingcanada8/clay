@@ -49,6 +49,8 @@ export const FLAG_NEAR = +(Q.get('fn') ?? 0.5);
 const FLAG_HITS = Q.get('fh') !== '0', FLAG_MISSES = Q.get('fm') !== '0';
 /** Atlas width and height in texels (each level fits as many slots across as it can). */
 export const ATLAS_W = 360;
+/** The exact pass's list width (texels): narrow, so its quad rows spread over the rasterizer's threads. */
+export const LIST_W = +(Q.get('lq') ?? 32);
 
 export const VERT = 'out vec2 vNdc; void main(){ vNdc = position.xy; gl_Position = vec4(position.xy, 0.0, 1.0); }';
 
@@ -401,7 +403,7 @@ uniform vec2 uViewSize;
 flat out vec4 vRes;
 void main() {
   int k = gl_VertexID, q = k >> 2;
-  ivec2 c = ivec2((q & 127) * 2 + (k & 1), (q >> 7) * 2 + ((k >> 1) & 1));
+  ivec2 c = ivec2((q % ${LIST_W / 2}) * 2 + (k & 1), (q / ${LIST_W / 2}) * 2 + ((k >> 1) & 1));
   vec4 en = texelFetch(uList, c, 0);
   vRes = texelFetch(uRes, c, 0);
   gl_Position = vec4((en.xy + 0.5) / uViewSize * 2.0 - 1.0, 0.0, 1.0);
