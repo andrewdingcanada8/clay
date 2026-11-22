@@ -1276,7 +1276,13 @@ export class SdfRenderer {
 
   /** `interactive`: while dragging, a profile whose table isn't built yet keeps its
    *  slot's previous table (a moment's stale preview); it is built on release. */
+  private docSig = '';
   setDoc(doc: SceneDoc, interactive = false) {
+    // the same document set again (e.g. switching back from the mesh view) changes
+    // nothing: the bake and the image it made stay valid
+    const sig = JSON.stringify(doc);
+    if (sig === this.docSig && interactive === this.interactive) return;
+    this.docSig = sig;
     this.version++;
     this.fieldVersion++;
     this.interactive = interactive;
@@ -1452,6 +1458,8 @@ export class SdfRenderer {
 
   /** Cavity grids by document group index; null falls back to the analytic depth. */
   setGrids(grids: (CavityGrid | null)[]) {
+    // (the same grids again change nothing)
+    if (this.gridsByIndex && grids.length === this.gridsByIndex.length && grids.every((g, i) => g === this.gridsByIndex![i])) return;
     this.version++;
     this.fieldVersion++;
     this.gridsByIndex = grids;

@@ -333,7 +333,7 @@ export class Viewport {
     holder.replaceWith(r.domElement);
     this.renderer = r;
     // (images of the old context are gone with it)
-    this.rt = null; this.lowKey = this.frontKey = ''; this.band.active = false; this.fence = null; this.lowFence = null; this.shadow = null;
+    this.rt = null; this.shown = null; this.lowKey = this.frontKey = ''; this.band.active = false; this.fence = null; this.lowFence = null; this.shadow = null;
     this.bake.reset(); this.startRT = null; this.startLowRT = null; this.startFloatRT = null; this.bandStart = null;
     this.orbit.disconnect(); this.orbit.connect(r.domElement);
     this.gizmo.disconnect(); this.gizmo.connect(r.domElement);
@@ -738,7 +738,10 @@ export class Viewport {
   }
 
   /** Image t onto the canvas (color and depth), then everything else over it. */
+  /** The image last put on screen. */
+  private shown: THREE.WebGLRenderTarget | null = null;
   private present(t: THREE.WebGLRenderTarget) {
+    this.shown = t;
     const b = this.blit;
     b.mat.uniforms.tColor.value = t.texture;
     b.mat.uniforms.tDepth.value = t.depthTexture;
@@ -802,7 +805,8 @@ export class Viewport {
     if (this.moving || drifting) { this.band.active = false; this.present(r.low); this.needsRender = true; return; }
     // the bake runs first, alone on the GPU: a sharp image drawn now would be redrawn
     // from the bake as soon as it lands (and the two together can outlast a frame)
-    if (this.bakePending() || this.bake.busy) { this.band.active = false; this.present(r.low); this.needsRender = true; return; }
+    // (what was on screen stays: the sharp image if it was sharp, not the coarse one)
+    if (this.bakePending() || this.bake.busy) { this.band.active = false; this.present(this.shown ?? r.low); this.needsRender = true; return; }
     if (this.bake.bricksReady) {
       // cheap enough to draw whole
       this.band.active = false;
