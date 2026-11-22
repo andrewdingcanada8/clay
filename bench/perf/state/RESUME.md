@@ -22,6 +22,21 @@ Updated: 2026-11-22 (device fix 3 published)
 ## 02:35 UTC
 - Agents stopped at limit ~01:00, reset 02:00; resumed 02:35.
 
+## 03:00 UTC: bricks-11 (agent, branch claude/sdf-perf-bricks, not pushed)
+- Settled composite 58 ms (~98x); strict on 10/14; fails: pieces-4 (IoU 0.9989), pieces-9, custom-section, grazing. Bake 4-10x longer (composite 19 s headless).
+- Agent now: exact refinement pass for flagged pixels (separate draw), then bake size/pacing.
+- Pivot proposed to user (cache-then-draw main line; mesh from cache as next step); awaiting answer. Also offered a baseline build with the benchmark button for an iPhone baseline.
+
+## 03:10 UTC: merging editing lineage (84bbba3)
+- Conflicts resolved in bake.ts (near approach folded into the START variant) and viewport.ts; build bench/perf/ref/dist-merge-edit; bench job merge-edit running (composite, custom-section, grazing, pieces-9, sweeps-64, csg-chain). If gates hold vs near0.5: commit merge, push, publish Clay Preview.
+- Note: harness benchEdit is a no-op edit (best case); agent's real-drag numbers: composite tab 756->411 ms, sweeps-64 rib 1826->683.
+
+## 03:40 UTC: editing lineage merged (d818aa7), gates identical, drag ~2x. Clay Preview republished from bench/perf/ref/dist-merge-edit.
+
+## 08:00 UTC
+- benchEdit now moves an object (committed). Real-drag msEdit: composite 414, sweeps-64 842, pieces-4 372, csg 257, blend 281.
+- Bricks agent stopped at limit (reset 07:30), resumed 08:00 with the refinement-pass task.
+
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.

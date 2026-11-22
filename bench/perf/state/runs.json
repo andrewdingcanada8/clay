@@ -199,5 +199,17 @@
   "label": "narrow-band bake (bounds, no cut/opening growth)",
   "kept": false,
   "note": "bake -10..21% composite/pieces-4, worse sweeps-64"
+ },
+ {
+  "dir": "2026-11-22T02-49-45-566Z-merge-edit",
+  "label": "editing lineage merged",
+  "kept": true,
+  "note": "drag frames ~2x (real drags 1.8-2.7x); settled and images unchanged"
+ },
+ {
+  "dir": "2026-11-22T03-38-12-214Z-realdrag",
+  "label": "real-drag edit frames (merged build)",
+  "kept": false,
+  "note": "honest msEdit: composite 414, sweeps-64 842, pieces-4 372"
  }
 ]

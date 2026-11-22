@@ -1,0 +1,17 @@
+[
+ {
+  "label": "bricks-1 (agent)",
+  "ms": 100,
+  "t": 1795237200000
+ },
+ {
+  "label": "bricks cone pre-pass (agent, image bug)",
+  "ms": 51,
+  "t": 1795306800000
+ },
+ {
+  "label": "bricks-11 full suite (agent; strict on 10/14)",
+  "ms": 58,
+  "t": 1795316400000
+ }
+]

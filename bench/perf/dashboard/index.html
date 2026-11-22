@@ -157,18 +157,22 @@ function nowPanel() {
     ${n.queue?.length ? `<div><b>Up next</b><ol>${li(n.queue)}</ol></div>` : ''}</section>`;
 }
 function graphHeadline(h) {
-  const runs = D.runs.filter((r) => r.headlineFps);
-  const b = D.baseline?.headlineFps || 1;
-  const kept = runs.filter((r) => r.kept), rej = runs.filter((r) => !r.kept && !r.device), dev = runs.filter((r) => r.device);
-  const idx = new Map(runs.map((r, i) => [r, i + 1]));
-  const P = (r) => [idx.get(r), r.headlineFps / b, { title: `${r.label}: ${fmt(r.headlineFps / b)}× (${fmt(r.headlineFps, 3)} fps)`, hollow: !r.kept }];
+  // x: hours since the first run (wall time), so stalls show as flat stretches
+  const ts = (st) => Date.parse(String(st).replace(/T(\d\d)-(\d\d)-(\d\d)-(\d+)Z/, 'T$1:$2:$3.$4Z'));
+  const runs = D.runs.filter((r) => r.headlineFps && r.stamp);
+  const b = D.baseline?.headlineFps || 1, t0 = ts(D.baseline?.stamp ?? runs[0]?.stamp);
+  const X = (r) => (ts(r.stamp) - t0) / 3.6e6;
+  const kept = runs.filter((r) => r.kept), rej = runs.filter((r) => !r.kept);
+  const P = (r) => [X(r), r.headlineFps / b, { title: `${r.label}: ${fmt(r.headlineFps / b)}× (${fmt(r.headlineFps, 3)} fps)`, hollow: !r.kept }];
+  // prototypes not yet merged (agent lineages), from the journal: dashed markers
+  const proto = (D.prototypes ?? []).map((p) => [(p.t - t0) / 3.6e6, 5670 / p.ms, { title: `${p.label}: ${fmt(5670 / p.ms)}× (${p.ms} ms, not merged)`, hollow: true }]);
   return chart({
     series: [
       { color: css('--accent'), points: kept.map(P) },
       { color: css('--muted'), points: rej.map(P), line: false },
-      { color: css('--warn'), points: dev.map(P), line: false },
+      { color: css('--warn'), points: proto, line: false },
     ],
-    logY: true, refY: 10, h, yLabel: 'speed-up vs baseline (log), composite scene', xLabel: 'attempt #', yFmt: (v) => `${+v.toPrecision(2)}×`, xFmt: (v) => Math.round(v),
+    logY: true, refY: 100, h, yLabel: 'speed-up vs baseline (log), composite scene', xLabel: 'hours since the baseline', yFmt: (v) => `${+v.toPrecision(2)}×`, xFmt: (v) => `${Math.round(v)}h`,
   }) + `<div class="legend"><span><i style="background:${css('--accent')}"></i>kept (the ratchet)</span><span><i style="background:${css('--panel')};border:1.5px solid ${css('--muted')}"></i>rejected</span><span><i style="background:${css('--warn')}"></i>iPhone run</span><span><i style="background:${css('--bad')};height:2px"></i>10× target</span></div>`;
 }
 V.graph = () => {

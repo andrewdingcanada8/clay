@@ -113,6 +113,8 @@ export class Viewport {
   private bake: FieldBake;
   /** Where each settled ray starts (from the baked field), full resolution. */
   private startRT: THREE.WebGLRenderTarget | null = null;
+  private startLowRT: THREE.WebGLRenderTarget | null = null;
+  private stateShift = 0;
   /** rows per ms a band took last (learned; 0 until measured) */
   private rowRate = 0;
   private blit = (() => {
@@ -311,7 +313,7 @@ export class Viewport {
     this.renderer = r;
     // (images of the old context are gone with it)
     this.rt = null; this.lowKey = this.frontKey = ''; this.band.active = false; this.fence = null; this.lowFence = null; this.shadow = null;
-    this.bake.reset(); this.startRT = null; this.bandStart = null;
+    this.bake.reset(); this.startRT = null; this.startLowRT = null; this.bandStart = null;
     this.orbit.disconnect(); this.orbit.connect(r.domElement);
     this.gizmo.disconnect(); this.gizmo.connect(r.domElement);
     this.setupTap();
@@ -455,6 +457,7 @@ export class Viewport {
   }
 
   private lastSdfDoc: SceneDoc | null = null;
+  private benchBaseDoc: SceneDoc | null = null;
 
   /**
    * For the harness: one frame of an edit in progress (a gizmo drag): the document is
@@ -462,10 +465,14 @@ export class Viewport {
    * image is drawn from the exact field at the moving resolution, waited on.
    * `end` releases the drag (the document set at rest; the bake must run again).
    */
-  benchEdit(end = false) {
+  benchEdit(end = false, step = 0) {
     if (this.mode !== 'sdf' || !this.lastSdfDoc) return;
-    this.sdf.setDoc(this.lastSdfDoc, !end);
-    if (end) return;
+    // a real drag: the scene's middle object moves 0.05 further along x each frame
+    const base = (this.benchBaseDoc ??= this.lastSdfDoc);
+    if (end) { this.sdf.setDoc(base, false); this.lastSdfDoc = base; this.benchBaseDoc = null; return; }
+    const k = base.objects.length >> 1;
+    const doc = step ? { ...base, objects: base.objects.map((o, i) => (i !== k ? o : { ...o, transform: { ...o.transform, position: [o.transform.position[0] + 0.05 * step, o.transform.position[1], o.transform.position[2]] as typeof o.transform.position } })) } : base;
+    this.sdf.setDoc(doc, true);
     this.camera.updateMatrixWorld();
     const r = this.targets();
     this.drawLow(r.low); this.present(r.low);
@@ -588,6 +595,7 @@ export class Viewport {
   /** The baked-field march into t: mode 0 shades (moving image), 1 writes where each ray meets the surface. */
   private drawMarch(t: THREE.WebGLRenderTarget, mode: 0 | 1) {
     this.bake.marchMat.uniforms.uMode.value = mode;
+    this.bake.useMarch(mode, mode ? this.stateShift : 0);
     const clear = this.renderer.getClearColor(new THREE.Color()), clearA = this.renderer.getClearAlpha();
     this.renderer.setClearColor(0x000000, mode ? 1 : 0);
     if (mode) this.renderer.setClearColor(new THREE.Color(-1, -1, -1), -1);
@@ -620,21 +628,34 @@ export class Viewport {
     // a whole frame of the exact field (moving, editing, or no bake yet): logged, so a
     // GPU loss right after one points at it
     const now = performance.now();
-    if (now - this.lowLogAt > 1000) { this.lowLogAt = now; dlog('exact-frame', { w: t.width, h: t.height, moving: this.moving, editing: this.sdf.interactive }); }
-    this.drawSdf(t);
+    // A stale bake (mid-drag, or not yet redone after one) still holds the field exactly
+    // away from what changed: rays clear of the changed boxes start at its hit, the rest
+    // march exactly from where they first meet a changed box.
+    const dirty = this.bake.staleDirty();
+    if (now - this.lowLogAt > 1000) { this.lowLogAt = now; dlog('exact-frame', { w: t.width, h: t.height, moving: this.moving, editing: this.sdf.interactive, stale: dirty ? dirty.full.length + dirty.cavity.length : -1 }); }
+    if (!dirty) { this.drawSdf(t); return; }
+    this.sdf.setDirty(dirty);
+    // (the start pass also finds where a field shifted by up to dirty.shift may begin)
+    this.stateShift = Number.isFinite(dirty.shift) ? dirty.shift : 0;
+    this.drawSdf(t, 0, t.height, this.startDepths(t.width, t.height, true));
+    this.stateShift = 0;
+    this.sdf.setDirty(null);
   }
 
   /** Where each settled ray starts, from the baked field (null: no bake yet). */
-  private startDepths(): THREE.WebGLRenderTarget | null {
-    if (!this.bake.ready) return null;
-    const c = this.renderer.domElement;
-    if (!this.startRT || this.startRT.width !== c.width || this.startRT.height !== c.height) {
-      this.startRT?.dispose();
-      this.startRT = new THREE.WebGLRenderTarget(c.width, c.height, { type: THREE.HalfFloatType, depthBuffer: false });
-      this.startRT.texture.minFilter = this.startRT.texture.magFilter = THREE.NearestFilter;
+  /** (stale: from a bake older than the field, for drawLow; at the given size) */
+  private startDepths(w = this.renderer.domElement.width, h = this.renderer.domElement.height, stale = false): THREE.WebGLRenderTarget | null {
+    if (!this.bake.ready && !stale) return null;
+    const key = stale ? 'startLowRT' : 'startRT';
+    let rt = this[key];
+    if (!rt || rt.width !== w || rt.height !== h) {
+      rt?.dispose();
+      rt = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, depthBuffer: false });
+      rt.texture.minFilter = rt.texture.magFilter = THREE.NearestFilter;
+      this[key] = rt;
     }
-    this.drawMarch(this.startRT, 1);
-    return this.startRT;
+    this.drawMarch(rt, 1);
+    return rt;
   }
 
   private drawSdf(t: THREE.WebGLRenderTarget, y = 0, rows = t.height, start: THREE.WebGLRenderTarget | null = null) {

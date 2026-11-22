@@ -143,7 +143,8 @@ for (const name of names) {
       v.benchEdit(); // warm-up
       for (let i = 0; i < frames; i++) {
         place((2 * Math.PI * i) / frames);
-        const t = performance.now(); v.benchEdit(); msEdit.push(performance.now() - t);
+        // (a real drag: the middle object moves a little further each frame)
+        const t = performance.now(); v.benchEdit(false, i + 1); msEdit.push(performance.now() - t);
       }
       v.benchEdit(true);
     }

@@ -82,7 +82,7 @@ data = {
     'updated': int(time.time() * 1000), 'branch': 'claude/sdf-perf-hillclimb',
     'status': load('status.json', {}).get('text', ''), 'now': load('status.json', {}).get('now'), 'noise': load('status.json', {}).get('noise', ''),
     'baseline': baseline, 'runs': runs, 'scaling': scaling, 'sceneList': scene_list, 'stills': stills, 'compare': compare,
-    'journal': load('journal.json', []), 'device': load('device.json', []), 'hypotheses': load('hypotheses.json', []), 'research': load('research.json', []),
+    'journal': load('journal.json', []), 'device': load('device.json', []), 'prototypes': load('prototypes.json', []), 'hypotheses': load('hypotheses.json', []), 'research': load('research.json', []),
 }
 json.dump(data, open(os.path.join(HERE, 'data.json'), 'w'))
 print(f"data.json: {len(runs)} runs, {len(scaling)} scaling rows, {len(stills)} stills")
