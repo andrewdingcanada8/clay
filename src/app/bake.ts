@@ -909,7 +909,8 @@ export class FieldBake {
   /** Bake progress, 0..1 (null: no bake running). */
   get progress(): number | null {
     if (!this.job || !this.target) return null;
-    return this.job.phase === 0 ? 0.5 * this.job.row / (this.target.height * this.target.depth) : 0.5 + 0.5 * this.job.phase / 4;
+    // (the brick phases count roughly: never past 99% while anything is left)
+    return Math.min(0.99, this.job.phase === 0 ? 0.5 * this.job.row / (this.target.height * this.target.depth) : 0.5 + 0.5 * this.job.phase / 8);
   }
 
   /** The whole bake at once, waited on (for the benchmark harness). Returns ms. */
@@ -1021,6 +1022,7 @@ export class FieldBake {
     if (!this.target || this.target.width !== nx || this.target.height !== ny || this.target.depth !== nz) {
       this.target?.dispose();
       this.target = new THREE.WebGL3DRenderTarget(nx, ny, nz, { type: THREE.HalfFloatType, format: THREE.RedFormat, depthBuffer: false });
+      dlog('gpu-alloc', { what: 'coarse field', dims: `${nx}x${ny}x${nz}`, mb: +(nx * ny * nz * 2 / 1048576).toFixed(1) });
       const tex = this.target.texture;
       tex.minFilter = tex.magFilter = THREE.LinearFilter;
       tex.generateMipmaps = false;
@@ -1358,6 +1360,7 @@ export class FieldBake {
     if (!this.readAtlas || this.readAtlas.depth !== D) {
       this.readAtlas?.dispose();
       this.readAtlas = new THREE.WebGL3DRenderTarget(ATLAS_W, ATLAS_W, D, { type: THREE.HalfFloatType, format: THREE.RGBAFormat, depthBuffer: false });
+      dlog('gpu-alloc', { what: 'brick read atlas', dims: `${ATLAS_W}x${ATLAS_W}x${D}`, mb: +(ATLAS_W * ATLAS_W * D * 8 / 1048576).toFixed(1) });
       const tex = this.readAtlas.texture;
       tex.minFilter = tex.magFilter = THREE.LinearFilter;
       tex.generateMipmaps = false;
@@ -1366,6 +1369,7 @@ export class FieldBake {
     if ((!this.shadeAtlas || this.shadeAtlas.depth !== D)) {
       this.shadeAtlas?.dispose();
       this.shadeAtlas = new THREE.WebGL3DRenderTarget(ATLAS_W, ATLAS_W, D, { type: THREE.HalfFloatType, format: THREE.RGBAFormat, depthBuffer: false });
+      dlog('gpu-alloc', { what: 'brick shade atlas', dims: `${ATLAS_W}x${ATLAS_W}x${D}`, mb: +(ATLAS_W * ATLAS_W * D * 8 / 1048576).toFixed(1) });
       const tex = this.shadeAtlas.texture;
       tex.minFilter = tex.magFilter = THREE.LinearFilter;
       tex.generateMipmaps = false;

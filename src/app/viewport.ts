@@ -233,6 +233,9 @@ export class Viewport {
     this.hud = d;
   }
   get hudOn() { return !!this.hud; }
+  /** Where the view is on its way to a sharp image: the bake (progress 0..1, null when
+   *  not running), the sharp bands, and whether the field is baked. */
+  sharpState() { return { ready: this.bake.ready, baking: this.bake.progress, busy: this.bake.busy, refining: this.band.active }; }
   private hudFrame(dt: number) {
     if (dt > 250) return; // (a pause, not a frame)
     this.hudMs.push(dt);

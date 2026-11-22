@@ -785,12 +785,10 @@ function viewPanel() {
       ...s.warnings.map((w) => `! ${w}`),
     ].filter(Boolean).join('\n')) : 'building…'}</div></div>`}
     <div class="section"><h3>Frame rate</h3>
-      <p class="hint">Turns the camera once around the piece and times every frame on this device.</p>
-      <div class="row"><button class="btn" data-act="measure-fps" ${ui.fps === 'measuring…' ? 'disabled' : ''}>Measure this piece</button>
-      <button class="btn" data-act="device-bench" ${ui.fps === 'measuring…' ? 'disabled' : ''}>Run the benchmark scene</button></div>
+      <p class="hint">Diagnostics times the benchmark scene or this piece on this device, from loading through baking to a sharp image and an orbit. Every run is saved for Claude as it goes.</p>
+      <div class="row"><button class="btn" data-act="open-diag">Open diagnostics</button></div>
       <div class="row"><button class="btn" data-act="toggle-hud">${view.hudOn ? 'Hide' : 'Show'} the frame counter</button></div>
       <p class="hint">The counter (top left of the view) shows what the view is doing — orbiting, editing, or still (baking, refining, sharp) — its frames per second, and how long it took to go sharp after an edit.</p>
-      <p class="hint">The benchmark scene is the performance test (a bit of everything); its timings are saved for Claude to compare with the test machine. Your piece comes back afterwards.</p>
       ${ui.fps ? `<div class="stats">${escapeHtml(ui.fps)}</div>` : ''}</div>
     <div class="row"><button class="btn danger" data-act="new">New empty scene</button></div>`;
 }
@@ -1122,6 +1120,7 @@ panel.addEventListener('click', (e) => {
     case 'close-gallery': ui.showGallery = false; renderPanel(); break;
     case 'new-piece': newPiece(); break;
     case 'measure-fps': measureFps(); break;
+    case 'open-diag': openDiagnostics(); break;
     case 'toggle-hud': {
       view.setHud(!view.hudOn);
       try { localStorage.setItem('clay.hud', view.hudOn ? '1' : ''); } catch { /* storage unavailable */ }
@@ -1757,6 +1756,90 @@ async function runDeviceBench() {
     sync(false);
     view.setCameraState(keepCam);
     renderPanel();
+  }
+}
+
+// ---------- diagnostics screen: every run is saved as soon as it starts (benchRuns), and
+// again at each phase (loading, baking, sharp, measuring, done / timeout / error / lost),
+// so a run that never finishes is a data point too. The bake goes through the app's own
+// paced loop, exactly as after an edit, and its time is the time to a sharp image.
+const DIAG_LIMIT_MS = 180000;
+let diagEl: HTMLDivElement | null = null, diagRunning = false;
+async function diagDb() {
+  try {
+    const claude = (window as unknown as { claude?: { use(n: string): Promise<unknown> } }).claude;
+    return claude?.use ? ((await claude.use('db')) as { collection(p: string): { doc(id: string): { set(d: unknown): Promise<unknown> } } } | null) : null;
+  } catch { return null; }
+}
+function openDiagnostics() {
+  if (diagEl) return;
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;inset:0;z-index:50;background:var(--bg,#fff);color:inherit;display:flex;flex-direction:column;gap:10px;padding:16px;overflow:auto;user-select:text';
+  el.innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0">Diagnostics</h3><button class="btn" data-d="close">Close</button></div>
+    <p class="hint">Each run is saved the moment it starts and at every step, so Claude sees it even if it never finishes (limit ${DIAG_LIMIT_MS / 60000} min). Time to sharp is measured through the app's own paced bake.</p>
+    <div class="row"><button class="btn" data-d="scene">Benchmark scene</button><button class="btn" data-d="piece">This piece</button></div>
+    <pre data-d="log" style="white-space:pre-wrap;font:12px/1.4 ui-monospace,Menlo,monospace;margin:0"></pre>`;
+  document.body.appendChild(el);
+  diagEl = el;
+  el.addEventListener('click', (e) => {
+    const a = (e.target as HTMLElement).closest('[data-d]')?.getAttribute('data-d');
+    if (a === 'close' && !diagRunning) { el.remove(); diagEl = null; }
+    else if ((a === 'scene' || a === 'piece') && !diagRunning) void runDiag(a);
+  });
+}
+async function runDiag(kind: 'scene' | 'piece') {
+  diagRunning = true;
+  const logEl = diagEl?.querySelector('[data-d="log"]') as HTMLElement | null;
+  const lines: string[] = [];
+  const say = (s: string) => { lines.push(s); if (logEl) logEl.textContent = lines.join('\n'); };
+  const id = `d${Date.now()}`, t0 = performance.now();
+  const rec: Record<string, unknown> = { at: Date.now(), kind, scene: kind === 'scene' ? 'composite' : current.name, status: 'started', phases: [] as unknown[], ...view.gpuReport() };
+  let db: Awaited<ReturnType<typeof diagDb>> | undefined;
+  const save = async () => { db ??= await diagDb(); try { await db?.collection('benchRuns').doc(id).set(rec); } catch { /* offline */ } };
+  const step = (status: string, extra: Record<string, unknown> = {}) => {
+    const t = Math.round(performance.now() - t0);
+    Object.assign(rec, extra); rec.status = status; rec.elapsedMs = t;
+    (rec.phases as unknown[]).push({ status, t, ...extra });
+    dlog('diag', { id, status, t, ...extra }, true);
+    say(`${(t / 1000).toFixed(1).padStart(6)} s  ${status}${Object.keys(extra).length ? '  ' + JSON.stringify(extra) : ''}`);
+    void save();
+  };
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const late = () => performance.now() - t0 > DIAG_LIMIT_MS;
+  const keep = cloneDoc(doc), keepCam = view.cameraState();
+  const prevLost = view.onContextLost;
+  view.onContextLost = () => { step('lost'); prevLost(); };
+  try {
+    step('started', { scene: rec.scene });
+    if (kind === 'scene') { doc = loadable(cloneDoc((benchScene as unknown as { doc: SceneDoc }).doc)); sync(false); }
+    step('loading');
+    await wait(300);
+    while ((busy || document.querySelector('.chip.busy')) && !late()) await wait(250);
+    if (late()) { step('timeout', { phase: 'loading' }); return; }
+    step('baking');
+    const tb = performance.now();
+    let lastPct = -1;
+    for (;;) {
+      const s = view.sharpState();
+      if (s.ready && !s.busy && !s.refining) break;
+      if (late()) { step('timeout', { phase: 'baking', progress: s.baking }); return; }
+      const pct = s.baking === null ? -1 : Math.floor(s.baking * 100);
+      if (pct >= lastPct + 10) { lastPct = pct; say(`          baking ${pct}%`); rec.progress = s.baking; void save(); }
+      await wait(250);
+    }
+    step('sharp', { sharpMs: Math.round(performance.now() - tb) });
+    step('measuring');
+    await wait(50);
+    const v = view as unknown as { benchFrame(m: boolean): void };
+    const out = view.benchDevice(8, () => 0, (m) => v.benchFrame(m));
+    const med = (a: number[]) => [...a].sort((x, y) => x - y)[a.length >> 1];
+    step('done', { settled: med(out.settledMs), moving: med(out.movingMs), settledMs: out.settledMs, movingMs: out.movingMs, w: out.w, h: out.h });
+  } catch (err) {
+    step('error', { msg: String((err as Error)?.message ?? err).slice(0, 300) });
+  } finally {
+    view.onContextLost = prevLost;
+    if (kind === 'scene') { doc = keep; sync(false); view.setCameraState(keepCam); }
+    diagRunning = false;
   }
 }
 

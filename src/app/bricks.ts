@@ -6,6 +6,7 @@
 // finer brick, in a second atlas. The settled frame marches the coarse field to the
 // band, then the bricks to the hit, and shades from them: no exact field evaluations.
 import * as THREE from 'three';
+import { dlog } from './debugLog';
 
 // (prototype knobs: ?bb=&bn=&bn2=&bt=&bs= on the page URL)
 const Q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams();
@@ -702,6 +703,7 @@ export class BrickLevel {
       if (old && old.width === W && old.height === W && old.depth >= D && (keep || old.depth <= D + 2 * S)) { this.cap = sx * sx * Math.floor(old.depth / S); return old; }
       old?.dispose();
       const t = new THREE.WebGL3DRenderTarget(W, W, D, { type: THREE.HalfFloatType, format: rgba ? THREE.RGBAFormat : THREE.RedFormat, depthBuffer: false });
+      dlog('gpu-alloc', { what: rgba ? 'brick atlas rgba' : 'brick atlas', dims: `${W}x${W}x${D}`, mb: +(W * W * D * (rgba ? 8 : 2) / 1048576).toFixed(1) });
       const tex = t.texture;
       tex.minFilter = tex.magFilter = THREE.LinearFilter;
       tex.generateMipmaps = false;
