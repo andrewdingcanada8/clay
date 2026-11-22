@@ -270,7 +270,8 @@ export class FieldBake {
     this.lastRefine = { flagged: n, covered };
     (window as unknown as { __refine: unknown }).__refine = this.lastRefine;
     if (!n) return 0;
-    const rows = Math.ceil(n / 256);
+    // (4 consecutive entries fill one 2×2 quad: neighbouring pixels run side by side)
+    const rows = 2 * Math.ceil(n / 512);
     if (!this.listTex || this.listTex.image.height < rows) {
       this.listTex?.dispose();
       this.listTex = new THREE.DataTexture(new Float32Array(256 * rows * 4), 256, rows, THREE.RGBAFormat, THREE.FloatType);
@@ -283,7 +284,8 @@ export class FieldBake {
       const al = px[i * 4 + 3];
       if (al !== 128 && al !== 129) continue;
       const v = px[i * 4] * 65536 + px[i * 4 + 1] * 256 + px[i * 4 + 2];
-      L[k * 4] = i % W; L[k * 4 + 1] = Math.floor(i / W); L[k * 4 + 2] = (v / 16777215) * tMax; L[k * 4 + 3] = al - 127;
+      const q = k >> 2, o = (((q >> 7) * 2 + ((k >> 1) & 1)) * 256 + (q & 127) * 2 + (k & 1)) * 4;
+      L[o] = i % W; L[o + 1] = Math.floor(i / W); L[o + 2] = (v / 16777215) * tMax; L[o + 3] = al - 127;
       k++;
     }
     this.listTex.needsUpdate = true;

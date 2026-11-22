@@ -400,7 +400,8 @@ uniform sampler2D uRes;
 uniform vec2 uViewSize;
 flat out vec4 vRes;
 void main() {
-  ivec2 c = ivec2(gl_VertexID & 255, gl_VertexID >> 8);
+  int k = gl_VertexID, q = k >> 2;
+  ivec2 c = ivec2((q & 127) * 2 + (k & 1), (q >> 7) * 2 + ((k >> 1) & 1));
   vec4 en = texelFetch(uList, c, 0);
   vRes = texelFetch(uRes, c, 0);
   gl_Position = vec4((en.xy + 0.5) / uViewSize * 2.0 - 1.0, 0.0, 1.0);
