@@ -71,3 +71,14 @@ Loose floor: diff>24 <= 2 %, IoU >= 0.995.
 | 17 | listed pixels start 0.2 voxel before the brick hit (was 0.5), window [-0.6, +1] voxels | bench bricks-19: composite 105, pieces-9 95, custom-section 120 | | | same gates (custom-section 0.46 %) | kept (small) |
 | 18 | crease hits only where second differences change a fine spacing away (smooth bends excluded), fx 0.1 / 0.2 | | | composite 680 / 638, custom-section 2126 / 1942, pieces-9 722 / 691 flagged | same gates | no: few pixels saved |
 | 19 | probes: refinement lets the N=8 level go (bs=99: one level, N=4), fc 0.45 / 0.35 | | composite samples 7.4M -> 2.2M, custom-section 9.5M -> 4.3M, pieces-9 3.2M -> 0.83M | flagged fc 0.35: composite 1033, custom-section 3996, pieces-9 1762 | fc 0.45: custom-section 0.57 % / 0.9989 (fails); fc 0.35: composite 0.09 % / 0.9999, custom-section 0.43 / 0.9993, pieces-9 0.33 / 0.9995 | kept as default: one level + fc 0.35 |
+| 20 | merge main (d818aa7 lineage: editing, dirty boxes, START march), full suite bricks-21-full (one level N=4, fc 0.35, fn 0.5, refinement on) | composite 100, sweeps-8 92, -16 97, -32 108, -64 143, pieces-1 93, -4 104, -9 105, blend-heavy 71, shell-heavy 86, csg-chain 83, custom-section 135, grazing 484, close-up 135 | 8833 / 13384 / 18546 / 28244 / 42555 / 16584 / 9448 / 8598 / 5669 / 8206 / 1803 / 16774 / 19001 / 18927 (was 19.0 s composite, 72 s grazing with two levels) | flagged (share of clay): composite 1033 (3.1 %), sweeps-8/16/32/64 1.1/1.2/1.1/0.8 %, pieces-1 1.9 %, pieces-4 3.7 %, pieces-9 13.5 %, blend-heavy 0.0 %, shell-heavy 3.3 %, csg-chain 7.2 %, custom-section 10.7 %, grazing 15.7 %, close-up 1.0 % | strict diff and IoU on 13 of 14 (custom-section 0.43 % / 0.9993, pieces-9 0.33 / 0.9995, composite 0.09 / 0.9999); grazing 2.02 % (aa 0.10 %) / IoU 0.9983 (loose) | kept |
+
+## Where it stands (after #20)
+- Strict on 13/14 scenes; grazing passes only aa-tolerant diff and loose IoU (74 missed px at slab rims).
+- Composite settled 100 ms (target ~70): bricks ~55 ms + exact refinement ~45 ms for ~1000 listed pixels. The exact
+  settled shader costs ~45-80 µs per listed composite pixel on SwiftShader (rim and edge pixels are its worst case:
+  many objects in reach, creeping steps). Fewer flags lose custom-section (fc 0.45 fails at one level).
+- Bake: one level of N=4 bricks; composite 8.8 s (coarse ~4.4 s + bricks), sweeps-64 42.6 s, grazing 19 s.
+  The brick bake, copy and curvature passes are fence-paced in row strips (first batch FIRST_ROWS rows-equivalent);
+  the classify pass (one draw over all cells, ~27 fetches x cz per fragment) and the per-slot mask pass are still
+  one draw each, and classify reads back (a stall) — to pace next.
