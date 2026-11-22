@@ -47,6 +47,8 @@ Updated: 2026-11-22 (device fix 3 published)
 ## 09:00 UTC
 - Refine agent (id ab95c4ce12f2cf101, worktree branch claude/sdf-perf-refine): composite <=57 ms at strict gates, then grazing strict IoU. Journal: JOURNAL-refine.md in its worktree.
 
+## 10:50 UTC: refine agent stopped at usage limit (reset 12:50 UTC); wake-up scheduled 12:55 to resume it. No new iPhone run yet.
+
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.
