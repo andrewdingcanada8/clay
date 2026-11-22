@@ -614,6 +614,9 @@ export class Viewport {
     const box = this.sdf.bounds;
     const tMax = this.camera.position.distanceTo(box.getCenter(new THREE.Vector3())) + box.getSize(new THREE.Vector3()).length();
     this.bake.settledMat.uniforms.uTMax.value = tMax;
+    // (the section plane is a variant of the program: the plane-free one carries none of its code)
+    const sm = this.bake.settledMat, clip = this.sdf.material.uniforms.uClipOn.value ? 1 : 0;
+    if (sm.defines.CLIP !== clip) { sm.defines.CLIP = clip; sm.needsUpdate = true; }
     this.renderer.render(this.bake.settledScene, this.camera);
     this.bake.refine(this.renderer, this.camera, t, tMax);
     this.renderer.setRenderTarget(null);

@@ -182,6 +182,8 @@ export class FieldBake {
   private levels: BrickLevel[];
   /** What the settled pass reads: every level's values and second differences (RGBA). */
   private readAtlas: THREE.WebGL3DRenderTarget | null = null;
+  /** Beside it: each sample's normal and occlusion (SHADE). */
+  private shadeAtlas: THREE.WebGL3DRenderTarget | null = null;
   private zOff = [0, 0];
   private indS: THREE.Data3DTexture | null = null;
   private classMat: THREE.ShaderMaterial;
@@ -246,9 +248,9 @@ export class FieldBake {
     cm.frustumCulled = false;
     this.classScene.add(cm);
     this.settledMat = new THREE.ShaderMaterial({
-      glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: SETTLED, depthTest: true, depthWrite: true,
+      glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: SETTLED, depthTest: true, depthWrite: true, defines: { CLIP: 0 },
       uniforms: {
-        uTex: { value: null }, uIndS: { value: null }, uAtlasR: { value: null }, uInvA: { value: new THREE.Vector3(1, 1, 1) }, uInvN: { value: new THREE.Vector3(1, 1, 1) }, uNm1: { value: new THREE.Vector3(1, 1, 1) }, uConeT: { value: null }, uFlagOn: { value: REFINE ? 1 : 0 }, uTMax: { value: 1 },
+        uTex: { value: null }, uIndS: { value: null }, uAtlasR: { value: null }, uAtlasG: { value: null }, uInvA: { value: new THREE.Vector3(1, 1, 1) }, uInvN: { value: new THREE.Vector3(1, 1, 1) }, uNm1: { value: new THREE.Vector3(1, 1, 1) }, uConeT: { value: null }, uFlagOn: { value: REFINE ? 1 : 0 }, uTMax: { value: 1 },
         uO: { value: this.origin }, uSize: { value: this.size }, uH: { value: 1 },
         uCells: { value: this.cells },
         uInvProjView: su.uInvProjView, uProjView: su.uProjView, uClip: su.uClip, uClipOn: su.uClipOn,
@@ -488,7 +490,7 @@ export class FieldBake {
       if (tgt && j.row < tgt.height * tgt.depth) {
         if (j.phase === 2) batch(tgt, (r0, n) => L.draw(renderer, this.origin, this.h, r0, n));
         else if (j.phase === 3) batch(tgt, (r0, n) => L.copy(renderer, j.level, this.levels, this.ind!, this.cells, r0, n));
-        else { const lv = j.level; batch(tgt, (r0, n) => L.curv(renderer, this.readAtlas!, this.zOff[lv], r0, n)); }
+        else { const lv = j.level; batch(tgt, (r0, n) => L.curv(renderer, this.readAtlas!, this.zOff[lv], r0, n, this.shadeAtlas)); }
         // (copies are cheap: they don't teach the pace)
         if (j.phase >= 3) j.batch = 0;
         return true;
@@ -531,7 +533,7 @@ export class FieldBake {
     for (const L of this.levels) if (L.count) L.masks(renderer, this.origin, this.h, 0, 1 << 20);
     for (const L of this.levels) if (L.count) L.draw(renderer, this.origin, this.h, 0, L.bakeTarget.height * L.bakeTarget.depth);
     this.levels.forEach((L, i) => { if (L.count && L.copyTarget) L.copy(renderer, i, this.levels, this.ind!, this.cells, 0, L.copyTarget.height * L.copyTarget.depth); });
-    this.levels.forEach((L, i) => { if (L.count) L.curv(renderer, this.readAtlas!, this.zOff[i], 0, L.atlas!.height * L.atlas!.depth); });
+    this.levels.forEach((L, i) => { if (L.count) L.curv(renderer, this.readAtlas!, this.zOff[i], 0, L.atlas!.height * L.atlas!.depth, this.shadeAtlas); });
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
     this.brickVersion = this.sdf.fieldVersion;
     this.lastBake.brickMs = performance.now() - tb;
@@ -670,6 +672,19 @@ export class FieldBake {
       tex.generateMipmaps = false;
       tex.wrapS = tex.wrapT = tex.wrapR = THREE.ClampToEdgeWrapping;
     }
+    if ((!this.shadeAtlas || this.shadeAtlas.depth !== D)) {
+      this.shadeAtlas?.dispose();
+      this.shadeAtlas = new THREE.WebGL3DRenderTarget(ATLAS_W, ATLAS_W, D, { type: THREE.HalfFloatType, format: THREE.RGBAFormat, depthBuffer: false });
+      const tex = this.shadeAtlas.texture;
+      tex.minFilter = tex.magFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+      tex.wrapS = tex.wrapT = tex.wrapR = THREE.ClampToEdgeWrapping;
+    }
+    for (const L of this.levels) {
+      const g = L.shadeMat.uniforms;
+      g.uTex.value = t.texture; g.uO.value.copy(this.origin); g.uH.value = this.h;
+      g.uInvN.value.set(1 / t.width, 1 / t.height, 1 / t.depth); g.uNm1.value.set(t.width - 1, t.height - 1, t.depth - 1);
+    }
     const es = new Float32Array(cx * cy * cz * 4);
     for (let c = 0; c < cx * cy * cz; c++) {
       const v = ind[c];
@@ -685,6 +700,7 @@ export class FieldBake {
     this.indS.needsUpdate = true;
     su.uTex.value = t.texture; su.uIndS.value = this.indS; su.uH.value = this.h;
     su.uAtlasR.value = this.readAtlas.texture;
+    su.uAtlasG.value = this.shadeAtlas?.texture ?? null;
     su.uInvA.value.set(1 / ATLAS_W, 1 / ATLAS_W, 1 / D);
     su.uInvN.value.set(1 / t.width, 1 / t.height, 1 / t.depth);
     su.uNm1.value.set(t.width - 1, t.height - 1, t.depth - 1);
