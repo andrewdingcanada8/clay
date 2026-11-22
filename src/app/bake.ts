@@ -710,6 +710,9 @@ export class FieldBake {
   /** Voxel size, for the exact pass's starting margin. */
   get voxel() { return this.h; }
 
+  /** Forget what an incremental bake would build on (a different document): the next bake is a full one. */
+  forget() { this.snaps = []; this.brickSnaps = []; this.slotInd = null; this.slotCell = null; this.geomOk = false; this.inc = null; this.brickSnap = null; }
+
   /** Forget the bake (the GPU context it lived in is gone). */
   reset() { this.target?.dispose(); this.target = null; this.low?.dispose(); this.low = null; this.job = null; this.readyVersion = -1; this.brickVersion = -1; for (const l of this.levels) l.dispose(); this.classRT?.dispose(); this.classRT = null; this.snaps = []; this.geomOk = false; this.brickSnap = null; this.dirtyWarm = false; }
 
@@ -964,10 +967,12 @@ export class FieldBake {
     let pad = 3 * h;
     let nx = Math.max(2, Math.ceil((ext.x + 2 * pad) / h) + 1), ny = Math.max(2, Math.ceil((ext.y + 2 * pad) / h) + 1), nz = Math.max(2, Math.ceil((ext.z + 2 * pad) / h) + 1);
     let ox = b.min.x - pad, oy = b.min.y - pad, oz = b.min.z - pad;
-    // an edit that leaves the box inside the current grid (and its scale close) keeps the grid,
-    // so the bake can be incremental
+    // an edit of the same document (geomOk: forget() clears it when another is opened) with the same
+    // program shape whose box stays inside the current grid at a close scale keeps the grid, so the
+    // bake can be incremental; anything else gets the grid a fresh bake would
     const T = this.target, o = this.origin, H0 = this.h;
-    if (INC && T && this.geomOk && h <= H0 && h >= 0.85 * H0 && b.min.x - 3 * H0 >= o.x && b.min.y - 3 * H0 >= o.y && b.min.z - 3 * H0 >= o.z
+    if (INC && T && this.geomOk && this.snaps.length && this.sdf.dirtyBoxes(this.snaps) && h <= H0 && h >= 0.85 * H0
+      && b.min.x - 3 * H0 >= o.x && b.min.y - 3 * H0 >= o.y && b.min.z - 3 * H0 >= o.z
       && b.max.x + 3 * H0 <= o.x + (T.width - 1) * H0 && b.max.y + 3 * H0 <= o.y + (T.height - 1) * H0 && b.max.z + 3 * H0 <= o.z + (T.depth - 1) * H0) {
       h = H0; pad = 3 * h; nx = T.width; ny = T.height; nz = T.depth; ox = o.x; oy = o.y; oz = o.z;
     }
@@ -1148,6 +1153,8 @@ export class FieldBake {
     u.uBakeO.value.copy(this.origin);
     u.uBakeH.value = 2 * this.h;
     b.uBakeBand.value = 0;
+    // (never sample the target being drawn: with the low field bound the draw is a feedback loop, and fails)
+    b.uBakeLow.value = null;
     if (this.inc) drawRegion(renderer, this.low!, this.bakeScene, this.bakeCam, (z) => { u.uBakeZ.value = z; }, this.inc.low, r0, n);
     else drawRows(renderer, this.low!, this.bakeScene, this.bakeCam, (z) => { u.uBakeZ.value = z; }, r0, n);
     u.uBakeH.value = this.h;
