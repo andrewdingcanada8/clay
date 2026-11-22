@@ -49,6 +49,14 @@ export const FLAG_NEAR = +(Q.get('fn') ?? 0.5);
 const FLAG_HITS = Q.get('fh') !== '0', FLAG_MISSES = Q.get('fm') !== '0';
 /** Atlas width and height in texels (each level fits as many slots across as it can). */
 export const ATLAS_W = 360;
+/** (prototype: settled reads as textureLod, ?tl=1) */
+const TL = Q.get('tl') === '1';
+const DBG = Q.get('dbg') === '1';
+/** Near-misses start the exact pass at the ray's closest approach to a crease (else the first near point). */
+const NEAR_MIN = Q.get('nm') === '1';
+const TEX = TL ? 'textureLod' : 'texture', LOD = TL ? ', 0.0' : '';
+/** The exact pass's list width (texels): narrow, so its quad rows spread over the rasterizer's threads. */
+export const LIST_W = +(Q.get('lq') ?? 32);
 
 export const VERT = 'out vec2 vNdc; void main(){ vNdc = position.xy; gl_Position = vec4(position.xy, 0.0, 1.0); }';
 
@@ -119,6 +127,8 @@ uniform sampler3D uTex;
 uniform sampler3D uIndS;
 // every level's bricks, values and second differences (RGBA), one level after another in z
 uniform sampler3D uAtlasR;
+// beside it: each sample's normal and occlusion (SHADE)
+uniform sampler3D uAtlasG;
 uniform vec3 uInvA;  // 1 / the read atlas's size
 uniform vec3 uInvN;  // 1 / the coarse texture's size
 uniform vec3 uNm1;   // the coarse texture's size - 1
@@ -162,7 +172,7 @@ float field(vec3 p, out int level) {
   ivec3 c = clamp(ivec3(cf), ivec3(0), uCells - 1);
   vec4 e = texelFetch(uIndS, c, 0);
   vec3 l = clamp((g - cf * ${BRICK_B.toFixed(1)}) * (e.w * ${f(1 / BRICK_B)}), 0.0, e.w);
-  vec4 q = texture(uAtlasR, (e.xyz + 0.5 + l) * uInvA);
+  vec4 q = ${TEX}(uAtlasR, (e.xyz + 0.5 + l) * uInvA${LOD});
   float fb = q.r;
   // (second differences over one fine spacing hf = B h / N, in units of hf)
   gCrease = max(max(abs(q.g), abs(q.b)), abs(q.a)) * e.w / (${BRICK_B.toFixed(1)} * uH);${QUAD_CORR ? `
@@ -170,8 +180,8 @@ float field(vec3 p, out int level) {
   fb -= 0.5 * dot(w * (1.0 - w), q.gba);` : ''}
   level = ivec3(cf) != c || e.w == 0.0 ? -1 : e.w == ${BRICK_N[0].toFixed(1)} ? 0 : 1;
   // (the ray stays inside the baked box: the coarse read needs no outside term)
-  float fc = texture(uTex, (clamp(g, vec3(0.0), uNm1) + 0.5) * uInvN).r;
-  return level >= 0 ? fb : fc;
+  if (level >= 0) return fb;
+  return ${TEX}(uTex, (clamp(g, vec3(0.0), uNm1) + 0.5) * uInvN${LOD}).r;
 }
 bool boxHit(vec3 ro, vec3 rd, out float t0, out float t1) {
   vec3 lo = uO, hi = uO + uSize;
@@ -184,22 +194,28 @@ void main() {
   vec4 a = uInvProjView * vec4(vNdc, -1.0, 1.0), b = uInvProjView * vec4(vNdc, 1.0, 1.0);
   vec3 ro = a.xyz / a.w, rd = normalize(b.xyz / b.w - ro);
   float t0, t1;
-  if (!boxHit(ro, rd, t0, t1)) discard;
+  if (!boxHit(ro, rd, t0, t1)) { ${DBG ? "fragColor = vec4(0.0, 1.0, 0.0, 1.0); gl_FragDepth = 0.0; return;" : "discard;"} }
   float tc = texelFetch(uConeT, ivec2(gl_FragCoord.xy) / ${CONE_PX}, 0).r;
-  if (tc >= 1e9) discard;
+  if (tc >= 1e9) { ${DBG ? "fragColor = vec4(0.0, 0.0, 1.0, 1.0); gl_FragDepth = 0.0; return;" : "discard;"} }
   float t = max(max(t0, 0.0), tc);
   int kind = 0, level = -1;
   bool hit = false, done = false, nearCrease = false;
-  float d = 1e5, eps = 0.0, tNear = 0.0;
+  // (the closest approach to a crease so far, and where)
+  float nearGap = ${f(FLAG_NEAR * BRICK_B / BRICK_N[0])} * uH;
+  float d = 1e5, eps = 0.0, tNear = 0.0;${DBG ? `
+  float dbgGap = 1e9, dbgCr = 0.0; int dbgN = 0, dbgLv = -2;` : ''}
   for (int i = 0; i < 240; i++) {
     vec3 p = ro + rd * t;
     d = field(p, level);
     kind = 0;
-    if (uClipOn == 1) { float c = -(dot(p, uClip.xyz) + uClip.w); if (c > d) { d = c; kind = 1; } }
+#if CLIP
+    { float c = -(dot(p, uClip.xyz) + uClip.w); if (c > d) { d = c; kind = 1; } }
+#endif
     eps = clamp((uPixelAngle * t + uPixelSize) * 0.35, 0.0008, 0.008);
-    if (d < eps) { hit = true; break; }
+    if (d < eps) { hit = true; break; }${DBG ? `
+    dbgN = i; if (d - eps < dbgGap) { dbgGap = d - eps; dbgCr = gCrease; dbgLv = level; }` : ''}
     // passing close by a crease without touching: the exact pass decides
-    if (!nearCrease && level >= 0 && gCrease > ${FLAG_CREASE.toFixed(3)} && d < eps + ${FLAG_NEAR.toFixed(3)} * uH * ${f(BRICK_B / BRICK_N[0])}) { nearCrease = true; tNear = t; }
+    ${NEAR_MIN ? `if (level >= 0 && gCrease > ${FLAG_CREASE.toFixed(3)} && d - eps < nearGap) { nearGap = d - eps; tNear = t; nearCrease = true; }` : `if (!nearCrease && level >= 0 && gCrease > ${FLAG_CREASE.toFixed(3)} && d < eps + ${FLAG_NEAR.toFixed(3)} * uH * ${f(BRICK_B / BRICK_N[0])}) { nearCrease = true; tNear = t; }`}
     t += max(d * 0.92, eps * 0.5);
     if (t > t1) { done = true; break; }
   }
@@ -209,31 +225,40 @@ void main() {
   bool creaseHit = hit && level >= 0 && gCrease > ${FLAG_CREASE.toFixed(3)};
   // (a ray that passed near a crease but hit something else further on keeps its brick hit)
   bool flag = uFlagOn == 1 && (hit ? ${FLAG_HITS ? 'creaseHit' : 'false'} : ${FLAG_MISSES ? 'nearCrease' : 'false'});
+${DBG ? `  if (!hit && !flag && dbgGap < 1e8) { fragColor = vec4(clamp(dbgGap / (uH * ${f(BRICK_B / BRICK_N[0])}), 0.0, 1.0), float(dbgN) / 255.0, clamp(dbgCr / 4.0, 0.0, 1.0), dbgLv >= 0 ? 1.0 : 0.5); gl_FragDepth = 0.0; return; }` : ''}
   if (flag) {
     float x = floor(clamp((hit ? t : tNear) / uTMax, 0.0, 1.0) * 16777215.0);
     fragColor = vec4(floor(x / 65536.0), mod(floor(x / 256.0), 256.0), mod(x, 256.0), hit ? 129.0 : 128.0) / 255.0;
     gl_FragDepth = 1.0;
     return;
   }
-  if (!hit) discard;
+  if (!hit) { ${DBG ? "fragColor = vec4(1.0, 0.0, 1.0, 1.0); gl_FragDepth = 0.0; return;" : "discard;"} }
   vec3 p = ro + rd * t;
   vec4 clip = uProjView * vec4(p, 1.0);
   gl_FragDepth = clamp((clip.z / clip.w) * 0.5 + 0.5, 0.0, 1.0);
   if (uFlat != 0) { fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
   vec3 n;
-  if (kind == 1) n = -uClip.xyz;
-  else {
-    // central differences one fine spacing apart
-    vec3 e = vec3(uH * (level == 1 ? ${f(NORMAL_E * BRICK_B / BRICK_N[1])} : ${f(NORMAL_E * BRICK_B / BRICK_N[0])}), 0.0, 0.0);
-    int l2;
-    n = vec3(field(p + e.xyy, l2) - field(p - e.xyy, l2), field(p + e.yxy, l2) - field(p - e.yxy, l2), field(p + e.yyx, l2) - field(p - e.yyx, l2));
+  float ao;
+#if CLIP
+  if (kind == 1) {
+    // the section plane: its normal, occlusion from the coarse field
+    n = -uClip.xyz;
+    float occ = 0.0, sca = 1.0;
+    for (int k = 0; k < 4; k++) { float h = 0.15 + 0.6 * float(k); occ += (h - bakedField(p + n * h)) * sca; sca *= 0.75; }
+    ao = clamp(1.0 - 0.18 * occ, 0.0, 1.0);
+  } else
+#endif
+  {
+    // a clay hit lies in a brick (the band): its baked normal and occlusion at p, one read
+    vec3 g = (p - uO) / uH;
+    vec3 cf = floor(g * ${f(1 / BRICK_B)});
+    vec4 e = texelFetch(uIndS, clamp(ivec3(cf), ivec3(0), uCells - 1), 0);
+    vec3 l = clamp((g - cf * ${BRICK_B.toFixed(1)}) * (e.w * ${f(1 / BRICK_B)}), 0.0, e.w);
+    vec4 G = ${TEX}(uAtlasG, (e.xyz + 0.5 + l) * uInvA${LOD});
+    n = normalize(G.xyz);
+    ao = G.w;
   }
-  n = normalize(n);
   if (dot(n, rd) > 0.0) n = -n;
-  float occ = 0.0, sca = 1.0;
-  int l3;
-  for (int k = 0; k < 4; k++) { float h = 0.15 + 0.6 * float(k); occ += (h - ${AO_FINE ? 'field(p + n * h, l3)' : 'bakedField(p + n * h)'}) * sca; sca *= 0.75; }
-  float ao = clamp(1.0 - 0.18 * occ, 0.0, 1.0);
   vec3 base = kind == 1 ? uCap : uClay;
   vec3 key = normalize(-rd + vec3(0.35, 0.65, 0.2));
   float dif = clamp(dot(n, key), 0.0, 1.0), hemi = 0.55 + 0.45 * n.y;
@@ -342,6 +367,45 @@ void main() {
   fragColor = vec4(v, d2);
 }`;
 
+/** The shading atlas, beside the read atlas: each sample's unit normal (from the values:
+ *  central differences, second-order one-sided at the brick's faces) and its occlusion
+ *  (the settled pass's 4 taps along that normal on the coarse field), so a brick hit shades
+ *  from one filtered read. */
+export const SHADE = /* glsl */ `
+precision highp float;
+precision highp int;
+precision highp sampler3D;
+out vec4 fragColor;
+uniform sampler3D uAtlas;
+uniform sampler3D uTex;
+uniform sampler2D uSlotTab;
+uniform ivec3 uSlots;
+uniform int uS;
+uniform float uZ;
+uniform vec3 uO;
+uniform float uH;
+uniform vec3 uInvN;
+uniform vec3 uNm1;
+float bakedField(vec3 p) { return texture(uTex, (clamp((p - uO) / uH, vec3(0.0), uNm1) + 0.5) * uInvN).r; }
+void main() {
+  ivec3 a = ivec3(ivec2(gl_FragCoord.xy), int(uZ + 0.5));
+  ivec3 sl = a / uS, l = a - sl * uS;
+  int slot = (sl.z * uSlots.y + sl.y) * uSlots.x + sl.x;
+  vec3 cell = texelFetch(uSlotTab, ivec2(slot & 4095, slot >> 12), 0).xyz;
+  vec3 g;
+  for (int k = 0; k < 3; k++) {
+    ivec3 e = ivec3(k == 0, k == 1, k == 2);
+    if (l[k] == 0) g[k] = -1.5 * texelFetch(uAtlas, a, 0).r + 2.0 * texelFetch(uAtlas, a + e, 0).r - 0.5 * texelFetch(uAtlas, a + 2 * e, 0).r;
+    else if (l[k] == uS - 1) g[k] = 1.5 * texelFetch(uAtlas, a, 0).r - 2.0 * texelFetch(uAtlas, a - e, 0).r + 0.5 * texelFetch(uAtlas, a - 2 * e, 0).r;
+    else g[k] = 0.5 * (texelFetch(uAtlas, a + e, 0).r - texelFetch(uAtlas, a - e, 0).r);
+  }
+  vec3 n = length(g) > 0.0 ? normalize(g) : vec3(0.0, 1.0, 0.0);
+  vec3 p = uO + (floor(cell + 0.5) * ${BRICK_B.toFixed(1)} + vec3(l) * (${BRICK_B.toFixed(1)} / float(uS - 1))) * uH;
+  float occ = 0.0, sca = 1.0;
+  for (int k = 0; k < 4; k++) { float h = 0.15 + 0.6 * float(k); occ += (h - bakedField(p + n * h)) * sca; sca *= 0.75; }
+  fragColor = vec4(n, clamp(1.0 - 0.18 * occ, 0.0, 1.0));
+}`;
+
 /** Cone pre-pass: one ray per block of CONE_PX × CONE_PX pixels, with a cone wide enough
  *  to hold the block's rays, marched on the coarse field (one read per step) until the
  *  cone comes within a margin of the surface; every ray of the block starts there. */
@@ -401,7 +465,7 @@ uniform vec2 uViewSize;
 flat out vec4 vRes;
 void main() {
   int k = gl_VertexID, q = k >> 2;
-  ivec2 c = ivec2((q & 127) * 2 + (k & 1), (q >> 7) * 2 + ((k >> 1) & 1));
+  ivec2 c = ivec2((q % ${LIST_W / 2}) * 2 + (k & 1), (q / ${LIST_W / 2}) * 2 + ((k >> 1) & 1));
   vec4 en = texelFetch(uList, c, 0);
   vRes = texelFetch(uRes, c, 0);
   gl_Position = vec4((en.xy + 0.5) / uViewSize * 2.0 - 1.0, 0.0, 1.0);
@@ -434,6 +498,8 @@ export class BrickLevel {
   readonly copyMat: THREE.ShaderMaterial;
   private curvScene = new THREE.Scene();
   private curvMat: THREE.ShaderMaterial;
+  private shadeScene = new THREE.Scene();
+  readonly shadeMat: THREE.ShaderMaterial;
   slotTex: THREE.DataTexture | null = null;
   readonly slots = new Int32Array(3);
   count = 0;
@@ -459,6 +525,16 @@ export class BrickLevel {
       glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: CURV, depthTest: false, depthWrite: false,
       uniforms: { uAtlas: { value: null }, uS: { value: this.S }, uZ: { value: 0 } },
     });
+    this.shadeMat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: SHADE, depthTest: false, depthWrite: false,
+      uniforms: {
+        uAtlas: { value: null }, uTex: { value: null }, uSlotTab: { value: null }, uSlots: { value: this.slots }, uS: { value: this.S }, uZ: { value: 0 },
+        uO: { value: new THREE.Vector3() }, uH: { value: 1 }, uInvN: { value: new THREE.Vector3() }, uNm1: { value: new THREE.Vector3() },
+      },
+    });
+    const gm = new THREE.Mesh(tri(), this.shadeMat);
+    gm.frustumCulled = false;
+    this.shadeScene.add(gm);
     const vm = new THREE.Mesh(tri(), this.curvMat);
     vm.frustumCulled = false;
     this.curvScene.add(vm);
@@ -541,10 +617,14 @@ export class BrickLevel {
   get copyTarget() { return APRON_COPY ? this.atlas : null; }
   /** Rows [r0, r0 + n) of this level's part of the read atlas (from layer zOff on): its
    *  values and second differences. */
-  curv(renderer: THREE.WebGLRenderer, read: THREE.WebGL3DRenderTarget, zOff: number, r0: number, n: number) {
+  curv(renderer: THREE.WebGLRenderer, read: THREE.WebGL3DRenderTarget, zOff: number, r0: number, n: number, shadeT: THREE.WebGL3DRenderTarget | null = null) {
     const u = this.curvMat.uniforms;
     u.uAtlas.value = this.atlas!.texture;
     drawRows(renderer, read, this.curvScene, this.cam, (z) => { u.uZ.value = z; }, r0, n, zOff, this.atlas!.height);
+    if (!shadeT) return;
+    const g = this.shadeMat.uniforms;
+    g.uAtlas.value = this.atlas!.texture; g.uSlotTab.value = this.slotTex;
+    drawRows(renderer, shadeT, this.shadeScene, this.cam, (z) => { g.uZ.value = z; }, r0, n, zOff, this.atlas!.height);
   }
 
   copy(renderer: THREE.WebGLRenderer, level: number, levels: BrickLevel[], ind: THREE.Data3DTexture, cells: Int32Array, r0: number, n: number) {

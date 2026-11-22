@@ -787,8 +787,13 @@ void main() {
 #define USE_START useStart
 #define PAST_WINDOW true
 #else
+#ifdef SDF_LIST
+#define USE_START true
+#define PAST_WINDOW true
+#else
 #define USE_START (uStartOn == 1)
 #define PAST_WINDOW (uStartOn == 1)
+#endif
 #endif
   if (uStartOn == 1) {
 #ifdef SDF_DIRTY
@@ -862,7 +867,9 @@ void main() {
   bool hit = false;
   // nothing near this ray: it can't hit (the cost view still reports the pixel)
   if (marchMask == uvec4(0u) && uObjCount <= 128) {
+#ifndef SDF_LIST
     if (uFlat == 2) { pc_fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+#endif
     discard;
   }
   // every surface lies inside the boxes the ray crosses: march only that stretch
@@ -874,6 +881,10 @@ void main() {
   // phase 0: marching (step i); 1-3: normal taps (forward differences from d at p);
   // 5-8: occlusion taps
   int phase = 0, i = 0, kind = 0;
+#if defined(SDF_LIST) && LIST_CREEP
+  bool creep = false; // (a near-miss marching on alongside a face past its window)
+  int nCreep = 0; // (steps the window spent creeping: within 8 eps of a surface)
+#endif
   vec3 p = vec3(0.0), n = vec3(0.0);
   float ne = 0.0, occ = 0.0, sca = 1.0;
   for (int it = min(uGroupCount, 0); it < 216; it++) {
@@ -886,7 +897,14 @@ void main() {
       d = m;
       eps = clamp((uPixelAngle * t + uPixelSize) * 0.35, 0.0008, 0.008);
       bool done = false;
+#if defined(SDF_LIST) && LIST_CREEP
+      if (d < 8.0 * eps) nCreep++;
+#endif
       if (d < eps) hit = true;
+#if defined(SDF_LIST) && LIST_CREEP
+      // (it left the face: the bricks saw nothing further)
+      else if (creep && d >= 8.0 * eps) done = true;
+#endif
       else {
         t += max(d * 0.92, eps * 0.5);
         if (t > t1) {
@@ -894,9 +912,19 @@ void main() {
           // that grazes an edge the bake rounded over): the rest of the ray, with its objects
 #ifdef SDF_LIST
           // (a listed pixel whose bricks saw nothing past this window: done)
+#if LIST_CREEP
+          // (or a ray creeping alongside a face at the window's end: on, as the full march would)
+          if ((en.w > 1.5 || (d < 8.0 * eps && nCreep >= LIST_CREEP_N)) && t1 < t1Full) {
+#else
           if (en.w > 1.5 && t1 < t1Full) {
+#endif
 #else
           if (PAST_WINDOW && t1 < t1Full) {
+#endif
+#if defined(SDF_LIST) && LIST_CREEP
+            // (the full march would have spent steps before the window: count them as spent)
+            i = max(i, LIST_CREEP);
+            creep = en.w < 1.5;
 #endif
             vec2 sp2; uint c2;
             gMask = rayMask(ro, rd, t, t1Full, nReach, sp2, c2);
@@ -929,7 +957,9 @@ void main() {
       }
 #endif
       // cost view: map() calls and object evaluations for this pixel, no shading
+#ifndef SDF_LIST
       if (uFlat == 2 && !hit) { pc_fragColor = vec4(float(min(gMapN, 255)) / 255.0, float(min(gObjN >> 8, 255)) / 255.0, float(gObjN & 255) / 255.0, 1.0); return; }
+#endif
       if (!hit) discard;
       p = ro + rd * t;
       vec4 clip = uProjView * vec4(p, 1.0);
@@ -949,7 +979,9 @@ void main() {
       if (phase < 5) continue;
       n = normalize(n);
       if (dot(n, rd) > 0.0) n = -n;
+#ifndef SDF_LIST
       if (uPass != 0) break;
+#endif
       // with a baked field, occlusion comes from it (below)
       if (USE_START) break;
       // occlusion: the wider mask, and the clay only (not the section plane)
@@ -957,13 +989,16 @@ void main() {
       gClu = gAOClu;
       gNoClip = true;
       phase = 5;
+#ifndef SDF_LIST
     } else {
       float h = 0.15 + 0.6 * float(phase - 5);
       occ += (h - m) * sca; sca *= 0.75;
       phase++;
       if (phase == 9) break;
+#endif
     }
   }
+#ifndef SDF_LIST
   if (uPass == 1) {
     float z = dot(p - uCamPos, uCamDir);
     float v = 1.0 - clamp((z - uDepthRange.x) / max(uDepthRange.y - uDepthRange.x, 1e-4), 0.0, 1.0);
@@ -971,6 +1006,7 @@ void main() {
     return;
   }
   if (uPass == 2) { pc_fragColor = vec4(normalize(uViewRot * n) * 0.5 + 0.5, 1.0); return; }
+#endif
   vec3 base = kind == 1 ? uCap : uClay;
   vec3 key = normalize(-rd + vec3(0.35, 0.65, 0.2));
   float dif = clamp(dot(n, key), 0.0, 1.0);
@@ -982,7 +1018,9 @@ void main() {
   vec3 col = base * (0.38 + 0.22 * hemi + 0.62 * dif) * (0.55 + 0.45 * ao);
   col += 0.06 * pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 3.0);
   pc_fragColor = vec4(pow(col, vec3(1.0 / 1.15)), 1.0);
+#ifndef SDF_LIST
   if (uFlat == 2) pc_fragColor = vec4(float(min(gMapN, 255)) / 255.0, float(min(gObjN >> 8, 255)) / 255.0, float(gObjN & 255) / 255.0, 1.0);
+#endif
 #ifdef SDF_LIST
   // the colour as 8-bit channels packed in one float, the depth, hit
   vec3 c8 = floor(clamp(pc_fragColor.rgb, 0.0, 1.0) * 255.0 + 0.5);
