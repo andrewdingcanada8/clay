@@ -365,5 +365,15 @@
   "result": "Drag frames: composite 427 -> 117 ms (6.2x vs the 725 ms exact drag frame), sweeps-64 886 -> 188, pieces-4 388 -> 34, csg 269 -> 74, blend 287 -> 107, custom 668 -> 301. Edit-frame quality within gate (worst diff 0.36%, IoU 0.9989 vs exact). Still and orbit images identical; still composite 55 ms (103x).",
   "verdict": "kept",
   "commit": "646a92c"
+ },
+ {
+  "id": 38,
+  "t": 1795373697654,
+  "title": "Bake lineage: two-level coarse field + incremental re-bake (time to sharp)",
+  "hyp": "Re-bake only the changed region after a local edit; map() only near the surface in the coarse bake",
+  "change": "Half-resolution coarse field then band tiles; incremental coarse/brick/copy/curvature/shading over changed slots",
+  "result": "Agent's six scenes: full bake -19..27%, incremental re-bake 5-9x, images unchanged. Full 14-scene suite on the merge: grazing 67% diff (34k missed), sweeps-16/32/64 8-18% - scenes opened after another reuse the previous field. Reverted (f29651a); agent fixing with full-suite verification.",
+  "verdict": "rejected",
+  "commit": "f29651a"
  }
 ]

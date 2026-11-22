@@ -66,6 +66,8 @@ Updated: 2026-11-22 (device fix 3 published)
 ## 20:45 UTC: bake lineage merged (7f0c035), tests 546 pass, pushed. Agent: full bake -19..27%; incremental re-bake after a local edit 5-9x (composite 6.1 -> 1.1 s).
 - Running: bench job full-bake on bench/perf/ref/dist-bake-merged. Then log, publish Clay Preview + dashboard.
 
+## 21:40 UTC: bake lineage REVERTED (f29651a): full suite broke grazing (67% diff) and sweeps-16/32/64 (consecutive scenes reuse the previous field). Agent asked to fix and verify on the full suite. Clay Preview stays on dist-edit2-merged (v10).
+
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.

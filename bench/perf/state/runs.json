@@ -235,5 +235,11 @@
   "label": "editing lineage 2 merged (full suite)",
   "kept": true,
   "note": "still 55 ms (103x); drag 117 ms (6.2x vs exact drag frame)"
+ },
+ {
+  "dir": "2026-11-22T18-49-10-122Z-full-bake",
+  "label": "bake lineage merged (full suite)",
+  "kept": false,
+  "note": "incremental bake breaks consecutive scenes: grazing 67% diff, sweeps-16/32/64 8-18%"
  }
 ]
