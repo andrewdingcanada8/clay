@@ -56,6 +56,9 @@ Updated: 2026-11-22 (device fix 3 published)
 
 - Editing agent launched (branch claude/sdf-perf-edit2, journal JOURNAL-edit2.md in its worktree): msEdit 3-5x target.
 
+## 18:50 UTC: editing lineage 2 merged (c9657fa), tests 468 pass, pushed. Agent msEdit: composite 400->120, sweeps-64 857->187, pieces-4 388->32, csg 257->72, blend 287->112, custom 667->301.
+- Running: bench job full-edit2 on bench/perf/ref/dist-edit2-merged. Then log, publish Clay Preview + dashboard.
+
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.
