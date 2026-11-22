@@ -345,5 +345,15 @@
   "result": "Still: composite 923 -> 98 ms (57.9x baseline), all scenes 73-149 ms except grazing 500. Images strict on 13/14; grazing passes the loose floor only (IoU 0.9983, aa 0.10%). Orbit unchanged; editing unchanged; bake ~2x (composite 4.3 -> 9.0 s headless).",
   "verdict": "kept",
   "commit": "ebba7b3"
+ },
+ {
+  "id": 36,
+  "t": 1795365334221,
+  "title": "Merge the refine lineage: still frame ~100x (regime: still)",
+  "hyp": "Fewer and cheaper exact pixels after the brick pass",
+  "change": "Narrow (32-wide) exact list for SwiftShader thread coherence; dead shader code compiled out by defines; baked per-brick normal + occlusion (one read per hit); listed rays still creeping at window end keep marching (grazing rims)",
+  "result": "Composite 98 -> 57 ms (24-frame decisive run; 52-60 across runs) = 99.5x baseline. Full suite: 47-125 ms except grazing 309. IoU strict on all 14; diff strict on 13/14 (grazing 2.35%, aa 0.36%). Orbit and editing unchanged; bake slightly longer, brick memory ~2x.",
+  "verdict": "kept",
+  "commit": "d91302e"
  }
 ]

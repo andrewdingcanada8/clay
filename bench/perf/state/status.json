@@ -1,16 +1,15 @@
 {
- "text": "Still frame 57.9x the baseline (5.67 s -> 98 ms headless, composite) after merging the bricks lineage; strict images on 13/14 scenes (grazing passes the loose floor). Orbit ~45 ms; real drag frames 1.75-2.2x faster (editing lineage); bake after an edit ~2x longer (composite 9 s headless). iPhone: earlier build 18 ms still; new build awaiting a phone run.",
+ "text": "Still frame ~100x the baseline (composite 5.67 s -> 57 ms headless; 52-60 ms across runs). IoU strict on all 14 scenes, pixel diff strict on 13 (grazing 2.35%). Orbit ~45 ms (~34x); real drag frames 1.75-2.2x; bake after edit ~9 s headless (2x). Awaiting an iPhone run of the new build.",
  "noise": "Noise: 5 baseline runs of the composite scene, 5552\u20135777 ms (\u03c3 \u2248 1.5%). A change must beat the incumbent by > 3% and hold on a confirmation run.",
  "now": {
-  "current": "Refine agent: composite still frame toward 57 ms (100x) at strict gates; grazing strict",
-  "agents": [
-   "Refine lineage: cheaper exact refinement of flagged pixels / fewer flags; grazing thin rims"
-  ],
+  "current": "Still frame at ~100x. Next regime: editing (drag frames), then bake time",
+  "agents": [],
   "queue": [
    "User iPhone run on Clay Preview (benchmark scene + 4 jugs)",
-   "Editing: whole-body reshapes",
-   "Bake after edit: shrink"
+   "Editing: drag frames 1.75-2.2x; whole-body reshape ~1x",
+   "Bake after an edit: ~9 s headless (time to sharp)",
+   "Grazing strict pixel diff"
   ],
-  "updated": 1795337798159
+  "updated": 1795365334263
  }
 }

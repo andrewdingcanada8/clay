@@ -52,6 +52,8 @@ Updated: 2026-11-22 (device fix 3 published)
 ## 16:00 UTC: refine lineage merged (d7b2b7b), pushed. Agent: composite 52 ms (109x), IoU>=0.999 on six scenes, grazing diff 2.35% (aa 0.36%).
 - Running: bench job full-refine on bench/perf/ref/dist-refine-merged (confirmation, all 14). Then log kept, publish Clay Preview + dashboard.
 
+## 16:45 UTC: refine confirmed: composite 57 ms (99.5x, 52-60 across runs); IoU strict all 14; grazing diff 2.35%. Clay Preview v9 = bench/perf/ref/dist-refine-merged. Still-frame target reached -> next regime: editing.
+
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.

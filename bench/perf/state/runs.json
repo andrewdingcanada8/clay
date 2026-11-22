@@ -217,5 +217,17 @@
   "label": "bricks lineage merged (full suite)",
   "kept": true,
   "note": "composite 98 ms settled (57.9x); strict 13/14, grazing loose (IoU 0.9983)"
+ },
+ {
+  "dir": "2026-11-22T16-27-14-911Z-full-refine",
+  "label": "refine lineage merged (full suite)",
+  "kept": true,
+  "note": "composite 60 ms (94.5x); IoU strict on all 14"
+ },
+ {
+  "dir": "2026-11-22T16-34-45-991Z-refine-decide",
+  "label": "refine: decisive composite (24 frames)",
+  "kept": true,
+  "note": "composite 57 ms = 99.5x"
  }
 ]
