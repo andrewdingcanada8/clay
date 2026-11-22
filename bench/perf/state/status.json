@@ -2,15 +2,15 @@
  "text": "Still frame 8.7\u00d7 the baseline headless (5.67 \u2192 0.65 s); on the user's iPhone the composite scene settles in 18 ms, orbits in 1\u20132 ms and bakes in 109 ms. Strict image gate fails on 4 scenes (sharp creases, thin rims) since earlier kept steps: being repaired first. The 4-jug piece crashed the iPhone right after its field changed at rest; fixes are live in Clay Preview, awaiting a rerun. Editing (drag frames) is now measured: about as slow as a still frame, since the bake can't help mid-drag.",
  "noise": "Noise: 5 baseline runs of the composite scene, 5552\u20135777 ms (\u03c3 \u2248 1.5%). A change must beat the incumbent by > 3% and hold on a confirmation run.",
  "now": {
-  "current": "Pivot proposed: cache-then-draw (bricks) as the main line; awaiting user",
+  "current": "Editing lineage merged (drag frames ~2x); bricks agent on the exact refinement pass",
   "agents": [
-   "Bricks lineage: exact refinement pass for flagged pixels (strict on all scenes), then bake size",
-   "Editing lineage: stale-bake reuse mid-drag"
+   "Bricks lineage: exact refinement of flagged pixels (strict on all 14), then bake size and pacing"
   ],
   "queue": [
-   "Merge bricks once strict on all scenes; full suite in all three regimes; Clay Preview + iPhone rerun",
-   "Optional: mesh from the cache for the phone"
+   "Merge bricks once strict on all scenes; full suite in all three regimes",
+   "Make benchEdit move an object (honest drag numbers; announced harness change)",
+   "Awaiting user: pivot confirmation; baseline build for an iPhone baseline"
   ],
-  "updated": 1795315648794
+  "updated": 1795316048691
  }
 }
