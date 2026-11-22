@@ -117,6 +117,7 @@ export class Viewport {
   private startRT: THREE.WebGLRenderTarget | null = null;
   private startLowRT: THREE.WebGLRenderTarget | null = null;
   private startFloatRT: THREE.WebGLRenderTarget | null = null;
+  private startRect: [number, number, number, number] | null = null;
   private stateShift = 0;
   /** rows per ms a band took last (learned; 0 until measured) */
   private rowRate = 0;
@@ -644,9 +645,13 @@ export class Viewport {
       // the stale bricks' settled image, then the rays through changed boxes exactly over it
       this.drawBricks(t);
       this.stateShift = Number.isFinite(dirty.shift) ? dirty.shift : 0;
+      // (only where the changed boxes can show)
+      const rect = FieldBake.dirtyRect(this.camera, t.width, t.height, dirty);
+      this.startRect = rect;
       const start = this.startDepths(t.width, t.height, true, true);
+      this.startRect = null;
       this.stateShift = 0;
-      this.bake.dirtyPass(this.renderer, this.camera, t, start!, dirty);
+      this.bake.dirtyPass(this.renderer, this.camera, t, start!, dirty, rect);
       return;
     }
     this.sdf.setDirty(dirty);
@@ -670,7 +675,10 @@ export class Viewport {
       rt.texture.minFilter = rt.texture.magFilter = THREE.NearestFilter;
       this[key] = rt;
     }
+    const r = this.startRect;
+    if (r) { rt.scissor.set(r[0], r[1], Math.max(0, r[2] - r[0]), Math.max(0, r[3] - r[1])); rt.scissorTest = true; }
     this.drawMarch(rt, 1);
+    rt.scissorTest = false;
     return rt;
   }
 

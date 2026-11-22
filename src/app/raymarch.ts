@@ -893,9 +893,9 @@ void main() {
   // nothing near this ray: it can't hit (the cost view still reports the pixel)
   if (marchMask == uvec4(0u) && uObjCount <= 128) {
 #ifdef DIRTY_ONLY
-    // (how near: no object within DIRTY_NR pixels of the ray either, or unknown)
+    // (how near: no object within DIRTY_NR (shader) pixels of the ray either, or unknown)
     vec2 sp4; uint c4;
-    pc_fragColor = vec4(0.0, 1.0, 0.0, rayMask(ro, rd, t, t1, float(DIRTY_NR) * nReach, sp4, c4) == uvec4(0u) ? 1e9 : 0.5);
+    pc_fragColor = vec4(0.0, 1.0, 0.0, rayMask(ro, rd, t, t1, float(DIRTY_NR) * nReach, sp4, c4) == uvec4(0u) ? float(DIRTY_NR) : 0.5);
     return;
 #endif
 #ifndef SDF_LIST
@@ -975,7 +975,11 @@ void main() {
         }
       }
       i++;
+#ifdef DIRTY_ONLY
+      if (!hit && !done && i < DIRTY_STEPS) continue;
+#else
       if (!hit && !done && i < 200) continue;
+#endif
       // A ray running just alongside a flat face (seen edge-on) creeps along it in
       // tiny steps and can use up its steps before touching it: it is a hit.
       if (!hit && !done && d < 8.0 * eps) hit = true;

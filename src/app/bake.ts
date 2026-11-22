@@ -26,10 +26,12 @@ const SHOW_FLAGS = typeof location !== 'undefined' && new URLSearchParams(locati
 /** Mid-drag exact pixels take their occlusion from the stale bake (1) or exactly (0). */
 const DIRTY_AO = +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('dao') || 1);
 /** Mid-drag exact pixels at half resolution first, the rest from their means where smooth (colour spread, relative depth spread). */
-const DIRTY_HALF = +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('dh') || 1);
+const DIRTY_LEVELS = Math.max(1, +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('dl') || 3));
 const DIRTY_CT = +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('dct') || 12);
+const DIRTY_CT1 = +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('dct1') || 12);
+const DIRTY_STEPS = +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('dst') || 200);
 const DIRTY_DT = +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('ddt') || 0.03);
-const DIRTY_NR = +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('dnr') || 3);
+const DIRTY_NR = +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('dnr') || 1.5);
 const DEBUG_TIMES = typeof location !== 'undefined' && new URLSearchParams(location.search).get('rt') === '1';
 /** The first batch, before the pace is known: this many rows of voxels. */
 const FIRST_ROWS = 8;
@@ -211,6 +213,7 @@ export class FieldBake {
   private dMark: Uint8Array | null = null;
   private dSE: Float32Array | null = null;
   private dIdx: Int32Array | null = null;
+  private dRes: Float32Array | null = null;
   private resBuf = new Float32Array(4);
   private mixList: THREE.DataTexture | null = null;
   private mixRes: THREE.DataTexture | null = null;
@@ -304,7 +307,7 @@ export class FieldBake {
     // mid-drag: the pixels whose rays meet a changed box, exactly (dirtyPass)
     const dm = new THREE.Mesh(tri(), new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: FRAG, uniforms: sdf.material.uniforms,
-      defines: { SDF_DIRTY: 1, DIRTY_ONLY: 1, DIRTY_AO, DIRTY_NR }, depthTest: false, depthWrite: false,
+      defines: { SDF_DIRTY: 1, DIRTY_ONLY: 1, DIRTY_AO, DIRTY_NR: 24, DIRTY_STEPS }, depthTest: false, depthWrite: false,
     }));
     dm.frustumCulled = false;
     dm.onBeforeRender = (r, s, c, g, mat, grp) => sdf.mesh.onBeforeRender(r, s, c, g, mat, grp);
@@ -446,146 +449,178 @@ export class FieldBake {
    * st: the stale start pass at t's size (float: ts, tS, closest approach, where).
    * Returns the number of pixels resolved.
    */
-  dirtyPass(renderer: THREE.WebGLRenderer, camera: THREE.Camera, t: THREE.WebGLRenderTarget, st: THREE.WebGLRenderTarget, d: NonNullable<ReturnType<SdfRenderer['dirtyBoxes']>>) {
+  dirtyPass(renderer: THREE.WebGLRenderer, camera: THREE.Camera, t: THREE.WebGLRenderTarget, st: THREE.WebGLRenderTarget, d: NonNullable<ReturnType<SdfRenderer['dirtyBoxes']>>, rect: [number, number, number, number]) {
     const W = t.width, H = t.height, h = this.h, back = 0.5 * h;
-    if (this.dirtyBuf.length !== W * H * 4) this.dirtyBuf = new Float32Array(W * H * 4);
+    if (this.dirtyBuf.length < W * H * 4) this.dirtyBuf = new Float32Array(W * H * 4);
     const S = this.dirtyBuf;
     const T0 = performance.now();
-    renderer.readRenderTargetPixels(st, 0, 0, W, H, S);
-    const T1 = performance.now();
-    const shiftOn = Number.isFinite(d.shift) && d.shift > 0;
-    const pa = this.sdf.material.uniforms.uPixelAngle.value as number, ps = this.sdf.material.uniforms.uPixelSize.value as number;
-    const boxes = [...d.full, ...d.cavity];
-    const M = (this.sdf.material.uniforms.uInvProjView.value as THREE.Matrix4).elements;
-    // (the ray through a pixel centre as the shader makes it: near and far points)
-    const pt = (x: number, y: number, z: number, o: number[]) => {
-      const w = M[3] * x + M[7] * y + M[11] * z + M[15];
-      o[0] = (M[0] * x + M[4] * y + M[8] * z + M[12]) / w; o[1] = (M[1] * x + M[5] * y + M[9] * z + M[13]) / w; o[2] = (M[2] * x + M[6] * y + M[10] * z + M[14]) / w;
-    };
-    const a = [0, 0, 0], b = [0, 0, 0];
+    const [rx0, ry0, rx1, ry1] = rect, rw = rx1 - rx0, rh = ry1 - ry0;
     const N = W * H;
     if (!this.dMark || this.dMark.length !== N) { this.dMark = new Uint8Array(N); this.dSE = new Float32Array(2 * N); this.dIdx = new Int32Array(N); }
     const mark = this.dMark, se = this.dSE!;
     mark.fill(0);
     let nd = 0;
-    const put = (x: number, y: number, s0: number, s1: number) => { const i = y * W + x; mark[i] = 1; se[2 * i] = s0; se[2 * i + 1] = s1; nd++; };
-    for (let y = 0; y < H; y++) {
+    if (rw > 0 && rh > 0) renderer.readRenderTargetPixels(st, rx0, ry0, rw, rh, S);
+    const T1 = performance.now();
+    const shiftOn = Number.isFinite(d.shift) && d.shift > 0;
+    const pa = this.sdf.material.uniforms.uPixelAngle.value as number, ps = this.sdf.material.uniforms.uPixelSize.value as number;
+    const boxes = [...d.full, ...d.cavity], nb = boxes.length;
+    const bl = new Float64Array(6 * nb);
+    boxes.forEach((B, k) => { for (let c = 0; c < 3; c++) { bl[6 * k + c] = B.min[c]; bl[6 * k + 3 + c] = B.max[c]; } });
+    const M = (this.sdf.material.uniforms.uInvProjView.value as THREE.Matrix4).elements;
+    // (the ray through a pixel centre as the shader makes it: near and far points)
+    const a = [0, 0, 0], b = [0, 0, 0];
+    const pt = (x: number, y: number, z: number, o: number[]) => {
+      const w = M[3] * x + M[7] * y + M[11] * z + M[15];
+      o[0] = (M[0] * x + M[4] * y + M[8] * z + M[12]) / w; o[1] = (M[1] * x + M[5] * y + M[9] * z + M[13]) / w; o[2] = (M[2] * x + M[6] * y + M[10] * z + M[14]) / w;
+    };
+    const put = (i: number, s0: number, s1: number) => { mark[i] = 1; se[2 * i] = s0; se[2 * i + 1] = s1; nd++; };
+    for (let y = ry0; y < ry1; y++) {
       const ny = ((y + 0.5) / H) * 2 - 1;
-      for (let x = 0; x < W; x++) {
+      for (let x = rx0; x < rx1; x++) {
         const nx = ((x + 0.5) / W) * 2 - 1;
         pt(nx, ny, -1, a); pt(nx, ny, 1, b);
         let dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
-        const l = Math.hypot(dx, dy, dz); dx /= l; dy /= l; dz /= l;
+        const l = Math.hypot(dx, dy, dz);
+        const ix = l / dx, iy = l / dy, iz = l / dz;
         let tD = 1e9, tDx = -1e9;
-        for (const B of boxes) {
-          let lo = 0, hi = 1e9;
-          const o = [a[0], a[1], a[2]], r = [dx, dy, dz];
-          for (let c = 0; c < 3 && lo <= hi; c++) {
-            const inv = 1 / r[c], p = (B.min[c] - o[c]) * inv, q = (B.max[c] - o[c]) * inv;
-            lo = Math.max(lo, Math.min(p, q)); hi = Math.min(hi, Math.max(p, q));
-          }
-          if (lo <= hi) { tD = Math.min(tD, lo); tDx = Math.max(tDx, hi); }
+        for (let k = 0; k < nb; k++) {
+          const o = 6 * k;
+          let p = (bl[o] - a[0]) * ix, q = (bl[o + 3] - a[0]) * ix;
+          let lo = Math.max(0, Math.min(p, q)), hi = Math.min(1e9, Math.max(p, q));
+          p = (bl[o + 1] - a[1]) * iy; q = (bl[o + 4] - a[1]) * iy;
+          lo = Math.max(lo, Math.min(p, q)); hi = Math.min(hi, Math.max(p, q));
+          p = (bl[o + 2] - a[2]) * iz; q = (bl[o + 5] - a[2]) * iz;
+          lo = Math.max(lo, Math.min(p, q)); hi = Math.min(hi, Math.max(p, q));
+          if (lo <= hi) { if (lo < tD) tD = lo; if (hi > tDx) tDx = hi; }
         }
         if (tD > 1e8) continue;
-        const i = (y * W + x) * 4, ts = S[i], tS = S[i + 1];
+        const i = ((y - ry0) * rw + (x - rx0)) * 4, ts = S[i], tS = S[i + 1], pi = y * W + x;
         if (ts >= 0 && ts + 3 * h < tD) continue;
         if (ts < -1.5) { tD = Math.min(tD, tS >= 0 ? tS : 0); tDx = 1e9; }
         const shiftOk = shiftOn && tS > -2.5;
         // (the shifted field never came near: a miss; how near in pixels, from the stale march's closest approach)
-        if (shiftOk && ts === -1 && tS < 0) { put(x, y, -Math.max(1e-3, (S[i + 2] - d.shift - h) / (pa * Math.max(S[i + 3], 0) + ps + 1e-6)), -1); continue; }
+        if (shiftOk && ts === -1 && tS < 0) { put(pi, -Math.max(1e-3, (S[i + 2] - d.shift - h) / (pa * Math.max(S[i + 3], 0) + ps + 1e-6)), -1); continue; }
         let t0 = (ts >= 0 ? Math.min(ts, tD) : tD) - back;
         if (shiftOk && tS >= 0) t0 = Math.max(t0, tS - back);
-        put(x, y, Math.max(t0, 0), ts < -1.5 ? 1e9 : Math.max(tDx, ts) + 3 * h);
+        put(pi, Math.max(t0, 0), ts < -1.5 ? 1e9 : Math.max(tDx, ts) + 3 * h);
       }
     }
     const T2 = performance.now();
     this.lastDirty = { n: nd, readMs: T1 - T0, listMs: T2 - T1, exactMs: 0, nA: 0, nI: 0, nB: 0 };
     (window as unknown as { __dirty: unknown }).__dirty = this.lastDirty;
     if (!nd) return 0;
-    const idx = this.dIdx!;
-    // Half resolution first: the pixels at even (x, y) exactly; a pixel between such samples
-    // that all hit with nearly the same colour and depth takes their mean; the rest exactly.
-    const fill = (L: Float32Array, k: number, i: number) => { const o = FieldBake.slot(k); L[o] = i % W; L[o + 1] = (i / W) | 0; L[o + 2] = se[2 * i]; L[o + 3] = se[2 * i + 1]; };
-    let nA = 0;
-    if (DIRTY_HALF) {
-      for (let i = 0; i < N; i++) if (mark[i] && !(i % W & 1) && !(((i / W) | 0) & 1)) nA++;
-      const LA = this.listFor(nA);
-      let k = 0;
-      idx.fill(-1);
-      for (let i = 0; i < N; i++) if (mark[i] && !(i % W & 1) && !(((i / W) | 0) & 1)) { fill(LA, k, i); idx[i] = k++; }
-    }
-    let nB = 0, nI = 0;
-    if (nA) {
-      this.runList(renderer, camera, t, nA, this.dirtyListScene, false);
+    // Coarse to fine: the pixels on a grid of spacing 2^(levels-1) exactly; then each finer
+    // grid's new pixels take the mean of the 2 or 4 resolved pixels around them where those
+    // agree (all hit with nearly the same colour and depth, or all missed far from any
+    // surface), the rest exactly; once per level, so a level's means can stand on the last.
+    if (!this.dRes || this.dRes.length !== 4 * N) this.dRes = new Float32Array(4 * N);
+    const res = this.dRes, state = this.dIdx!; // state: 1 resolved, 0 not
+    state.fill(0);
+    const cam = camera as THREE.PerspectiveCamera, near = cam.near, far = cam.far;
+    // (misses report how near they came in the shader's pixel units, uPixelAngle * t + uPixelSize:
+    // to this frame's pixels; a pixel's ray between samples sp pixels apart is within sp·√2 of one)
+    const toPx = cam.isPerspectiveCamera ? pa / ((2 * Math.tan((cam.fov * Math.PI) / 360)) / (cam.zoom * H)) : 0.5;
+    const lin = (z: number) => (2 * near * far) / (far + near - (2 * z - 1) * (far - near));
+    const exact: number[] = [];
+    let nA = 0, nB = 0, nI = 0;
+    const why = [0, 0, 0, 0, 0, 0], passes: number[] = [];
+    Object.assign(this.lastDirty, { why, passes });
+    const runExact = () => {
+      const n = exact.length;
+      if (!n) return;
+      const tp = performance.now();
+      const L = this.listFor(n);
+      for (let k = 0; k < n; k++) { const i = exact[k], o = FieldBake.slot(k); L[o] = i % W; L[o + 1] = (i / W) | 0; L[o + 2] = se[2 * i]; L[o + 3] = se[2 * i + 1]; }
+      this.runList(renderer, camera, t, n, this.dirtyListScene, false);
       const rows = this.listTex!.image.height;
       if (this.resBuf.length < LIST_W * rows * 4) this.resBuf = new Float32Array(LIST_W * rows * 4);
       const R = this.resBuf;
       renderer.readRenderTargetPixels(this.listRT!, 0, 0, LIST_W, rows, R);
-      // the samples and the means: coordinates and results side by side, scattered at once
-      const cam = camera as THREE.PerspectiveCamera, near = cam.near, far = cam.far;
-      const lin = (z: number) => (2 * near * far) / (far + near - (2 * z - 1) * (far - near));
-      const nMax = nd;
-      if (!this.mixList || this.mixList.image.height < 2 * Math.ceil(nMax / (2 * LIST_W))) {
-        const rows2 = 2 * Math.ceil(nMax / (2 * LIST_W));
-        this.mixList?.dispose(); this.mixRes?.dispose();
-        this.mixList = new THREE.DataTexture(new Float32Array(LIST_W * rows2 * 4), LIST_W, rows2, THREE.RGBAFormat, THREE.FloatType);
-        this.mixRes = new THREE.DataTexture(new Float32Array(LIST_W * rows2 * 4), LIST_W, rows2, THREE.RGBAFormat, THREE.FloatType);
-        for (const tx of [this.mixList, this.mixRes]) { tx.minFilter = tx.magFilter = THREE.NearestFilter; }
-      }
-      const ML = this.mixList.image.data as Float32Array, MR = this.mixRes!.image.data as Float32Array;
-      let m = 0;
-      const emit = (i: number, v: number, z: number, hit: number) => { const o = FieldBake.slot(m++); ML[o] = i % W; ML[o + 1] = (i / W) | 0; MR[o] = v; MR[o + 1] = z; MR[o + 2] = hit; };
-      for (let i = 0; i < N; i++) if (idx[i] >= 0) { const o = FieldBake.slot(idx[i]); emit(i, R[o], R[o + 1], R[o + 2]); }
-      const corners: number[] = [];
-      const why = [0, 0, 0, 0, 0, 0];
-      (this.lastDirty as unknown as { why: number[] }).why = why;
-      for (let i = 0; i < N; i++) {
-        if (!mark[i] || idx[i] >= 0) continue;
-        const x = i % W, y = (i / W) | 0;
+      for (let k = 0; k < n; k++) { const i = exact[k], o = FieldBake.slot(k); for (let c = 0; c < 4; c++) res[4 * i + c] = R[o + c]; state[i] = 1; }
+      passes.push(n, Math.round(performance.now() - tp));
+      exact.length = 0;
+    };
+    const corners: number[] = [];
+    for (let lv = DIRTY_LEVELS - 1; lv >= 0; lv--) {
+      const sp = 1 << lv, S2 = sp * 2, top = lv === DIRTY_LEVELS - 1;
+      for (let y = 0; y < H; y += sp) for (let x = 0; x < W; x += sp) {
+        const i = y * W + x;
+        if (!mark[i] || state[i]) continue;
+        if (top) { exact.push(i); nA++; continue; }
         corners.length = 0;
         let ok = true;
-        for (const yy of y & 1 ? [y - 1, y + 1] : [y]) for (const xx of x & 1 ? [x - 1, x + 1] : [x]) {
-          if (xx >= W || yy >= H) { ok = false; continue; }
+        for (const yy of y % S2 ? [y - sp, y + sp] : [y]) for (const xx of x % S2 ? [x - sp, x + sp] : [x]) {
           const j = yy * W + xx;
-          if (idx[j] < 0) { ok = false; continue; }
-          const o = FieldBake.slot(idx[j]);
-          corners.push(o);
+          if (xx >= W || yy >= H || !mark[j] || !state[j]) { ok = false; break; }
+          corners.push(4 * j);
         }
-        // every sample a miss that came no nearer than DIRTY_NR pixels to a surface: a miss
-        if (ok && corners.every((o) => R[o + 2] < 0.5 && R[o + 3] >= DIRTY_NR)) { emit(i, 0, 1, 0); nI++; continue; }
-        if (!ok) why[0]++;
-        else if (corners.every((o) => R[o + 2] < 0.5)) why[corners.some((o) => R[o + 3] === 0) ? 1 : 2]++;
-        else if (corners.some((o) => R[o + 2] < 0.5)) why[3]++;
-        if (ok && corners.some((o) => R[o + 2] < 0.5)) ok = false;
         if (ok) {
-          let rl = 255, rh = 0, gl = 255, gh = 0, bl = 255, bh = 0, zl = 1e30, zh = 0, rs = 0, gs = 0, bs = 0, zs = 0;
-          for (const o of corners) {
-            const v = R[o], r = v % 256, g = Math.floor(v / 256) % 256, bb = Math.floor(v / 65536), z = lin(R[o + 1]);
-            rl = Math.min(rl, r); rh = Math.max(rh, r); gl = Math.min(gl, g); gh = Math.max(gh, g); bl = Math.min(bl, bb); bh = Math.max(bh, bb);
-            zl = Math.min(zl, z); zh = Math.max(zh, z); rs += r; gs += g; bs += bb; zs += R[o + 1];
-          }
-          if (Math.max(rh - rl, gh - gl, bh - bl) <= DIRTY_CT && zh - zl <= DIRTY_DT * zl) {
-            const c = corners.length;
-            emit(i, Math.round(rs / c) + Math.round(gs / c) * 256 + Math.round(bs / c) * 65536, zs / c, 1);
-            nI++;
-            continue;
-          }
-          why[Math.max(rh - rl, gh - gl, bh - bl) > DIRTY_CT ? 4 : 5]++;
-        }
-        idx[i] = -2; nB++;
+          let nHit = 0, far = 0;
+          for (const o of corners) { if (res[o + 2] >= 0.5) nHit++; else if (res[o + 3] * toPx >= DIRTY_NR * sp) far++; }
+          if (far === corners.length) { res[4 * i] = 0; res[4 * i + 1] = 1; res[4 * i + 2] = 0; res[4 * i + 3] = Math.min(...corners.map((o) => res[o + 3])) - sp / toPx; state[i] = 1; nI++; continue; }
+          if (nHit === corners.length) {
+            let rl = 255, rh = 0, gl = 255, gh = 0, bl = 255, bh = 0, zl = 1e30, zh = 0, rs = 0, gs = 0, bs = 0, zs = 0;
+            for (const o of corners) {
+              const v = res[o], r = v % 256, g = Math.floor(v / 256) % 256, bb = Math.floor(v / 65536), z = lin(res[o + 1]);
+              rl = Math.min(rl, r); rh = Math.max(rh, r); gl = Math.min(gl, g); gh = Math.max(gh, g); bl = Math.min(bl, bb); bh = Math.max(bh, bb);
+              zl = Math.min(zl, z); zh = Math.max(zh, z); rs += r; gs += g; bs += bb; zs += res[o + 1];
+            }
+            const cs = Math.max(rh - rl, gh - gl, bh - bl);
+            if (cs <= (sp === 1 ? DIRTY_CT1 : DIRTY_CT) && zh - zl <= DIRTY_DT * zl) {
+              const c = corners.length;
+              res[4 * i] = Math.round(rs / c) + Math.round(gs / c) * 256 + Math.round(bs / c) * 65536; res[4 * i + 1] = zs / c; res[4 * i + 2] = 1; res[4 * i + 3] = 0;
+              state[i] = 1; nI++;
+              continue;
+            }
+            why[cs > (sp === 1 ? DIRTY_CT1 : DIRTY_CT) ? 4 : 5]++;
+          } else why[nHit ? 3 : 2]++;
+        } else why[0]++;
+        exact.push(i); nB++;
       }
-      this.mixList.needsUpdate = true; this.mixRes!.needsUpdate = true;
-      this.scatter(renderer, t, this.mixList, this.mixRes!, m);
-    } else { for (let i = 0; i < N; i++) if (mark[i]) idx[i] = -2; nB = nd; }
-    if (nB) {
-      const LB = this.listFor(nB);
-      let k = 0;
-      for (let i = 0; i < N; i++) if (idx[i] === -2) fill(LB, k++, i);
-      this.runList(renderer, camera, t, nB, this.dirtyListScene);
+      runExact();
     }
+    // every listed pixel back into the frame at once
+    const nMax = nd;
+    const rows2 = 2 * Math.ceil(nMax / (2 * LIST_W));
+    if (!this.mixList || this.mixList.image.height < rows2) {
+      this.mixList?.dispose(); this.mixRes?.dispose();
+      this.mixList = new THREE.DataTexture(new Float32Array(LIST_W * rows2 * 4), LIST_W, rows2, THREE.RGBAFormat, THREE.FloatType);
+      this.mixRes = new THREE.DataTexture(new Float32Array(LIST_W * rows2 * 4), LIST_W, rows2, THREE.RGBAFormat, THREE.FloatType);
+      for (const tx of [this.mixList, this.mixRes]) { tx.minFilter = tx.magFilter = THREE.NearestFilter; }
+    }
+    const ML = this.mixList.image.data as Float32Array, MR = this.mixRes!.image.data as Float32Array;
+    let m = 0;
+    for (let i = 0; i < N; i++) {
+      if (!mark[i]) continue;
+      const o = FieldBake.slot(m++);
+      ML[o] = i % W; ML[o + 1] = (i / W) | 0; MR[o] = res[4 * i]; MR[o + 1] = res[4 * i + 1]; MR[o + 2] = res[4 * i + 2]; MR[o + 3] = 0;
+    }
+    this.mixList.needsUpdate = true; this.mixRes!.needsUpdate = true;
+    this.scatter(renderer, t, this.mixList, this.mixRes!, m);
     Object.assign(this.lastDirty, { nA, nI, nB });
     if (DEBUG_TIMES) { renderer.readRenderTargetPixels(t, 0, 0, 1, 1, new Uint8Array(4)); this.lastDirty.exactMs = performance.now() - T2; }
     return nd;
+  }
+
+  /**
+   * The pixel rect [x0, y0, x1, y1) (GL rows, bottom up) of a W × H frame that the changed boxes
+   * can cover (every ray meeting one passes through it); the whole frame if one reaches behind the camera.
+   */
+  static dirtyRect(camera: THREE.Camera, W: number, H: number, d: NonNullable<ReturnType<SdfRenderer['dirtyBoxes']>>): [number, number, number, number] {
+    const boxes = [...d.full, ...d.cavity];
+    if (!boxes.length) return [0, 0, 0, 0];
+    const pv = new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    const v = new THREE.Vector4();
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const B of boxes) for (let c = 0; c < 8; c++) {
+      v.set(c & 1 ? B.max[0] : B.min[0], c & 2 ? B.max[1] : B.min[1], c & 4 ? B.max[2] : B.min[2], 1).applyMatrix4(pv);
+      if (v.w <= 1e-6) return [0, 0, W, H];
+      const px = (v.x / v.w * 0.5 + 0.5) * W, py = (v.y / v.w * 0.5 + 0.5) * H;
+      x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
+    }
+    const cl = (u: number, n: number) => Math.max(0, Math.min(n, u));
+    return [cl(Math.floor(x0) - 2, W), cl(Math.floor(y0) - 2, H), cl(Math.ceil(x1) + 2, W), cl(Math.ceil(y1) + 2, H)];
   }
 
   /** The mid-drag exact pass's program, compiled at rest (once): the first drag frame would pay for it. */
@@ -593,7 +628,11 @@ export class FieldBake {
   private warmDirty(renderer: THREE.WebGLRenderer) {
     if (this.dirtyWarm) return;
     this.dirtyWarm = true;
-    renderer.compile(this.dirtyListScene, this.bakeCam);
+    // (a real draw of one empty entry: the driver may build the program only when it is drawn)
+    this.listFor(1);
+    const tgt = this.listRT ?? new THREE.WebGLRenderTarget(1, 1);
+    this.runList(renderer, this.bakeCam, tgt, 1, this.dirtyListScene, false);
+    if (!this.listRT) tgt.dispose();
   }
 
   /** The bricks match the field (the settled frame can come from them). */
