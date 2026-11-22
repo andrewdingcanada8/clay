@@ -51,6 +51,9 @@ const FLAG_HITS = Q.get('fh') !== '0', FLAG_MISSES = Q.get('fm') !== '0';
 export const ATLAS_W = 360;
 /** (prototype: settled reads as textureLod, ?tl=1) */
 const TL = Q.get('tl') === '1';
+const DBG = Q.get('dbg') === '1';
+/** Near-misses start the exact pass at the ray's closest approach to a crease (else the first near point). */
+const NEAR_MIN = Q.get('nm') !== '0';
 const TEX = TL ? 'textureLod' : 'texture', LOD = TL ? ', 0.0' : '';
 /** The exact pass's list width (texels): narrow, so its quad rows spread over the rasterizer's threads. */
 export const LIST_W = +(Q.get('lq') ?? 32);
@@ -191,13 +194,16 @@ void main() {
   vec4 a = uInvProjView * vec4(vNdc, -1.0, 1.0), b = uInvProjView * vec4(vNdc, 1.0, 1.0);
   vec3 ro = a.xyz / a.w, rd = normalize(b.xyz / b.w - ro);
   float t0, t1;
-  if (!boxHit(ro, rd, t0, t1)) discard;
+  if (!boxHit(ro, rd, t0, t1)) { ${DBG ? "fragColor = vec4(0.0, 1.0, 0.0, 1.0); gl_FragDepth = 0.0; return;" : "discard;"} }
   float tc = texelFetch(uConeT, ivec2(gl_FragCoord.xy) / ${CONE_PX}, 0).r;
-  if (tc >= 1e9) discard;
+  if (tc >= 1e9) { ${DBG ? "fragColor = vec4(0.0, 0.0, 1.0, 1.0); gl_FragDepth = 0.0; return;" : "discard;"} }
   float t = max(max(t0, 0.0), tc);
   int kind = 0, level = -1;
   bool hit = false, done = false, nearCrease = false;
-  float d = 1e5, eps = 0.0, tNear = 0.0;
+  // (the closest approach to a crease so far, and where)
+  float nearGap = ${f(FLAG_NEAR * BRICK_B / BRICK_N[0])} * uH;
+  float d = 1e5, eps = 0.0, tNear = 0.0;${DBG ? `
+  float dbgGap = 1e9, dbgCr = 0.0; int dbgN = 0, dbgLv = -2;` : ''}
   for (int i = 0; i < 240; i++) {
     vec3 p = ro + rd * t;
     d = field(p, level);
@@ -206,9 +212,10 @@ void main() {
     { float c = -(dot(p, uClip.xyz) + uClip.w); if (c > d) { d = c; kind = 1; } }
 #endif
     eps = clamp((uPixelAngle * t + uPixelSize) * 0.35, 0.0008, 0.008);
-    if (d < eps) { hit = true; break; }
+    if (d < eps) { hit = true; break; }${DBG ? `
+    dbgN = i; if (d - eps < dbgGap) { dbgGap = d - eps; dbgCr = gCrease; dbgLv = level; }` : ''}
     // passing close by a crease without touching: the exact pass decides
-    if (!nearCrease && level >= 0 && gCrease > ${FLAG_CREASE.toFixed(3)} && d < eps + ${FLAG_NEAR.toFixed(3)} * uH * ${f(BRICK_B / BRICK_N[0])}) { nearCrease = true; tNear = t; }
+    ${NEAR_MIN ? `if (level >= 0 && gCrease > ${FLAG_CREASE.toFixed(3)} && d - eps < nearGap) { nearGap = d - eps; tNear = t; nearCrease = true; }` : `if (!nearCrease && level >= 0 && gCrease > ${FLAG_CREASE.toFixed(3)} && d < eps + ${FLAG_NEAR.toFixed(3)} * uH * ${f(BRICK_B / BRICK_N[0])}) { nearCrease = true; tNear = t; }`}
     t += max(d * 0.92, eps * 0.5);
     if (t > t1) { done = true; break; }
   }
@@ -218,13 +225,14 @@ void main() {
   bool creaseHit = hit && level >= 0 && gCrease > ${FLAG_CREASE.toFixed(3)};
   // (a ray that passed near a crease but hit something else further on keeps its brick hit)
   bool flag = uFlagOn == 1 && (hit ? ${FLAG_HITS ? 'creaseHit' : 'false'} : ${FLAG_MISSES ? 'nearCrease' : 'false'});
+${DBG ? `  if (!hit && !flag && dbgGap < 1e8) { fragColor = vec4(clamp(dbgGap / (uH * ${f(BRICK_B / BRICK_N[0])}), 0.0, 1.0), float(dbgN) / 255.0, clamp(dbgCr / 4.0, 0.0, 1.0), dbgLv >= 0 ? 1.0 : 0.5); gl_FragDepth = 0.0; return; }` : ''}
   if (flag) {
     float x = floor(clamp((hit ? t : tNear) / uTMax, 0.0, 1.0) * 16777215.0);
     fragColor = vec4(floor(x / 65536.0), mod(floor(x / 256.0), 256.0), mod(x, 256.0), hit ? 129.0 : 128.0) / 255.0;
     gl_FragDepth = 1.0;
     return;
   }
-  if (!hit) discard;
+  if (!hit) { ${DBG ? "fragColor = vec4(1.0, 0.0, 1.0, 1.0); gl_FragDepth = 0.0; return;" : "discard;"} }
   vec3 p = ro + rd * t;
   vec4 clip = uProjView * vec4(p, 1.0);
   gl_FragDepth = clamp((clip.z / clip.w) * 0.5 + 0.5, 0.0, 1.0);

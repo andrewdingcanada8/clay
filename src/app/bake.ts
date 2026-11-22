@@ -18,6 +18,7 @@ const RES = 192;
 /** A batch of layers is sized to take about this long on the GPU. */
 const BATCH_MS = 30;
 /** (prototype: time the refinement's steps, ?rt=1) */
+const LIST_CREEP = +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('lc') || 60);
 const LIST_WIN = (typeof location !== 'undefined' && new URLSearchParams(location.search).get('lw') || '0.6,1').split(',').map(Number);
 const LIST_BACK = +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('lb') || 0.2);
 const SHOW_FLAGS = typeof location !== 'undefined' && new URLSearchParams(location.search).get('fv') === '1';
@@ -275,7 +276,7 @@ export class FieldBake {
     this.coneScene.add(cm2);
     const lm = new THREE.Mesh(tri(), new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: FRAG, uniforms: sdf.material.uniforms,
-      defines: { SDF_LIST: 1 }, depthTest: false, depthWrite: false,
+      defines: { SDF_LIST: 1, LIST_CREEP }, depthTest: false, depthWrite: false,
     }));
     lm.frustumCulled = false;
     lm.onBeforeRender = (r, s, c, g, mat, grp) => sdf.mesh.onBeforeRender(r, s, c, g, mat, grp);

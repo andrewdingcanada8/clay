@@ -881,6 +881,9 @@ void main() {
   // phase 0: marching (step i); 1-3: normal taps (forward differences from d at p);
   // 5-8: occlusion taps
   int phase = 0, i = 0, kind = 0;
+#if defined(SDF_LIST) && LIST_CREEP
+  bool creep = false; // (a near-miss marching on alongside a face past its window)
+#endif
   vec3 p = vec3(0.0), n = vec3(0.0);
   float ne = 0.0, occ = 0.0, sca = 1.0;
   for (int it = min(uGroupCount, 0); it < 216; it++) {
@@ -894,6 +897,10 @@ void main() {
       eps = clamp((uPixelAngle * t + uPixelSize) * 0.35, 0.0008, 0.008);
       bool done = false;
       if (d < eps) hit = true;
+#if defined(SDF_LIST) && LIST_CREEP
+      // (it left the face: the bricks saw nothing further)
+      else if (creep && d >= 8.0 * eps) done = true;
+#endif
       else {
         t += max(d * 0.92, eps * 0.5);
         if (t > t1) {
@@ -901,9 +908,19 @@ void main() {
           // that grazes an edge the bake rounded over): the rest of the ray, with its objects
 #ifdef SDF_LIST
           // (a listed pixel whose bricks saw nothing past this window: done)
+#if LIST_CREEP
+          // (or a ray creeping alongside a face at the window's end: on, as the full march would)
+          if ((en.w > 1.5 || d < 8.0 * eps) && t1 < t1Full) {
+#else
           if (en.w > 1.5 && t1 < t1Full) {
+#endif
 #else
           if (PAST_WINDOW && t1 < t1Full) {
+#endif
+#if defined(SDF_LIST) && LIST_CREEP
+            // (the full march would have spent steps before the window: count them as spent)
+            i = max(i, LIST_CREEP);
+            creep = en.w < 1.5;
 #endif
             vec2 sp2; uint c2;
             gMask = rayMask(ro, rd, t, t1Full, nReach, sp2, c2);
