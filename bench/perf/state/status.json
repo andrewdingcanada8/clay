@@ -2,14 +2,15 @@
  "text": "Still frame ~100x the baseline (composite 5.67 s -> 57 ms headless; 52-60 ms across runs). IoU strict on all 14 scenes, pixel diff strict on 13 (grazing 2.35%). Orbit ~45 ms (~34x); real drag frames 1.75-2.2x; bake after edit ~9 s headless (2x). Awaiting an iPhone run of the new build.",
  "noise": "Noise: 5 baseline runs of the composite scene, 5552\u20135777 ms (\u03c3 \u2248 1.5%). A change must beat the incumbent by > 3% and hold on a confirmation run.",
  "now": {
-  "current": "Still frame at ~100x. Next regime: editing (drag frames), then bake time",
-  "agents": [],
+  "current": "Still frame ~100x reached; now the editing regime",
+  "agents": [
+   "Editing lineage 2: drag frames 3-5x (dirty-rect redraw, adaptive resolution, rigid-body reuse of the stale bake)"
+  ],
   "queue": [
-   "User iPhone run on Clay Preview (benchmark scene + 4 jugs)",
-   "Editing: drag frames 1.75-2.2x; whole-body reshape ~1x",
-   "Bake after an edit: ~9 s headless (time to sharp)",
+   "User iPhone run on Clay Preview",
+   "Bake after an edit (time to sharp)",
    "Grazing strict pixel diff"
   ],
-  "updated": 1795365334263
+  "updated": 1795365370172
  }
 }

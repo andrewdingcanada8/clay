@@ -54,6 +54,8 @@ Updated: 2026-11-22 (device fix 3 published)
 
 ## 16:45 UTC: refine confirmed: composite 57 ms (99.5x, 52-60 across runs); IoU strict all 14; grazing diff 2.35%. Clay Preview v9 = bench/perf/ref/dist-refine-merged. Still-frame target reached -> next regime: editing.
 
+- Editing agent launched (branch claude/sdf-perf-edit2, journal JOURNAL-edit2.md in its worktree): msEdit 3-5x target.
+
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.
