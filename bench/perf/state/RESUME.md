@@ -37,6 +37,11 @@ Updated: 2026-11-22 (device fix 3 published)
 - benchEdit now moves an object (committed). Real-drag msEdit: composite 414, sweeps-64 842, pieces-4 372, csg 257, blend 281.
 - Bricks agent stopped at limit (reset 07:30), resumed 08:00 with the refinement-pass task.
 
+## 08:30 UTC: bricks lineage merged (ebba7b3 into hill-climb), pushed
+- Agent's full suite: composite 100 ms settled (57x), strict 13/14, grazing loose only (IoU 0.9983, aa 0.10%); bake ~2x main (composite 8.8 s).
+- Running: bench job full-bricks on bench/perf/ref/dist-bricks-merged (all 14 scenes, three regimes). Then: compare, log as kept, publish Clay Preview + dashboard, ask user for iPhone rerun.
+- Bricks agent finished (no further task assigned).
+
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.
