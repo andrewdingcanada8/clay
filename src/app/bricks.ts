@@ -477,9 +477,10 @@ export class BrickLevel {
   }
 
   /** Each slot's objects and clusters (those that can matter within the cell's samples). */
-  masks(renderer: THREE.WebGLRenderer, origin: THREE.Vector3, h: number) {
+  /** Rows [r0, r0 + n) of the mask target (set up at r0 = 0). Returns its height. */
+  masks(renderer: THREE.WebGLRenderer, origin: THREE.Vector3, h: number, r0: number, n: number) {
     const rows = this.slotTex!.image.height;
-    if (!this.maskRT || this.maskRT.height !== 2 * rows) {
+    if (r0 === 0 && (!this.maskRT || this.maskRT.height !== 2 * rows)) {
       this.maskRT?.dispose();
       this.maskRT = new THREE.WebGLRenderTarget(4096, 2 * rows, { type: THREE.UnsignedIntType, format: THREE.RGBAIntegerFormat, internalFormat: 'RGBA32UI', depthBuffer: false });
       this.maskRT.texture.minFilter = this.maskRT.texture.magFilter = THREE.NearestFilter;
@@ -491,12 +492,19 @@ export class BrickLevel {
     u.uBrickCell.value = BRICK_B;
     // half the cell's diagonal, then the values that matter (the band and the apron)
     u.uBrickReach.value = (0.87 * BRICK_B + BRICK_REACH) * h;
+    const rt = this.maskRT!, H = rt.height;
+    n = Math.min(n, H - r0);
+    if (n <= 0) return H;
     const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
     renderer.autoClear = false;
-    renderer.setRenderTarget(this.maskRT);
+    rt.scissor.set(0, r0, rt.width, n);
+    rt.scissorTest = r0 > 0 || n < H;
+    renderer.setRenderTarget(rt);
     renderer.render(this.maskScene, this.cam);
+    rt.scissorTest = false;
     renderer.setRenderTarget(prev);
     renderer.autoClear = auto;
+    return H;
   }
 
   /** Lay out the atlas for these cells (x, y, z triples). */

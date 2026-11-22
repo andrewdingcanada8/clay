@@ -82,3 +82,4 @@ Loose floor: diff>24 <= 2 %, IoU >= 0.995.
   The brick bake, copy and curvature passes are fence-paced in row strips (first batch FIRST_ROWS rows-equivalent);
   the classify pass (one draw over all cells, ~27 fetches x cz per fragment) and the per-slot mask pass are still
   one draw each, and classify reads back (a stall) — to pace next.
+| 21 | pacing: the classify pass in strips of 8 cell rows and the per-slot mask pass 2 slot rows at a time, each fence-checked (with the brick, copy and curvature passes already in row strips, no brick-bake pass is one long draw now); readback after the fence | in-app step path, composite (probe, contended): bricks ready 46 s after open (coarse 19.4 s paced, bricks 36.8 s); settled image 0.09 % / 0.9999 | bakeNow unchanged | | identical | kept |

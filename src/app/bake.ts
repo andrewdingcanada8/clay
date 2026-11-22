@@ -24,6 +24,8 @@ const SHOW_FLAGS = typeof location !== 'undefined' && new URLSearchParams(locati
 const DEBUG_TIMES = typeof location !== 'undefined' && new URLSearchParams(location.search).get('rt') === '1';
 /** The first batch, before the pace is known: this many rows of voxels. */
 const FIRST_ROWS = 8;
+/** Rows of cells the classify pass draws per batch, and rows of slots the mask pass does. */
+const CLASS_ROWS = 8, MASK_ROWS = 2;
 
 const VERT = 'out vec2 vNdc; void main(){ vNdc = position.xy; gl_Position = vec4(position.xy, 0.0, 1.0); }';
 
@@ -450,7 +452,35 @@ export class FieldBake {
       }
       return true;
     }
-    if (j.phase === 1) { this.classify(renderer); j.phase = 2; j.row = 0; j.level = 0; j.batch = 0; return true; }
+    if (j.phase === 1) {
+      // the classify pass in strips of rows, then (once the GPU is done) its readback
+      const H = this.classDraw(renderer, j.row, CLASS_ROWS);
+      if (j.row < H) {
+        j.fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+        gl.flush();
+        j.row += CLASS_ROWS; j.batch = 0; j.at = performance.now(); j.n++;
+        return true;
+      }
+      this.classify(renderer);
+      j.phase = 1.5; j.row = 0; j.level = 0; j.batch = 0;
+      return true;
+    }
+    if (j.phase === 1.5) {
+      // each level's object masks, a few rows of slots at a time
+      while (j.level < this.levels.length) {
+        const L = this.levels[j.level];
+        const H = L.count ? L.masks(renderer, this.origin, this.h, j.row, MASK_ROWS) : 0;
+        if (j.row < H) {
+          j.fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+          gl.flush();
+          j.row += MASK_ROWS; j.at = performance.now(); j.n++;
+          return true;
+        }
+        j.level++; j.row = 0;
+      }
+      j.phase = 2; j.row = 0; j.level = 0; j.batch = 0;
+      return true;
+    }
     // 2: each level's brick samples (the exact field); 3: each level's atlas from them (copies)
     while (j.phase <= 4) {
       const L = this.levels[j.level];
@@ -496,7 +526,9 @@ export class FieldBake {
     this.lastBake.ms = performance.now() - t0;
     this.lastBake.voxels = this.target!.width * this.target!.height * this.target!.depth;
     const tb = performance.now();
+    this.classDraw(renderer, 0, 1 << 20);
     this.classify(renderer);
+    for (const L of this.levels) if (L.count) L.masks(renderer, this.origin, this.h, 0, 1 << 20);
     for (const L of this.levels) if (L.count) L.draw(renderer, this.origin, this.h, 0, L.bakeTarget.height * L.bakeTarget.depth);
     this.levels.forEach((L, i) => { if (L.count && L.copyTarget) L.copy(renderer, i, this.levels, this.ind!, this.cells, 0, L.copyTarget.height * L.copyTarget.depth); });
     this.levels.forEach((L, i) => { if (L.count) L.curv(renderer, this.readAtlas!, this.zOff[i], 0, L.atlas!.height * L.atlas!.depth); });
@@ -556,8 +588,8 @@ export class FieldBake {
   }
 
   /** Find the band cells and the sharp ones (a GPU pass, read back), lay out the atlases and the indirection. */
-  private classify(renderer: THREE.WebGLRenderer) {
-    const t0 = performance.now();
+  /** The classify pass's target, set up (r0 = 0), and its rows [r0, r0 + n) drawn. Returns its height. */
+  private classDraw(renderer: THREE.WebGLRenderer, r0: number, n: number) {
     const t = this.target!;
     const cx = Math.ceil((t.width - 1) / BRICK_B), cy = Math.ceil((t.height - 1) / BRICK_B), cz = Math.ceil((t.depth - 1) / BRICK_B);
     const blocks = Math.ceil(cz / 128), rows = cy * blocks;
@@ -569,10 +601,35 @@ export class FieldBake {
     const cu = this.classMat.uniforms;
     cu.uTex.value = t.texture; cu.uCy.value = cy; cu.uRows.value = rows;
     cu.uThr.value = BRICK_THR * this.h; cu.uSharp.value = BRICK_SHARP * this.h; cu.uNear.value = BRICK_NEAR * this.h;
+    const rt = this.classRT, H = rt.height;
+    n = Math.min(n, H - r0);
+    if (n > 0) {
+      const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
+      renderer.autoClear = false;
+      rt.scissor.set(0, r0, rt.width, n);
+      rt.scissorTest = r0 > 0 || n < H;
+      renderer.setRenderTarget(rt);
+      renderer.render(this.classScene, this.bakeCam);
+      rt.scissorTest = false;
+      renderer.setRenderTarget(prev);
+      renderer.autoClear = auto;
+    }
+    return H;
+  }
+
+  /** Read the classify pass back (its rows all drawn) and lay out the bricks. */
+  private classify(renderer: THREE.WebGLRenderer) {
+    const t0 = performance.now();
+    const t = this.target!;
+    const cx = Math.ceil((t.width - 1) / BRICK_B), cy = Math.ceil((t.height - 1) / BRICK_B), cz = Math.ceil((t.depth - 1) / BRICK_B);
+    const blocks = Math.ceil(cz / 128), rows = cy * blocks;
+    if (!this.classRT || this.classRT.width !== cx || this.classRT.height !== 2 * rows) {
+      this.classRT?.dispose();
+      this.classRT = new THREE.WebGLRenderTarget(cx, 2 * rows, { type: THREE.UnsignedIntType, format: THREE.RGBAIntegerFormat, internalFormat: 'RGBA32UI', depthBuffer: false });
+      this.classRT.texture.minFilter = this.classRT.texture.magFilter = THREE.NearestFilter;
+    }
     const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
-    renderer.autoClear = false;
     renderer.setRenderTarget(this.classRT);
-    renderer.render(this.classScene, this.bakeCam);
     const gl = renderer.getContext() as WebGL2RenderingContext;
     const bits = new Uint32Array(cx * 2 * rows * 4);
     gl.readPixels(0, 0, cx, 2 * rows, gl.RGBA_INTEGER, gl.UNSIGNED_INT, bits);
@@ -599,7 +656,7 @@ export class FieldBake {
     this.ind.minFilter = this.ind.magFilter = THREE.NearestFilter;
     this.ind.unpackAlignment = 1;
     this.ind.needsUpdate = true;
-    this.levels.forEach((L, i) => { L.layout(lists[i]); if (L.count) L.masks(renderer, this.origin, this.h); });
+    this.levels.forEach((L, i) => L.layout(lists[i]));
     const su = this.settledMat.uniforms;
     // the read atlas: level 0's layers, then level 1's; each cell's brick start and N
     const L0 = this.levels[0], L1 = this.levels[1];
