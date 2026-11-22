@@ -211,5 +211,11 @@
   "label": "real-drag edit frames (merged build)",
   "kept": false,
   "note": "honest msEdit: composite 414, sweeps-64 842, pieces-4 372"
+ },
+ {
+  "dir": "2026-11-22T08-37-27-907Z-full-bricks",
+  "label": "bricks lineage merged (full suite)",
+  "kept": true,
+  "note": "composite 98 ms settled (57.9x); strict 13/14, grazing loose (IoU 0.9983)"
  }
 ]

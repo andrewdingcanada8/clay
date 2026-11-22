@@ -42,6 +42,8 @@ Updated: 2026-11-22 (device fix 3 published)
 - Running: bench job full-bricks on bench/perf/ref/dist-bricks-merged (all 14 scenes, three regimes). Then: compare, log as kept, publish Clay Preview + dashboard, ask user for iPhone rerun.
 - Bricks agent finished (no further task assigned).
 
+## 09:00 UTC: bricks merged and confirmed (full-bricks): composite 98 ms (57.9x), strict 13/14, grazing loose. Clay Preview v8 = bench/perf/ref/dist-bricks-merged. No agents running.
+
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.

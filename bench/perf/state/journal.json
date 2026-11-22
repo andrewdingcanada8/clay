@@ -335,5 +335,15 @@
   "result": "Real drag frames (merged build) vs the exact frame before the merge: composite 725 -> 414 ms (1.75x), sweeps-64 1873 -> 842 (2.2x), pieces-4 788 -> 372 (2.1x), csg 318 -> 257, blend 320 -> 281. Still frame and orbit unchanged.",
   "verdict": "info",
   "commit": ""
+ },
+ {
+  "id": 35,
+  "t": 1795337171760,
+  "title": "Merge the bricks lineage: settled frame from fine bricks + exact refinement of flagged pixels (regime: still)",
+  "hyp": "Draw the settled frame from a fine sparse cache of the field; recompute exactly only creases and near-misses",
+  "change": "Coarse bake, one level of N=4 bricks in the surface band, curvature correction, cone pre-pass, then the exact settled shader runs only for flagged pixels (a compact list, ~1-16% of pixels)",
+  "result": "Still: composite 923 -> 98 ms (57.9x baseline), all scenes 73-149 ms except grazing 500. Images strict on 13/14; grazing passes the loose floor only (IoU 0.9983, aa 0.10%). Orbit unchanged; editing unchanged; bake ~2x (composite 4.3 -> 9.0 s headless).",
+  "verdict": "kept",
+  "commit": "ebba7b3"
  }
 ]
