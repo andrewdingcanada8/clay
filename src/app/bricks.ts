@@ -49,6 +49,7 @@ export const FLAG_NEAR = +(Q.get('fn') ?? 0.5);
 const FLAG_HITS = Q.get('fh') !== '0', FLAG_MISSES = Q.get('fm') !== '0';
 /** Atlas width and height in texels (each level fits as many slots across as it can). */
 export const ATLAS_W = 360;
+const XS = +(Q.get('xs') ?? 3);
 /** The exact pass's list width (texels): narrow, so its quad rows spread over the rasterizer's threads. */
 export const LIST_W = +(Q.get('lq') ?? 32);
 
@@ -172,8 +173,21 @@ float field(vec3 p, out int level) {
   fb -= 0.5 * dot(w * (1.0 - w), q.gba);` : ''}
   level = ivec3(cf) != c || e.w == 0.0 ? -1 : e.w == ${BRICK_N[0].toFixed(1)} ? 0 : 1;
   // (the ray stays inside the baked box: the coarse read needs no outside term)
-  float fc = texture(uTex, (clamp(g, vec3(0.0), uNm1) + 0.5) * uInvN).r;
-  return level >= 0 ? fb : fc;
+${XS & 1 ? `if (level >= 0) return fb;
+  return texture(uTex, (clamp(g, vec3(0.0), uNm1) + 0.5) * uInvN).r;` : `float fc = texture(uTex, (clamp(g, vec3(0.0), uNm1) + 0.5) * uInvN).r;
+  return level >= 0 ? fb : fc;`}
+}
+// the brick's value alone (normal taps beside a brick hit)
+float fieldB(vec3 p) {
+  vec3 g = (p - uO) / uH;
+  vec3 cf = floor(g * ${f(1 / BRICK_B)});
+  ivec3 c = clamp(ivec3(cf), ivec3(0), uCells - 1);
+  vec4 e = texelFetch(uIndS, c, 0);
+  if (ivec3(cf) != c || e.w == 0.0) return texture(uTex, (clamp(g, vec3(0.0), uNm1) + 0.5) * uInvN).r;
+  vec3 l = clamp((g - cf * ${BRICK_B.toFixed(1)}) * (e.w * ${f(1 / BRICK_B)}), 0.0, e.w);
+  vec4 q = texture(uAtlasR, (e.xyz + 0.5 + l) * uInvA);
+  vec3 w = fract(l);
+  return q.r - 0.5 * dot(w * (1.0 - w), q.gba);
 }
 bool boxHit(vec3 ro, vec3 rd, out float t0, out float t1) {
   vec3 lo = uO, hi = uO + uSize;
@@ -202,7 +216,7 @@ void main() {
     if (d < eps) { hit = true; break; }
     // passing close by a crease without touching: the exact pass decides
     if (!nearCrease && level >= 0 && gCrease > ${FLAG_CREASE.toFixed(3)} && d < eps + ${FLAG_NEAR.toFixed(3)} * uH * ${f(BRICK_B / BRICK_N[0])}) { nearCrease = true; tNear = t; }
-    t += max(d * 0.92, eps * 0.5);
+    t += max(d * ${XS & 8 ? '1.0' : '0.92'}, eps * 0.5);
     if (t > t1) { done = true; break; }
   }
   if (!hit && !done && d < 8.0 * eps) hit = true;
@@ -221,14 +235,14 @@ void main() {
   vec3 p = ro + rd * t;
   vec4 clip = uProjView * vec4(p, 1.0);
   gl_FragDepth = clamp((clip.z / clip.w) * 0.5 + 0.5, 0.0, 1.0);
-  if (uFlat != 0) { fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+  if (uFlat != 0${XS & 4 ? ' || true' : ''}) { fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
   vec3 n;
   if (kind == 1) n = -uClip.xyz;
   else {
     // central differences one fine spacing apart
     vec3 e = vec3(uH * (level == 1 ? ${f(NORMAL_E * BRICK_B / BRICK_N[1])} : ${f(NORMAL_E * BRICK_B / BRICK_N[0])}), 0.0, 0.0);
     int l2;
-    n = vec3(field(p + e.xyy, l2) - field(p - e.xyy, l2), field(p + e.yxy, l2) - field(p - e.yxy, l2), field(p + e.yyx, l2) - field(p - e.yyx, l2));
+${XS & 2 ? `    n = vec3(fieldB(p + e.xyy) - fieldB(p - e.xyy), fieldB(p + e.yxy) - fieldB(p - e.yxy), fieldB(p + e.yyx) - fieldB(p - e.yyx));` : `    n = vec3(field(p + e.xyy, l2) - field(p - e.xyy, l2), field(p + e.yxy, l2) - field(p - e.yxy, l2), field(p + e.yyx, l2) - field(p - e.yyx, l2));`}
   }
   n = normalize(n);
   if (dot(n, rd) > 0.0) n = -n;

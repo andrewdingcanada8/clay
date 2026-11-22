@@ -320,9 +320,9 @@ export class FieldBake {
     const T0 = performance.now();
     renderer.readRenderTargetPixels(t, 0, 0, W, H, px);
     const T1 = performance.now();
-    let n = 0, covered = 0;
-    for (let i = 3; i < px.length; i += 4) { if (px[i] === 128 || px[i] === 129) n++; else if (px[i]) covered++; }
-    this.lastRefine = { flagged: n, covered };
+    let n = 0, covered = 0, hits = 0;
+    for (let i = 3; i < px.length; i += 4) { if (px[i] === 128 || px[i] === 129) { n++; if (px[i] === 129) hits++; } else if (px[i]) covered++; }
+    this.lastRefine = { flagged: n, covered, hits } as typeof this.lastRefine;
     (window as unknown as { __refine: unknown }).__refine = this.lastRefine;
     if (!n) return 0;
     // (4 consecutive entries fill one 2×2 quad: neighbouring pixels run side by side)
