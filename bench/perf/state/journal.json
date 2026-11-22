@@ -195,5 +195,115 @@
   "result": "Composite on iPhone: settled 18 ms (vs 691 headless), orbit 1-2 ms, bake 109 ms. The phone is ~38x faster than the proxy on the settled frame. The 4-jug piece still lost the GPU context 0.4-0.9 s after its field changed at rest (4 hollow bodies), on the build before the row-strip bake; fixed further by skipping the whole exact frame while the bake is pending (7239f50). Awaiting a rerun.",
   "verdict": "info",
   "commit": ""
+ },
+ {
+  "id": 21,
+  "t": 1795268931877,
+  "title": "Strict-gate repair: tetrahedral normals + 0.5-voxel back-off (regime: still)",
+  "hyp": "Bisect: 3-sample normals broke creases; starting at the refined baked hit missed inner-silhouette pixels",
+  "change": "4 tetrahedral normal taps; start the exact window 0.5 voxel before the baked hit",
+  "result": "Strict now on composite 0.07%, csg 0.08%, custom-section 0.41%, pieces-4 0.08%, pieces-9 0.17%; grazing 2.0% (thin slabs, since bake v1). Still frame composite 652 -> 810 ms. Orbit unaffected; editing unaffected (exact path only used with a bake).",
+  "verdict": "kept",
+  "commit": "34d33d9"
+ },
+ {
+  "id": 22,
+  "t": 1795268931904,
+  "title": "Bricks lineage, first result (agent, regime: still; bake cost)",
+  "hyp": "Fine sparse bricks near the surface let the settled frame avoid most exact evaluations",
+  "change": "Coarse 192^3 bake, then (N+1)^3-sample bricks of the exact field in a band (N=4, N=8 where the coarse field bends); settled pass marches and shades from bricks",
+  "result": "Settled: composite 100 ms (57x baseline), sweeps-64 108, pieces-9 81, close-up 147, grazing 235, custom-section 108. Strict on composite, sweeps-64, close-up. Bake 4-30x longer (composite 27 s headless): time to sharp after an edit is the cost. Orbit unchanged; editing unaffected.",
+  "verdict": "info",
+  "commit": ""
+ },
+ {
+  "id": 23,
+  "t": 1795268931932,
+  "title": "Pruning lineage, first result (agent, regime: still)",
+  "hyp": "Per-cell object masks (Lipschitz pruning) cut objects per evaluation",
+  "change": "Cells of 2 voxels after the bake; masks ANDed into the settled ray mask once per ray",
+  "result": "Bit-identical image; objects/eval 6.19 -> 5.4; 5-7% faster. Small because the composite's objects really overlap. Agent redirected to the editing regime.",
+  "verdict": "info",
+  "commit": ""
+ },
+ {
+  "id": 24,
+  "t": 1795269521713,
+  "title": "Full suite on the repaired build (all three regimes)",
+  "hyp": "Confirm the gate repair across all scenes",
+  "change": "Full 14-scene suite, clean under the CPU lock",
+  "result": "Diff gate passes on 13/14 (grazing 2.0%). IoU slightly short on custom-section (0.9985) and pieces-9 (0.9988): missed silhouette pixels. Still composite 858 ms (6.6x baseline); orbit 46 ms; editing 725 ms; bake 4.3 s.",
+  "verdict": "info",
+  "commit": ""
+ },
+ {
+  "id": 25,
+  "t": 1795270262696,
+  "title": "Near-approach start depths (regime: still)",
+  "hyp": "Walls thinner than a voxel stay positive in the baked texture, so the baked march steps past them",
+  "change": "Start the exact window at an earlier near approach (baked d < 0.5 voxel) when it is >2 voxels before the baked hit, or when the bake finds no hit",
+  "result": "Missed px: composite 16 -> 1, grazing 28 -> 4; IoU strict on every scene (custom-section 0.9992, pieces-9 0.9998). Composite 858 -> 934 ms. 0.75 voxel: same gates, slower (rejected). Orbit and editing unaffected.",
+  "verdict": "kept",
+  "commit": "d33ec1f"
+ },
+ {
+  "id": 26,
+  "t": 1795270848660,
+  "title": "Exact occlusion in concave corners (regime: still)",
+  "hyp": "Grazing's remaining 1.7% is baked occlusion missing tight inside corners",
+  "change": "Exact occlusion taps everywhere (probe) and only where the baked occlusion is dark (hybrid)",
+  "result": "Grazing diff unchanged at 1.71% (PSNR 32 -> 37): refuted. Zoom: both reference and candidate show speckled dashes along an inner rim thinner than a pixel seen edge-on; only the dot positions differ. Cost +30% (exact) / +10% (hybrid); not kept.",
+  "verdict": "rejected",
+  "commit": ""
+ },
+ {
+  "id": 27,
+  "t": 1795270848678,
+  "title": "Aliasing-tolerant image metric (announced harness change)",
+  "hyp": "Strict diff24 counts sub-pixel aliasing shifts as differences",
+  "change": "compare.py reports diff24aa (1-px tolerance) beside diff24; gates unchanged, scenes passing only the tolerant metric are labelled",
+  "result": "Current build: grazing 1.71% strict -> 0.09% with 1-px tolerance; custom-section 0.30 -> 0.08%; composite 0.02 -> 0.01%. Grazing passes with a 1-px aliasing tolerance; every other scene passes strict.",
+  "verdict": "info",
+  "commit": ""
+ },
+ {
+  "id": 28,
+  "t": 1795303264841,
+  "title": "Narrow-band bake from object bounds (regime: time to sharp after edit)",
+  "hyp": "Cuts, masks, hollowing and openings only raise the field, so a lower bound from object bounds minus blend reach is safe without opening/cut growth",
+  "change": "SDF_BAKE writes the lower bound where it exceeds 4 voxels, else map()",
+  "result": "Bake: composite 4.27 -> 3.85 s, pieces-4 6.18 -> 4.89 s, sweeps-64 23.7 -> 26.3 s (worse). Images identical. Not worth the code; bake time moves to the bricks agent.",
+  "verdict": "rejected",
+  "commit": ""
+ },
+ {
+  "id": 29,
+  "t": 1795303944532,
+  "title": "iPhone 4-jug crash: fence-paced exact moving frames, bake paused while moving (device stability)",
+  "hyp": "The GPU reset while orbiting before the bake finished: exact frames (~79 ms GPU) requested at 60/s plus bake batches piled up",
+  "change": "Exact moving/drag frames wait on a fence for the previous one; bake steps only while the view is still",
+  "result": "Headless: orbit during a pending bake keeps the bake paused, exact frames paced, bake completes after release, no errors. Awaiting the user's iPhone rerun.",
+  "verdict": "kept",
+  "commit": ""
+ },
+ {
+  "id": 30,
+  "t": 1795306988913,
+  "title": "Editing lineage: reuse the stale bake mid-drag (agent, regime: editing)",
+  "hyp": "Mid-drag, only rays crossing the changed objects' boxes need the exact field; the rest can use the bake from before the edit",
+  "change": "FieldSnapshot at bake start; dirty boxes of changed objects; a shader variant (swapped in only during a drag) marches exactly only for rays through dirty boxes",
+  "result": "Drag frames: composite 687 -> 272 ms, sweeps-64 1816 -> 471, blend-heavy 315 -> 163, csg 321 -> 193; still frame unchanged (bit-identical). Not yet merged.",
+  "verdict": "info",
+  "commit": ""
+ },
+ {
+  "id": 31,
+  "t": 1795306988940,
+  "title": "Bricks lineage: cone pre-pass (agent, regime: still)",
+  "hyp": "One coarse ray per 4x4 block finds where its cone nears the surface; pixel rays start there",
+  "change": "Cone pre-pass before the brick march",
+  "result": "Composite 51 ms (~111x baseline), pieces-9 43, custom-section 59, but 2/3 of clay missed (cones ran out of steps); agent fixing. Not yet kept.",
+  "verdict": "info",
+  "commit": ""
  }
 ]

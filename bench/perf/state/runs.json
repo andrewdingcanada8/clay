@@ -157,5 +157,47 @@
   "label": "three regimes, merged build (clean)",
   "kept": false,
   "note": "orbit / still / editing measured apart"
+ },
+ {
+  "dir": "2026-11-21T05-01-55-922Z-repair0.5",
+  "label": "gate repair: tetra normals + 0.5-voxel back-off",
+  "kept": true,
+  "note": "strict on 5 of 6 failing scenes; +24% time"
+ },
+ {
+  "dir": "2026-11-21T04-50-55-283Z-bricks-1",
+  "label": "bricks lineage (agent prototype)",
+  "kept": false,
+  "note": "composite 100 ms settled (57x baseline); bake 27 s headless"
+ },
+ {
+  "dir": "2026-11-21T13-50-12-355Z-full-repaired",
+  "label": "repaired build, full suite",
+  "kept": true,
+  "note": "strict diff on 13/14 scenes; IoU short on custom-section 0.9985, pieces-9 0.9988; grazing 2.0%"
+ },
+ {
+  "dir": "2026-11-21T13-58-36-881Z-near0.5",
+  "label": "near-approach start (0.5 voxel)",
+  "kept": true,
+  "note": "IoU strict on every scene; +9%"
+ },
+ {
+  "dir": "2026-11-21T14-05-43-023Z-near0.75",
+  "label": "near-approach start (0.75 voxel)",
+  "kept": false,
+  "note": "same gates as 0.5, slower"
+ },
+ {
+  "dir": "2026-11-21T14-10-57-018Z-aohyb2.0",
+  "label": "exact occlusion everywhere (probe)",
+  "kept": false,
+  "note": "grazing diff unchanged 1.71%: not occlusion"
+ },
+ {
+  "dir": "2026-11-21T14-56-29-727Z-band2",
+  "label": "narrow-band bake (bounds, no cut/opening growth)",
+  "kept": false,
+  "note": "bake -10..21% composite/pieces-4, worse sweeps-64"
  }
 ]

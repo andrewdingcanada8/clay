@@ -136,12 +136,16 @@ V.overview = () => {
     <div class="tile"><span class="k">Speed-up, composite</span><span class="v big">${x ? x.toFixed(2) + '×' : '–'}</span><span class="n">target ${target}× · ${x ? Math.min(100, (Math.log(x) / Math.log(target)) * 100).toFixed(0) : 0}% of the way (log)</span></div>
     <div class="tile"><span class="k">Composite now</span><span class="v">${cur ? fmt(cur.headlineFps, 3) : '–'}</span><span class="n">frames/s, headless · baseline ${b ? fmt(b.headlineFps, 3) : '–'}</span></div>
     <div class="tile"><span class="k">Worst frame now</span><span class="v">${cur?.scenes?.composite ? fmt(cur.scenes.composite.msMax, 0) : '–'}</span><span class="n">ms, composite (guardrail is set on the phone)</span></div>
+    <div class="tile"><span class="k">iPhone, composite</span><span class="v">${D.device?.length ? fmt(D.device.at(-1).settledMs, 0) + ' ms' : '–'}</span><span class="n">${D.device?.length ? `still frame · orbit ${fmt(D.device.at(-1).movingMs, 1)} ms · bake ${fmt(D.device.at(-1).bakeMs, 0)} ms` : 'no phone run yet'}</span></div>
     <div class="tile"><span class="k">Attempts</span><span class="v">${D.journal.length}</span><span class="n">${D.journal.filter((j) => j.verdict === 'kept').length} kept · ${D.journal.filter((j) => j.verdict === 'rejected').length} rejected</span></div>
   </section>
   ${nowPanel()}
   <section class="card"><h2>Where it stands</h2><p>${esc(D.status ?? '')}</p>
     ${last ? `<p class="muted">Last attempt: <b>${esc(last.title)}</b> — <span class="pill ${esc(last.verdict)}">${esc(last.verdict)}</span> ${esc(last.result ?? '')}</p>` : ''}</section>
-  <section class="card"><h2>Headline over time</h2>${graphHeadline(220)}</section>`;
+  <section class="card"><h2>Headline over time</h2>${graphHeadline(220)}</section>
+  ${D.device?.length ? `<section class="card"><h2>iPhone runs</h2><p class="muted">Run by the user in Clay Preview (View → Run the benchmark scene). The phone is ~38× faster than the headless test renderer; ratios between builds carry over.</p><div class="tw"><table><thead><tr><th>When</th><th>Build</th><th>Scene</th><th>Still</th><th>Orbit</th><th>Bake</th><th>Canvas</th><th>Note</th></tr></thead><tbody>
+    ${D.device.map((r) => `<tr><td>${new Date(r.at).toLocaleString()}</td><td>${esc(r.label)}</td><td>${esc(r.scene)}</td><td class="num">${fmt(r.settledMs, 0)} ms</td><td class="num">${fmt(r.movingMs, 1)} ms</td><td class="num">${fmt(r.bakeMs, 0)} ms</td><td class="num">${r.w}×${r.h}</td><td>${esc(r.note ?? '')}</td></tr>`).join('')}
+  </tbody></table></div></section>` : ''}`;
 };
 function nowPanel() {
   const n = D.now; if (!n) return '';

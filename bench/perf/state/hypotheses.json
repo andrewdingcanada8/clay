@@ -252,8 +252,8 @@
   "title": "One exact Newton step from the baked hit; normals from bake (tricubic / blended analytic)",
   "area": "settled pass",
   "expect": "~4-6x (6.5 -> ~1 maps/px)",
-  "status": "untested",
-  "evidence": "Research round 2"
+  "status": "testing",
+  "evidence": "Bricks lineage: settled from bricks, 57x composite"
  },
  {
   "id": "H33",
