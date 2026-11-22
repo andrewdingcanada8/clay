@@ -218,7 +218,7 @@ export class FieldBake {
   private inc: { fine: VBox[]; low: VBox[]; brick: Box[]; coarse: Box[] } | null = null;
   /** The slot subsets an incremental brick bake redraws: samples, copies (and curvature), shading. */
   private sets: { bake: SlotSet; copy: SlotSet; shade: SlotSet } | null = null;
-  private job: { version: number; row: number; batch: number; fence: WebGLSync | null; at: number; t0: number; n: number; phase: number; tb: number; level: number; kind?: string } | null = null;
+  private job: { version: number; row: number; batch: number; fence: WebGLSync | null; at: number; t0: number; n: number; phase: number; tb: number; level: number; kind?: string; polls?: number } | null = null;
   /** Texels baked per ms, learned from the last batches. */
   private texRate = 0;
   /** The same for the passes that run no map() (copies, curvature, shading, upsampling), by kind. */
@@ -750,11 +750,18 @@ export class FieldBake {
     }
     const j = this.job!;
     if (j.fence) {
-      if (gl.clientWaitSync(j.fence, 0, 0) === gl.TIMEOUT_EXPIRED) return true;
+      if (gl.clientWaitSync(j.fence, 0, 0) === gl.TIMEOUT_EXPIRED) { j.polls = (j.polls ?? 0) + 1; return true; }
       gl.deleteSync(j.fence); j.fence = null;
       const ms = Math.max(1, now - j.at);
-      // (to the nearest frame, so it errs slow: smaller batches)
-      if (j.batch > 0) { if (!j.kind || j.kind === 'map') this.texRate = j.batch / ms; else this.rates.set(j.kind, j.batch / ms); }
+      // The fence is only polled once a frame, so elapsed time can't go below a frame:
+      // a batch already done at the first poll took less than that (its rate is at least
+      // what the frame time says, and the next batch doubles); one that outlasted a frame
+      // is measured. (Without this the rate shrank every batch, to one row a frame.)
+      if (j.batch > 0) {
+        const measured = j.batch / ms, rate = (j.polls ?? 0) === 0 ? Math.max(measured, (2 * j.batch) / BATCH_MS) : measured;
+        if (!j.kind || j.kind === 'map') this.texRate = rate; else this.rates.set(j.kind, rate);
+      }
+      j.polls = 0;
       if (j.n < 30 || j.n % 20 === 0) dlog('bake-batch', { n: j.n, texels: j.batch, ms, phase: j.phase, row: j.row });
     }
     const t = this.target!;

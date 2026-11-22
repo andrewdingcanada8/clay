@@ -633,6 +633,7 @@ export class Viewport {
   /** The image drawn while moving: the baked field when it is ready, else the exact field. */
   private lowLogAt = 0;
   private lowFence: WebGLSync | null = null;
+  private wasDrifting = false;
   private drawLow(t: THREE.WebGLRenderTarget) {
     if (this.bake.ready) { this.drawMarch(t, 0); return; }
     // a whole frame of the exact field (moving, editing, or no bake yet): logged, so a
@@ -737,14 +738,16 @@ export class Viewport {
     this.camera.updateMatrixWorld();
     // the bake advances while the view and the field are still (one GPU-paced batch a frame)
     // (paused while the view moves or a drag edits: it would compete with the frames shown)
-    if ((this.bakePending() || this.bake.busy) && !this.moving && !this.sdf.interactive) this.bake.step(this.renderer, now);
+    if ((this.bakePending() || this.bake.busy) && !this.moving && !this.wasDrifting && !this.sdf.interactive) this.bake.step(this.renderer, now);
     const r = this.targets(), key = this.sdfKey(), drifting = key !== this.lastKey;
+    // (the camera still gliding after release: the bake waits for it to stop, like a drag)
+    this.wasDrifting = drifting;
     this.lastKey = key;
     if (key === this.frontKey) { this.band.active = false; this.present(r.front); return; }
     // at rest with a bake to run, keep the last image up rather than drawing a whole
     // frame of the exact field (a heavy scene's whole frame can outlast what a phone
     // lets one frame run); the bake's image follows in a moment
-    const bakeWait = !this.moving && !this.sdf.interactive && (this.bakePending() || this.bake.busy) && !!this.lowKey;
+    const bakeWait = !this.moving && !drifting && !this.sdf.interactive && (this.bakePending() || this.bake.busy) && !!this.lowKey;
     // a moving image waits until the GPU has finished the last one (an exact-field frame
     // of a heavy scene can take longer than a display frame: without the wait the work
     // piles up until the phone resets the GPU); the last image stays up meanwhile
