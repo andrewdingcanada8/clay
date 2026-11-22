@@ -33,6 +33,10 @@ Updated: 2026-11-22 (device fix 3 published)
 
 ## 03:40 UTC: editing lineage merged (d818aa7), gates identical, drag ~2x. Clay Preview republished from bench/perf/ref/dist-merge-edit.
 
+## 08:00 UTC
+- benchEdit now moves an object (committed). Real-drag msEdit: composite 414, sweeps-64 842, pieces-4 372, csg 257, blend 281.
+- Bricks agent stopped at limit (reset 07:30), resumed 08:00 with the refinement-pass task.
+
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.

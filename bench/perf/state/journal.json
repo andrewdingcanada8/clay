@@ -325,5 +325,15 @@
   "result": "Real drags (agent script): composite tab 756 -> 411 ms, sweeps-64 rib 1826 -> 683, pieces-4 tab 798 -> 368; whole-body reshape ~unchanged. Harness msEdit (no-op edit, best case) composite 711 -> 333. Still frame and images unchanged (composite 923 ms, strict). Orbit unchanged.",
   "verdict": "kept",
   "commit": "d818aa7"
+ },
+ {
+  "id": 34,
+  "t": 1795334121893,
+  "title": "Honest editing numbers: benchEdit moves an object (regime: editing)",
+  "hyp": "The no-op edit flattered the stale-bake reuse",
+  "change": "Harness change: each edit frame moves the middle object 0.05 further along x",
+  "result": "Real drag frames (merged build) vs the exact frame before the merge: composite 725 -> 414 ms (1.75x), sweeps-64 1873 -> 842 (2.2x), pieces-4 788 -> 372 (2.1x), csg 318 -> 257, blend 320 -> 281. Still frame and orbit unchanged.",
+  "verdict": "info",
+  "commit": ""
  }
 ]

@@ -205,5 +205,11 @@
   "label": "editing lineage merged",
   "kept": true,
   "note": "drag frames ~2x (real drags 1.8-2.7x); settled and images unchanged"
+ },
+ {
+  "dir": "2026-11-22T03-38-12-214Z-realdrag",
+  "label": "real-drag edit frames (merged build)",
+  "kept": false,
+  "note": "honest msEdit: composite 414, sweeps-64 842, pieces-4 372"
  }
 ]
