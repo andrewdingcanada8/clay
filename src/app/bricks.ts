@@ -53,7 +53,7 @@ export const ATLAS_W = 360;
 const TL = Q.get('tl') === '1';
 const DBG = Q.get('dbg') === '1';
 /** Near-misses start the exact pass at the ray's closest approach to a crease (else the first near point). */
-const NEAR_MIN = Q.get('nm') !== '0';
+const NEAR_MIN = Q.get('nm') === '1';
 const TEX = TL ? 'textureLod' : 'texture', LOD = TL ? ', 0.0' : '';
 /** The exact pass's list width (texels): narrow, so its quad rows spread over the rasterizer's threads. */
 export const LIST_W = +(Q.get('lq') ?? 32);
