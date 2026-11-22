@@ -1,3 +1,30 @@
 [
- {"at": 1795234020379, "label": "merged build (exact-field + bake), before the phone-safe bake", "scene": "composite", "settledMs": 18, "movingMs": 1.5, "bakeMs": 109, "gpu": "Apple GPU", "dpr": 3, "ratio": 2, "w": 804, "h": 544, "note": "user's iPhone, View -> Run the benchmark scene; same build: 4-jug piece lost the GPU context right after its field changed at rest"}
+ {
+  "at": 1795234020379,
+  "label": "merged build (exact-field + bake), before the phone-safe bake",
+  "scene": "composite",
+  "settledMs": 18,
+  "movingMs": 1.5,
+  "bakeMs": 109,
+  "gpu": "Apple GPU",
+  "dpr": 3,
+  "ratio": 2,
+  "w": 804,
+  "h": 544,
+  "note": "user's iPhone, View -> Run the benchmark scene; same build: 4-jug piece lost the GPU context right after its field changed at rest"
+ },
+ {
+  "at": 1795385520000,
+  "label": "bake pacing fix + bricks (diagnostics screen)",
+  "scene": "composite",
+  "settledMs": 4,
+  "movingMs": 2,
+  "bakeMs": 1007,
+  "gpu": "Apple GPU",
+  "dpr": 3,
+  "ratio": 2,
+  "w": 402,
+  "h": 316,
+  "note": "time to sharp 1.0-1.5 s (paced, real loop); first run lost the GPU while loading (batch growth, fixed in 22ddfbc)"
+ }
 ]

@@ -72,6 +72,8 @@ Updated: 2026-11-22 (device fix 3 published)
 
 ## 23:40 UTC: PAUSED climb on user's report. Fixed bake pacing (638a026), orbit glide freeze, added diagnostics screen + GPU alloc log (ca4d79b). Clay Preview v11 = bench/perf/ref/dist-diag. Waiting for user's phone diagnostics. Open: 4-jug crash; time-to-sharp (paced, live loop) as headline series.
 
+## 22:20 UTC (user phone runs): composite on iPhone: time to sharp 1.0-1.5 s, still 4 ms, orbit 2 ms. Losses: diag load (batch doubling on late polls) and 4 jugs after grids (field change counted as drift -> whole exact frame). Fixed 22ddfbc, Clay Preview v12. Open: GPU memory (up to ~240 MB of brick atlases on Untitled 16).
+
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.

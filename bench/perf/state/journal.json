@@ -385,5 +385,15 @@
   "result": "Headless composite: paced bake 124 batches / 3.9 s in the live loop (phone log before: ~4800 batches); diagnostics run: open -> sharp 15.6 s headless, still 54 ms, orbit 40 ms. Next: time to sharp in the real paced loop becomes a headline series; 4-jug crash still open (allocation log in place).",
   "verdict": "kept",
   "commit": "ca4d79b"
+ },
+ {
+  "id": 40,
+  "t": 1795386212464,
+  "title": "Device fixes 2: camera-only drift, safe bake batch growth (device)",
+  "hyp": "Phone logs: a field change at rest counted as a camera drift (whole exact frame -> 4-jug GPU loss, blocky coarse image shown); late frames made slow batches look fast (doubling to 102k texels -> GPU loss)",
+  "change": "Drift = camera matrices only; a batch grows only if done within 40 ms; field batches capped at 32k texels",
+  "result": "iPhone composite before this fix: time to sharp 1.0-1.5 s (paced), still 4 ms, orbit 2 ms. Headless: bake 148 batches, orbit-during-bake OK.",
+  "verdict": "kept",
+  "commit": "22ddfbc"
  }
 ]
