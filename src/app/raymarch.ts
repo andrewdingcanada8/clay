@@ -88,6 +88,7 @@ uniform int uStartOn;
 // (FieldSnapshot / dirtyBoxes); a ray that meets one before its baked window ends is
 // marched exactly from there, with exact occlusion
 uniform int uDirtyN;
+uniform int uDirtyFull; // boxes [uDirtyFull, uDirtyN) changed only inside a hollow body's cavity (its grid)
 uniform vec3 uDirtyMin[${MAX_DIRTY}];
 uniform vec3 uDirtyMax[${MAX_DIRTY}];
 uniform sampler2D uStartT;
@@ -731,22 +732,33 @@ void main() {
   float tStart = 0.0;
 #ifdef SDF_DIRTY
   // (a variant of the shader: the per-pixel choice costs the settled pass otherwise)
-  bool useStart = true;
+  bool useStart = true, cavCheck = false;
+  float tEnd = 1e9, tDc = 1e9;
 #define USE_START useStart
+#define PAST_WINDOW true
 #else
 #define USE_START (uStartOn == 1)
+#define PAST_WINDOW (uStartOn == 1)
 #endif
   if (uStartOn == 1) {
-    float ts = texelFetch(uStartT, ivec2(gl_FragCoord.xy), 0).r;
 #ifdef SDF_DIRTY
+    vec4 st = texelFetch(uStartT, ivec2(gl_FragCoord.xy), 0);
+    float ts = st.x;
     float tD = 1e9, tDx = -1e9;
     for (int k = 0; k < ${MAX_DIRTY}; k++) {
       if (k >= uDirtyN) break;
       vec2 s = segBox(ro, rd, t, t1, uDirtyMin[k], uDirtyMax[k]);
-      if (s.x <= s.y) { tD = min(tD, s.x); tDx = max(tDx, s.y); }
+      if (s.x > s.y) continue;
+      if (k < uDirtyFull) { tD = min(tD, s.x); tDx = max(tDx, s.y); }
+      else tDc = min(tDc, s.x); // a box changed only in a hollow body's cavity
     }
+    // a baked near miss (an edge the bake rounded over): exactly, round its closest approach
+    if (ts < 0.0 && st.z < 1.5 * uBakeH && st.w > 0.0) { tD = min(tD, st.w - 3.0 * uBakeH); tDx = max(tDx, st.w); }
     if (ts < 0.0 && tD > 1e8) discard;
-    if (ts >= 0.0 && ts + 3.0 * uBakeH < tD) tStart = ts - uStartBack;
+    // (a ray through a cavity-only box keeps the window unless it turns out to meet the
+    // cavity: the shell's outer surface and the air outside it don't depend on it; a
+    // ray that missed doesn't meet the shell at all)
+    if (ts >= 0.0 && ts + 3.0 * uBakeH < tD) { tStart = ts - uStartBack; cavCheck = tDc < ts + 3.0 * uBakeH; }
     else {
       // the baked field holds up to the first changed box (the bake saw no surface
       // before ts): the exact march starts there, or at the baked hit if earlier;
@@ -754,9 +766,10 @@ void main() {
       // its hit (or, if it saw none, than that box's far side)
       useStart = false;
       t = max(t, (ts >= 0.0 ? min(ts, tD) : tD) - uStartBack);
-      t1 = min(t1, max(tDx, ts) + 3.0 * uBakeH);
+      tEnd = max(tDx, ts) + 3.0 * uBakeH;
     }
 #else
+    float ts = texelFetch(uStartT, ivec2(gl_FragCoord.xy), 0).r;
     if (ts < 0.0) discard;
     tStart = ts - uStartBack;
 #endif
@@ -771,6 +784,10 @@ void main() {
   // only objects near that stretch of the ray are switched on, and the march ends
   // with it (the bake puts the surface there).
   float t1Full = t1;
+#ifdef SDF_DIRTY
+  // (a changed ray marches to its end like a window: the rest of the ray is the fallback)
+  t1 = min(t1, tEnd);
+#endif
   if (USE_START) { t = max(t, tStart - 2.0 * uBakeH); t1 = min(t1, tStart + 3.0 * uBakeH); }
   uvec4 marchMask = rayMask(ro, rd, t, t1, nReach, span, marchClu), aoMask = USE_START ? marchMask : rayMask(ro, rd, t, t1, 4.0, aoSpan, aoClu);
   gClu = marchClu;
@@ -810,7 +827,7 @@ void main() {
         if (t > t1) {
           // past the window round the baked hit without meeting the surface (a ray
           // that grazes an edge the bake rounded over): the rest of the ray, with its objects
-          if (USE_START && t1 < t1Full) {
+          if (PAST_WINDOW && t1 < t1Full) {
             vec2 sp2; uint c2;
             gMask = rayMask(ro, rd, t, t1Full, nReach, sp2, c2);
             gClu = c2;
@@ -825,6 +842,22 @@ void main() {
       // A ray running just alongside a flat face (seen edge-on) creeps along it in
       // tiny steps and can use up its steps before touching it: it is a hit.
       if (!hit && !done && d < 8.0 * eps) hit = true;
+#ifdef SDF_DIRTY
+      // the window met a cavity wall, or started inside the clay (a moved inner wall):
+      // the changed cavity matters here, so march exactly from its box
+      if (hit && cavCheck && (gKind == 2 || i == 1)) {
+        cavCheck = false; useStart = false; hit = false;
+        t = max(max(t0, 0.0), tDc - uStartBack); t1 = t1Full;
+        vec2 sp3; uint c3;
+        gAOMask = rayMask(ro, rd, t, t1, 4.0, sp3, c3);
+        gAOClu = c3;
+        gMask = rayMask(ro, rd, t, t1, nReach, sp3, c3);
+        gClu = c3;
+        t = max(t, sp3.x); t1 = min(t1, sp3.y);
+        i++;
+        continue;
+      }
+#endif
       // cost view: map() calls and object evaluations for this pixel, no shading
       if (uFlat == 2 && !hit) { pc_fragColor = vec4(float(min(gMapN, 255)) / 255.0, float(min(gObjN >> 8, 255)) / 255.0, float(gObjN & 255) / 255.0, 1.0); return; }
       if (!hit) discard;
@@ -918,6 +951,7 @@ export class SdfRenderer {
       uBakeZ: { value: 0 },
       uStartOn: { value: 0 },
       uDirtyN: { value: 0 },
+      uDirtyFull: { value: 0 },
       uDirtyMin: { value: range(MAX_DIRTY).map(() => new THREE.Vector3()) },
       uDirtyMax: { value: range(MAX_DIRTY).map(() => new THREE.Vector3()) },
       uStartT: { value: null },
@@ -1155,11 +1189,14 @@ export class SdfRenderer {
       bodyGrow[k] = Math.max(bodyGrow[k], e);
       objs.set(o.obj.id, { key: JSON.stringify([o.obj, Array.from(o.pos), Array.from(o.rot), Array.from(o.scale), o.round, k]), box: growBox(o.worldBounds, e) });
     }
-    const bodies = new Map<string, { key: string; box: Box }>();
+    const bodies = new Map<string, { key: string; box: Box; grid: number; cavBox: Box }>();
     this.groups.forEach((g, k) => {
       const grid = this.gridsByIndex[g.index] ?? null;
-      const key = JSON.stringify([g.t, g.k, g.rim, g.hollow, g.cutsBound, g.reach, g.compound, k, grid ? gridId(grid) : 0, [...g.holes].sort()]);
-      bodies.set(g.id, { key, box: growBox(g.bounds, bodyGrow[k]) });
+      // (a compound body's grid also rounds its outside: then the grid is part of the key)
+      const gid = grid ? gridId(grid) : 0;
+      const key = JSON.stringify([g.t, g.k, g.rim, g.hollow, g.cutsBound, g.reach, g.compound, k, g.compound ? gid : 0, [...g.holes].sort()]);
+      // (its cavity lies inside its shell surface: within its own bounds, plus the taps' reach)
+      bodies.set(g.id, { key, box: growBox(g.bounds, bodyGrow[k]), grid: gid, cavBox: growBox(g.bounds, 3 * (k < MAX_GRIDS ? cavH[k] : 0) + 2.15) });
     });
     const shape: string[] = [];
     for (let i = 0; i < this.prog.length; i += 4) {
@@ -1173,24 +1210,29 @@ export class SdfRenderer {
    * World boxes (at most MAX_DIRTY) covering everywhere the field may differ from any of
    * the snapshots' fields; null when everything may (the program's shape changed). Cheap: one pass over the objects, run once per edit.
    */
-  dirtyBoxes(snaps: FieldSnapshot[]): Box[] | null {
+  dirtyBoxes(snaps: FieldSnapshot[]): { full: Box[]; cavity: Box[] } | null {
     const now = this.snapshot();
-    const boxes: Box[] = [];
+    const full: Box[] = [], cavity: Box[] = [];
     for (const s of snaps) {
       if (s.shape !== now.shape) return null;
       for (const map of ['objs', 'bodies'] as const) {
         const was = s[map], is = now[map];
-        for (const [id, e] of is) { const w = was.get(id); if (!w || w.key !== e.key) { boxes.push(e.box); if (w) boxes.push(w.box); } }
-        for (const [id, w] of was) if (!is.has(id)) boxes.push(w.box);
+        for (const [id, e] of is) { const w = was.get(id); if (!w || w.key !== e.key) { full.push(e.box); if (w) full.push(w.box); } }
+        for (const [id, w] of was) if (!is.has(id)) full.push(w.box);
       }
+      // a body whose cavity grid changed (dropped mid-drag): its cavity only
+      for (const [id, e] of now.bodies) { const w = s.bodies.get(id); if (w && w.key === e.key && w.grid !== e.grid) { cavity.push(e.cavBox); } }
     }
-    return mergeBoxes(boxes, MAX_DIRTY);
+    const f = mergeBoxes(full, cavity.length ? MAX_DIRTY - 2 : MAX_DIRTY);
+    return { full: f, cavity: mergeBoxes(cavity, MAX_DIRTY - f.length) };
   }
 
   /** Set the shader's changed-region boxes and draw with the SDF_DIRTY variant (null: back to the plain one). */
-  setDirty(boxes: Box[] | null) {
+  setDirty(d: { full: Box[]; cavity: Box[] } | null) {
     const u = this.material.uniforms;
-    this.mesh.material = boxes ? this.dirtyMaterial : this.material;
+    this.mesh.material = d ? this.dirtyMaterial : this.material;
+    const boxes = d ? [...d.full, ...d.cavity] : null;
+    u.uDirtyFull.value = d ? d.full.length : 0;
     const n = boxes ? Math.min(boxes.length, MAX_DIRTY) : 0;
     u.uDirtyN.value = n;
     for (let i = 0; i < n; i++) {
@@ -1484,7 +1526,7 @@ export class SdfRenderer {
 
 type Box = { min: [number, number, number]; max: [number, number, number] };
 /** See SdfRenderer.snapshot. */
-export interface FieldSnapshot { shape: string; objs: Map<string, { key: string; box: Box }>; bodies: Map<string, { key: string; box: Box }> }
+export interface FieldSnapshot { shape: string; objs: Map<string, { key: string; box: Box }>; bodies: Map<string, { key: string; box: Box; grid: number; cavBox: Box }> }
 const gridIds = new WeakMap<object, number>();
 let nextGridId = 1;
 function gridId(g: object): number { let i = gridIds.get(g); if (!i) { i = nextGridId++; gridIds.set(g, i); } return i; }

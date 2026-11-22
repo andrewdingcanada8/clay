@@ -588,6 +588,7 @@ export class Viewport {
   /** The baked-field march into t: mode 0 shades (moving image), 1 writes where each ray meets the surface. */
   private drawMarch(t: THREE.WebGLRenderTarget, mode: 0 | 1) {
     this.bake.marchMat.uniforms.uMode.value = mode;
+    this.bake.useMarch(mode);
     const clear = this.renderer.getClearColor(new THREE.Color()), clearA = this.renderer.getClearAlpha();
     this.renderer.setClearColor(0x000000, mode ? 1 : 0);
     if (mode) this.renderer.setClearColor(new THREE.Color(-1, -1, -1), -1);
@@ -608,7 +609,7 @@ export class Viewport {
     // away from what changed: rays clear of the changed boxes start at its hit, the rest
     // march exactly from where they first meet a changed box.
     const dirty = this.bake.staleDirty();
-    if (now - this.lowLogAt > 1000) { this.lowLogAt = now; dlog('exact-frame', { w: t.width, h: t.height, moving: this.moving, editing: this.sdf.interactive, stale: dirty ? dirty.length : -1 }); }
+    if (now - this.lowLogAt > 1000) { this.lowLogAt = now; dlog('exact-frame', { w: t.width, h: t.height, moving: this.moving, editing: this.sdf.interactive, stale: dirty ? dirty.full.length + dirty.cavity.length : -1 }); }
     if (!dirty) { this.drawSdf(t); return; }
     this.sdf.setDirty(dirty);
     this.drawSdf(t, 0, t.height, this.startDepths(t.width, t.height, true));

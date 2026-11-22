@@ -70,18 +70,20 @@ void main() {
   float t = max(t0, 0.0);
   int kind = 0;
   bool hit = false;
-  float d = 1e5;
+  float d = 1e5, dMin = 1e5, tMin = -1.0;
   for (int i = 0; i < 160; i++) {
     d = sdf(ro + rd * t, kind);
     float eps = max(0.25 * uH, uPixelAngle * t * 0.5);
     if (d < eps) { hit = true; break; }
+    if (d < dMin) { dMin = d; tMin = t; }
     t += max(d * 0.9, 0.5 * eps);
     if (t > t1) break;
   }
-  if (!hit) { if (uMode == 1) { fragColor = vec4(-1.0); return; } discard; }
+  // (start pass, no hit: also its closest approach, where the exact field may still meet it)
+  if (!hit) { if (uMode == 1) { fragColor = vec4(-1.0, 0.0, dMin, tMin); return; } discard; }
   // a little closer: two steps on the interpolated field
   for (int i = 0; i < 2; i++) { t += sdf(ro + rd * t, kind); }
-  if (uMode == 1) { fragColor = vec4(t); return; }
+  if (uMode == 1) { fragColor = vec4(t, 0.0, 0.0, 0.0); return; }
   vec3 p = ro + rd * t;
   vec4 clip = uProjView * vec4(p, 1.0);
   gl_FragDepth = clamp((clip.z / clip.w) * 0.5 + 0.5, 0.0, 1.0);
@@ -119,6 +121,10 @@ export class FieldBake {
   private bakeCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   private bakeMat: THREE.ShaderMaterial;
   readonly marchMat: THREE.ShaderMaterial;
+  private startMat: THREE.ShaderMaterial;
+  private marchMesh: THREE.Mesh;
+  /** Draw the march as the shading pass (0) or the settled pass's start (1). */
+  useMarch(mode: 0 | 1) { this.marchMesh.material = mode ? this.startMat : this.marchMat; }
   readonly marchScene = new THREE.Scene();
   private origin = new THREE.Vector3();
   private size = new THREE.Vector3();
@@ -130,7 +136,7 @@ export class FieldBake {
   private snaps: FieldSnapshot[] = [];
   private geomOk = false;
   private dirtyKey = -1;
-  private dirtyMemo: { min: [number, number, number]; max: [number, number, number] }[] | null = null;
+  private dirtyMemo: ReturnType<SdfRenderer['dirtyBoxes']> = null;
 
   constructor(private sdf: SdfRenderer) {
     this.bakeMat = new THREE.ShaderMaterial({
@@ -149,7 +155,13 @@ export class FieldBake {
         uClay: su.uClay, uCap: su.uCap, uMode: { value: 0 }, uPixelAngle: su.uPixelAngle,
       },
     });
+    // (the start pass: the same march as its own program, so the shading one stays as it was)
+    this.startMat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: MARCH, depthTest: true, depthWrite: true,
+      uniforms: { ...this.marchMat.uniforms, uMode: { value: 1 } }, defines: { START: 1 },
+    });
     const mm = new THREE.Mesh(tri(), this.marchMat);
+    this.marchMesh = mm;
     mm.frustumCulled = false;
     // the exact renderer's matrices are set in its onBeforeRender: share its camera upkeep
     mm.onBeforeRender = (r, s, c, g, mat, grp) => sdf.mesh.onBeforeRender(r, s, c, g, mat, grp);
@@ -170,7 +182,7 @@ export class FieldBake {
    * world boxes; everywhere else it still holds the field exactly. null: unusable (no
    * complete bake on this grid, or the program's shape changed). Once per field version.
    */
-  staleDirty(): { min: [number, number, number]; max: [number, number, number] }[] | null {
+  staleDirty(): ReturnType<SdfRenderer['dirtyBoxes']> {
     if (!this.target || !this.geomOk || !this.snaps.length || this.snaps.length > 3) return null;
     if (this.dirtyKey !== this.sdf.fieldVersion) {
       this.dirtyKey = this.sdf.fieldVersion;
