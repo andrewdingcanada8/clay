@@ -2,16 +2,16 @@
  "text": "Still frame 8.7\u00d7 the baseline headless (5.67 \u2192 0.65 s); on the user's iPhone the composite scene settles in 18 ms, orbits in 1\u20132 ms and bakes in 109 ms. Strict image gate fails on 4 scenes (sharp creases, thin rims) since earlier kept steps: being repaired first. The 4-jug piece crashed the iPhone right after its field changed at rest; fixes are live in Clay Preview, awaiting a rerun. Editing (drag frames) is now measured: about as slow as a still frame, since the bake can't help mid-drag.",
  "noise": "Noise: 5 baseline runs of the composite scene, 5552\u20135777 ms (\u03c3 \u2248 1.5%). A change must beat the incumbent by > 3% and hold on a confirmation run.",
  "now": {
-  "current": "Image gates repaired (strict on 13/14 scenes, grazing passes with a 1-px aliasing tolerance); waiting on the bricks lineage",
+  "current": "Waiting on agents; device fix 3 published (awaiting the user's iPhone rerun)",
   "agents": [
-   "Bricks lineage: bake size/time and strict gates on the hard scenes, then integrate (route to 100x on the still frame)",
-   "Pruning lineage, redirected to the editing regime: cheap per-drag object lists"
+   "Bricks lineage: cone pre-pass fix (51 ms composite when correct), bake size, hard-scene gates",
+   "Editing lineage: stale-bake reuse mid-drag (drag frames 2.5-3.9x faster), finishing"
   ],
   "queue": [
-   "Integrate bricks; full suite in all three regimes",
-   "Editing regime work (after still reaches 100x)",
-   "Narrow-band bake (time to sharp after an edit)"
+   "Merge editing lineage; full suite in all three regimes",
+   "Merge bricks when it passes strict gates",
+   "Republish Clay Preview + dashboard; iPhone rerun"
   ],
-  "updated": 1795270864232
+  "updated": 1795306988971
  }
 }

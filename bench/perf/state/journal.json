@@ -285,5 +285,25 @@
   "result": "Headless: orbit during a pending bake keeps the bake paused, exact frames paced, bake completes after release, no errors. Awaiting the user's iPhone rerun.",
   "verdict": "kept",
   "commit": ""
+ },
+ {
+  "id": 30,
+  "t": 1795306988913,
+  "title": "Editing lineage: reuse the stale bake mid-drag (agent, regime: editing)",
+  "hyp": "Mid-drag, only rays crossing the changed objects' boxes need the exact field; the rest can use the bake from before the edit",
+  "change": "FieldSnapshot at bake start; dirty boxes of changed objects; a shader variant (swapped in only during a drag) marches exactly only for rays through dirty boxes",
+  "result": "Drag frames: composite 687 -> 272 ms, sweeps-64 1816 -> 471, blend-heavy 315 -> 163, csg 321 -> 193; still frame unchanged (bit-identical). Not yet merged.",
+  "verdict": "info",
+  "commit": ""
+ },
+ {
+  "id": 31,
+  "t": 1795306988940,
+  "title": "Bricks lineage: cone pre-pass (agent, regime: still)",
+  "hyp": "One coarse ray per 4x4 block finds where its cone nears the surface; pixel rays start there",
+  "change": "Cone pre-pass before the brick march",
+  "result": "Composite 51 ms (~111x baseline), pieces-9 43, custom-section 59, but 2/3 of clay missed (cones ran out of steps); agent fixing. Not yet kept.",
+  "verdict": "info",
+  "commit": ""
  }
 ]
