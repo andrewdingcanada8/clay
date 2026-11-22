@@ -305,5 +305,15 @@
   "result": "Composite 51 ms (~111x baseline), pieces-9 43, custom-section 59, but 2/3 of clay missed (cones ran out of steps); agent fixing. Not yet kept.",
   "verdict": "info",
   "commit": ""
+ },
+ {
+  "id": 32,
+  "t": 1795315648716,
+  "title": "Bricks lineage: full suite (agent, regime: still)",
+  "hyp": "Fine bricks + curvature correction + one-atlas reads + cone pre-pass make the settled frame texture-only",
+  "change": "Coarse bake, exact-sample bricks in the surface band (N=4, N=8 on sharp cells), cone pre-pass per 4x4 block",
+  "result": "Settled: composite 58 ms (~98x), sweeps 75-83, pieces 53-63, blend 60, shell 67, csg 47, custom 76, grazing 227, close-up 92. Strict on 10/14; pieces-4 IoU 0.9989, pieces-9 0.66%, custom-section 0.85%, grazing 3.53% (aa 0.50%) fail. Bake 4-10x longer (composite 19 s headless). Next: exact refinement pass for flagged pixels only.",
+  "verdict": "info",
+  "commit": ""
  }
 ]

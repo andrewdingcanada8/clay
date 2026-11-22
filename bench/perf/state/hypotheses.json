@@ -260,8 +260,8 @@
   "title": "Bake-time mask of where exact evaluation is needed (creases, thin rims); elsewhere finish from the bake",
   "area": "bake",
   "expect": "5-10x on top of H32",
-  "status": "untested",
-  "evidence": "Research round 2"
+  "status": "testing",
+  "evidence": "Bricks agent: flagged-pixel exact refinement pass"
  },
  {
   "id": "H34",

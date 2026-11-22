@@ -8,5 +8,10 @@
   "label": "bricks cone pre-pass (agent, image bug)",
   "ms": 51,
   "t": 1795306800000
+ },
+ {
+  "label": "bricks-11 full suite (agent; strict on 10/14)",
+  "ms": 58,
+  "t": 1795316400000
  }
 ]

@@ -22,6 +22,11 @@ Updated: 2026-11-22 (device fix 3 published)
 ## 02:35 UTC
 - Agents stopped at limit ~01:00, reset 02:00; resumed 02:35.
 
+## 03:00 UTC: bricks-11 (agent, branch claude/sdf-perf-bricks, not pushed)
+- Settled composite 58 ms (~98x); strict on 10/14; fails: pieces-4 (IoU 0.9989), pieces-9, custom-section, grazing. Bake 4-10x longer (composite 19 s headless).
+- Agent now: exact refinement pass for flagged pixels (separate draw), then bake size/pacing.
+- Pivot proposed to user (cache-then-draw main line; mesh from cache as next step); awaiting answer. Also offered a baseline build with the benchmark button for an iPhone baseline.
+
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.
