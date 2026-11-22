@@ -1,5 +1,5 @@
 {
- "text": "Still frame ~100x (composite 5.67 s -> 55 ms headless); drag frames 6.2x (725 -> 117 ms); orbit ~36x (1530 -> 42 ms). IoU strict on all 14 scenes, pixel diff strict on 13 (grazing 2.35%). Time to sharp after an edit is the weak spot: bake ~10 s headless. Awaiting an iPhone run of the new build.",
+ "text": "Paused the climb for device problems the user found: bake pacing bug (fixed: ~10 s per percent on the phone -> batches grow again), orbit glide freeze (fixed), new diagnostics screen. The ~100x is the still frame after the bake on the headless test machine; time to sharp in the real paced loop is now the number to watch. 4-jug GPU reset still open.",
  "noise": "Noise: 5 baseline runs of the composite scene, 5552\u20135777 ms (\u03c3 \u2248 1.5%). A change must beat the incumbent by > 3% and hold on a confirmation run.",
  "now": {
   "current": "Time to sharp after an edit: bake agent",

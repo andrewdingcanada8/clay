@@ -375,5 +375,15 @@
   "result": "Agent's six scenes: full bake -19..27%, incremental re-bake 5-9x, images unchanged. Full 14-scene suite on the merge: grazing 67% diff (34k missed), sweeps-16/32/64 8-18% - scenes opened after another reuse the previous field. Reverted (f29651a); agent fixing with full-suite verification.",
   "verdict": "rejected",
   "commit": "f29651a"
+ },
+ {
+  "id": 39,
+  "t": 1795383719458,
+  "title": "Device fixes after user report: bake pacing, orbit glide, diagnostics screen (regime: time to sharp, device)",
+  "hyp": "On the phone the bake took ~10 s per percent: elapsed time was measured to the nearest frame, so batch sizes shrank to one row a frame; the 100x headline hid it because the harness bakes unpaced",
+  "change": "Batches done before the first poll double; bake waits while the camera glides; glide redraws; diagnostics screen saves each run at every step (timeouts count); GPU allocation log",
+  "result": "Headless composite: paced bake 124 batches / 3.9 s in the live loop (phone log before: ~4800 batches); diagnostics run: open -> sharp 15.6 s headless, still 54 ms, orbit 40 ms. Next: time to sharp in the real paced loop becomes a headline series; 4-jug crash still open (allocation log in place).",
+  "verdict": "kept",
+  "commit": "ca4d79b"
  }
 ]

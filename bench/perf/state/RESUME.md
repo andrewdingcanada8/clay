@@ -70,6 +70,8 @@ Updated: 2026-11-22 (device fix 3 published)
 
 ## 22:30 UTC: bake fix merged (revert of revert + 0fc7356/e29fe2c; merge 12723e0), tests 546 pass, pushed. Cause: feedback loop in the half-res coarse pass. Running: full-bake-fixed (my confirmation). If it passes: log kept, publish Clay Preview from bench/perf/ref/dist-bake-fixed.
 
+## 23:40 UTC: PAUSED climb on user's report. Fixed bake pacing (638a026), orbit glide freeze, added diagnostics screen + GPU alloc log (ca4d79b). Clay Preview v11 = bench/perf/ref/dist-diag. Waiting for user's phone diagnostics. Open: 4-jug crash; time-to-sharp (paced, live loop) as headline series.
+
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.
