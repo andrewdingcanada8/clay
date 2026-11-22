@@ -63,6 +63,9 @@ Updated: 2026-11-22 (device fix 3 published)
 
 - Bake agent launched (branch claude/sdf-perf-bake, journal JOURNAL-bake.md in its worktree): prepareMs 3-5x, incremental re-bake.
 
+## 20:45 UTC: bake lineage merged (7f0c035), tests 546 pass, pushed. Agent: full bake -19..27%; incremental re-bake after a local edit 5-9x (composite 6.1 -> 1.1 s).
+- Running: bench job full-bake on bench/perf/ref/dist-bake-merged. Then log, publish Clay Preview + dashboard.
+
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.
