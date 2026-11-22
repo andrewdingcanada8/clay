@@ -16,7 +16,7 @@ export const BRICK_N = [+(Q.get('bn') ?? 4), +(Q.get('bn2') ?? 8)];
 /** A cell gets a brick if one of its (B+1)³ samples is within this many voxels of the
  *  surface (any point of the cell is within half a voxel diagonal of one, the band
  *  reaches half a voxel past the surface for the normal taps, plus slack). */
-export const BRICK_THR = +(Q.get('bt') ?? 1.6);
+export const BRICK_THR = +(Q.get('bt') ?? 1.2);
 /** A band cell is sharp if a second difference of its samples exceeds this (voxels). */
 export const BRICK_SHARP = +(Q.get('bs') ?? 0.6);
 /** Objects that can't change a brick's values within this many voxels of the surface are
@@ -28,7 +28,7 @@ export const AO_FINE = Q.get('ao') === '1';
  *  the neighbours' cores in a copy pass (no map()): about half the samples of (N+1)³. */
 export const APRON_COPY = Q.get('ap') !== '0';
 /** Second differences count only along sample lines that come this near the surface (voxels). */
-export const BRICK_NEAR = +(Q.get('bl') ?? 99);
+export const BRICK_NEAR = +(Q.get('bl') ?? 1);
 /** Normal taps this many fine spacings from the hit. */
 export const NORMAL_E = +(Q.get('ne') ?? 1);
 /** Brick reads: take off trilinear's curvature error, ½Σ w(1-w)·(second difference along each

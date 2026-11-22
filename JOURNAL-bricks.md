@@ -44,3 +44,7 @@ Loose floor: diff>24 <= 2 %, IoU >= 0.995.
 | 9e | bt=1.2 | | | | identical to base | free |
 | 10 | cone pre-pass (one ray per 4×4 block, coarse field, cone radius 3.5 px + 2 voxels): rays start where their block's cone came near | bench bricks-7: composite 51, pieces-9 43, custom-section 59 | | | 2/3 of clay missed | bug: a cone approaching the surface takes ever smaller steps and ran out of steps -> "no hit"; fixed: stop within 0.25 voxel, and any stop but leaving the box is a safe start |
 | 10b | cone pre-pass fixed | bench bricks-9: composite 62, pieces-9 54, custom-section 76 (from 80 / 68 / 97) | same | same | composite 0.23 / 11 / 0.9994; pieces-9 0.65 / 22 / 0.9974; custom-section 0.84 / 86 / 0.9976 (same as #7) | kept |
+| 11 | cone block 8×8 (vs 4×4) | bench bricks-10: composite 65, pieces-9 57, custom-section 74 | | | same | no |
+| 12 | probes (quality on the cone build; samples from probe.log), composite / pieces-9 / custom-section: bt=1.2 | | samples 8.14M / 3.41M / 10.7M (base 8.49 / 3.66 / 12.2) | | identical | kept as default |
+| 12b | bt=1.2 & bl=1 | | 7.40M / 3.21M / 9.48M (-13 % / -12 % / -22 %) | | 0.22/11/0.9995; 0.66/22/0.9974; 0.85/87/0.9976 | kept as default |
+| 12c | + bs=0.4 / bs=0.3 | | 8.86M / 10.1M (composite) | | best: bs 0.3: pieces-9 0.53/21/0.9981, custom-section 0.63/69/0.9981 | more N=8 bricks buy a little; still not strict on the hard scenes (silhouette at sharp edges) |
