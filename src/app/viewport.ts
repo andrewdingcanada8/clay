@@ -457,6 +457,7 @@ export class Viewport {
   }
 
   private lastSdfDoc: SceneDoc | null = null;
+  private benchBaseDoc: SceneDoc | null = null;
 
   /**
    * For the harness: one frame of an edit in progress (a gizmo drag): the document is
@@ -464,10 +465,14 @@ export class Viewport {
    * image is drawn from the exact field at the moving resolution, waited on.
    * `end` releases the drag (the document set at rest; the bake must run again).
    */
-  benchEdit(end = false) {
+  benchEdit(end = false, step = 0) {
     if (this.mode !== 'sdf' || !this.lastSdfDoc) return;
-    this.sdf.setDoc(this.lastSdfDoc, !end);
-    if (end) return;
+    // a real drag: the scene's middle object moves 0.05 further along x each frame
+    const base = (this.benchBaseDoc ??= this.lastSdfDoc);
+    if (end) { this.sdf.setDoc(base, false); this.lastSdfDoc = base; this.benchBaseDoc = null; return; }
+    const k = base.objects.length >> 1;
+    const doc = step ? { ...base, objects: base.objects.map((o, i) => (i !== k ? o : { ...o, transform: { ...o.transform, position: [o.transform.position[0] + 0.05 * step, o.transform.position[1], o.transform.position[2]] as typeof o.transform.position } })) } : base;
+    this.sdf.setDoc(doc, true);
     this.camera.updateMatrixWorld();
     const r = this.targets();
     this.drawLow(r.low); this.present(r.low);
