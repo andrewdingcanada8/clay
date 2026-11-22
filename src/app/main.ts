@@ -1621,6 +1621,7 @@ async function newPiece() {
 /** Replace the document wholesale (no undo across pieces) and restore its view. */
 function loadDoc(d: SceneDoc, who: { id: string | null; name: string }, v: ViewState | null) {
   doc = loadable(cloneDoc(d));
+  view.newDocument();
   committed = JSON.stringify(doc);
   past.length = 0; future.length = 0;
   save(doc);

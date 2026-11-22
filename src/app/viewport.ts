@@ -485,6 +485,9 @@ export class Viewport {
     this.lowKey = this.frontKey = '';
   }
 
+  /** A different document was opened: its first bake is a full one (nothing of the last one's carries over). */
+  newDocument() { this.bake.forget(); }
+
   /** For the harness: finish any per-edit work now (the bake), waited on. Returns ms. */
   benchPrepare(): number {
     if (this.mode !== 'sdf') return 0;
