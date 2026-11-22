@@ -9,7 +9,7 @@
 // Distances come from the same shader (FRAG with SDF_BAKE), so blends, hollow walls,
 // openings, masks and symmetry come along. The clip plane is applied when drawing.
 import * as THREE from 'three';
-import { FRAG, type SdfRenderer } from './raymarch';
+import { FRAG, type FieldSnapshot, type SdfRenderer } from './raymarch';
 import { dlog } from './debugLog';
 
 /** Voxels along the box's longest side. */
@@ -40,6 +40,7 @@ uniform int uClipOn;
 uniform vec3 uClay;
 uniform vec3 uCap;
 uniform int uMode;
+uniform float uShift;
 uniform float uPixelAngle;
 float field(vec3 p) {
   vec3 q = (p - uO) / uSize;
@@ -66,26 +67,60 @@ void main() {
   vec4 a = uInvProjView * vec4(vNdc, -1.0, 1.0), b = uInvProjView * vec4(vNdc, 1.0, 1.0);
   vec3 ro = a.xyz / a.w, rd = normalize(b.xyz / b.w - ro);
   float t0, t1;
-  if (!boxHit(ro, rd, t0, t1)) { if (uMode == 1) { fragColor = vec4(-1.0); return; } discard; }
+#ifdef START
+  if (!boxHit(ro, rd, t0, t1)) { fragColor = vec4(-1.0, -3.0, 1e5, -1.0); return; } // (tS -3: unknown)
+#else
+  if (!boxHit(ro, rd, t0, t1)) discard;
+#endif
   float t = max(t0, 0.0);
   int kind = 0;
   bool hit = false;
-  float d = 1e5, tNear = -1.0;
+  float d = 1e5, dMin = 1e5, tMin = -1.0, tNear = -1.0;
+#ifdef START
+  // Mid-drag the field may have moved by up to uShift since the bake (objects only
+  // translated): the march first steps by d - uShift, and tS is where that bound first
+  // allows a surface; then on to the baked hit as usual.
+  float tS = -1.0;
+  bool ended = false;
+  for (int i = 0; i < 240; i++) {
+    if (uShift == 0.0 && i >= 160) break; // (the settled start as it always was)
+#else
   for (int i = 0; i < 160; i++) {
+#endif
     d = sdf(ro + rd * t, kind);
     float eps = max(0.25 * uH, uPixelAngle * t * 0.5);
+#ifdef START
+    if (tS < 0.0 && d - uShift < eps) tS = t;
+#endif
     if (d < eps) { hit = true; break; }
     // a near approach: a wall thinner than a voxel can stay positive in the texture
     if (tNear < 0.0 && d < 0.5 * uH) tNear = t;
+    if (d < dMin) { dMin = d; tMin = t; }
+#ifdef START
+    t += max((tS < 0.0 ? d - uShift : d) * 0.9, 0.5 * eps);
+    if (t > t1) { ended = true; break; }
+#else
     t += max(d * 0.9, 0.5 * eps);
     if (t > t1) break;
+#endif
   }
+#ifdef START
+  // (no hit: a near approach starts the exact pass there; else -1, or -2: out of steps,
+  // the bake can't say; then its closest approach, where the exact field may still meet it)
+  if (!hit) { fragColor = vec4(tNear >= 0.0 ? tNear : (ended ? -1.0 : -2.0), tS, dMin, tMin); return; }
+  // the exact pass starts at an earlier, separate near approach (a wall thinner than a
+  // voxel can stay positive in the texture; the exact pass decides what is there)
+  if (tNear >= 0.0 && t - tNear > 2.0 * uH) { fragColor = vec4(tNear, tS, 0.0, 0.0); return; }
+#else
   if (!hit) { if (uMode == 1) { fragColor = vec4(tNear); return; } discard; }
-  // the exact pass starts at an earlier, separate near approach (it decides what is there)
   if (uMode == 1 && tNear >= 0.0 && t - tNear > 2.0 * uH) { fragColor = vec4(tNear); return; }
+#endif
   // a little closer: two steps on the interpolated field
   for (int i = 0; i < 2; i++) { t += sdf(ro + rd * t, kind); }
-  if (uMode == 1) { fragColor = vec4(t); return; }
+#ifdef START
+  fragColor = vec4(t, tS, 0.0, 0.0);
+  return;
+#endif
   vec3 p = ro + rd * t;
   vec4 clip = uProjView * vec4(p, 1.0);
   gl_FragDepth = clamp((clip.z / clip.w) * 0.5 + 0.5, 0.0, 1.0);
@@ -123,12 +158,22 @@ export class FieldBake {
   private bakeCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   private bakeMat: THREE.ShaderMaterial;
   readonly marchMat: THREE.ShaderMaterial;
+  private startMat: THREE.ShaderMaterial;
+  private marchMesh: THREE.Mesh;
+  /** Draw the march as the shading pass (0) or the settled pass's start (1). */
+  useMarch(mode: 0 | 1, shift = 0) { this.marchMesh.material = mode ? this.startMat : this.marchMat; this.startMat.uniforms.uShift.value = shift; }
   readonly marchScene = new THREE.Scene();
   private origin = new THREE.Vector3();
   private size = new THREE.Vector3();
   private h = 1;
   /** How long the last complete bake took (ms, wall clock) and its voxel count. */
   lastBake = { ms: 0, voxels: 0 };
+  /** The fields whose voxels the texture may hold (the last complete bake and any
+   *  partial ones since), and whether a bake on its current grid has completed. */
+  private snaps: FieldSnapshot[] = [];
+  private geomOk = false;
+  private dirtyKey = -1;
+  private dirtyMemo: ReturnType<SdfRenderer['dirtyBoxes']> = null;
 
   constructor(private sdf: SdfRenderer) {
     this.bakeMat = new THREE.ShaderMaterial({
@@ -147,7 +192,13 @@ export class FieldBake {
         uClay: su.uClay, uCap: su.uCap, uMode: { value: 0 }, uPixelAngle: su.uPixelAngle,
       },
     });
+    // (the start pass: the same march as its own program, so the shading one stays as it was)
+    this.startMat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: MARCH, depthTest: true, depthWrite: true,
+      uniforms: { ...this.marchMat.uniforms, uMode: { value: 1 }, uShift: { value: 0 } }, defines: { START: 1 },
+    });
     const mm = new THREE.Mesh(tri(), this.marchMat);
+    this.marchMesh = mm;
     mm.frustumCulled = false;
     // the exact renderer's matrices are set in its onBeforeRender: share its camera upkeep
     mm.onBeforeRender = (r, s, c, g, mat, grp) => sdf.mesh.onBeforeRender(r, s, c, g, mat, grp);
@@ -161,7 +212,21 @@ export class FieldBake {
   get voxel() { return this.h; }
 
   /** Forget the bake (the GPU context it lived in is gone). */
-  reset() { this.target?.dispose(); this.target = null; this.job = null; this.readyVersion = -1; }
+  reset() { this.target?.dispose(); this.target = null; this.job = null; this.readyVersion = -1; this.snaps = []; this.geomOk = false; }
+
+  /**
+   * Mid-drag (the field changed since the bake): where the baked texture may be wrong, as
+   * world boxes; everywhere else it still holds the field exactly. null: unusable (no
+   * complete bake on this grid, or the program's shape changed). Once per field version.
+   */
+  staleDirty(): ReturnType<SdfRenderer['dirtyBoxes']> {
+    if (!this.target || !this.geomOk || !this.snaps.length || this.snaps.length > 3) return null;
+    if (this.dirtyKey !== this.sdf.fieldVersion) {
+      this.dirtyKey = this.sdf.fieldVersion;
+      this.dirtyMemo = this.sdf.dirtyBoxes(this.snaps);
+    }
+    return this.dirtyMemo;
+  }
 
   /**
    * Advance the bake by one batch of layers if the field changed and is at rest.
@@ -194,6 +259,7 @@ export class FieldBake {
     j.row += n; j.batch = n; j.at = performance.now(); j.n++;
     if (j.row >= total) {
       this.readyVersion = v;
+      this.done();
       this.lastBake = { ms: performance.now() - j.t0, voxels: t.width * t.height * t.depth };
       dlog('bake-done', { ms: this.lastBake.ms, batches: j.n, dims: `${t.width}x${t.height}x${t.depth}` });
       this.job = null;
@@ -220,9 +286,16 @@ export class FieldBake {
     renderer.readRenderTargetPixels(this.target! as unknown as THREE.WebGLRenderTarget, 0, 0, 1, 1, px, 0);
     void gl;
     this.readyVersion = this.sdf.fieldVersion;
+    this.done();
     this.job = null;
     this.lastBake = { ms: performance.now() - t0, voxels: this.target!.width * this.target!.height * this.target!.depth };
     return this.lastBake.ms;
+  }
+
+  private done() {
+    this.snaps = this.snaps.slice(-1);
+    this.geomOk = true;
+    this.dirtyKey = -1;
   }
 
   private start(version: number, now: number) {
@@ -231,8 +304,14 @@ export class FieldBake {
     const h = Math.max(ext.x, ext.y, ext.z, 1e-3) / RES;
     const pad = 3 * h;
     const nx = Math.max(2, Math.ceil((ext.x + 2 * pad) / h) + 1), ny = Math.max(2, Math.ceil((ext.y + 2 * pad) / h) + 1), nz = Math.max(2, Math.ceil((ext.z + 2 * pad) / h) + 1);
+    const ox = b.min.x - pad, oy = b.min.y - pad, oz = b.min.z - pad;
+    // a different grid: the old voxels mean nothing on it until this bake completes
+    if (h !== this.h || ox !== this.origin.x || oy !== this.origin.y || oz !== this.origin.z || !this.target
+      || this.target.width !== nx || this.target.height !== ny || this.target.depth !== nz) { this.geomOk = false; this.snaps = []; }
+    this.snaps.push(this.sdf.snapshot());
+    this.dirtyKey = -1;
     this.h = h;
-    this.origin.set(b.min.x - pad, b.min.y - pad, b.min.z - pad);
+    this.origin.set(ox, oy, oz);
     this.size.set((nx - 1) * h, (ny - 1) * h, (nz - 1) * h);
     if (!this.target || this.target.width !== nx || this.target.height !== ny || this.target.depth !== nz) {
       this.target?.dispose();
