@@ -762,10 +762,18 @@ void main() {
 }
 #else
 void main() {
-#ifdef SDF_LIST
+#ifdef DIRTY_ONLY
+  // mid-drag over the stale bricks' frame: a list of the pixels whose rays meet a changed
+  // box (uStartT: x, y, where the exact march starts, where its window ends), one per
+  // fragment (bake.dirtyPass); a miss (or start < 0) leaves 0: the pixel clears
+  vec4 en = texelFetch(uStartT, ivec2(gl_FragCoord.xy), 0);
+  if (en.w == 0.0) { discard; return; }
+  if (en.z < 0.0) { pc_fragColor = vec4(0.0, 1.0, 0.0, -en.z); return; } // (a miss found on the CPU, how near in pixels)
+  vec2 ndc = (en.xy + 0.5) / uViewSize * 2.0 - 1.0;
+#elif defined(SDF_LIST)
   // a list of pixels (uStartT: x, y, start distance, mode) to resolve exactly, one per fragment
   vec4 en = texelFetch(uStartT, ivec2(gl_FragCoord.xy), 0);
-  if (en.w < 0.5) discard;
+  if (en.w < 0.5) { discard; return; }
   vec2 ndc = (en.xy + 0.5) / uViewSize * 2.0 - 1.0;
 #else
   vec2 ndc = vNdc;
@@ -775,7 +783,12 @@ void main() {
   vec3 ro = a.xyz / a.w;
   vec3 rd = normalize(b.xyz / b.w - ro);
   float t0, t1;
-  if (uGroupCount == 0 || !boxHit(ro, rd, t0, t1)) discard;
+#ifdef DIRTY_ONLY
+  // (a miss writes how near, in pixels at that distance, the ray came to a surface)
+  if (uGroupCount == 0 || !boxHit(ro, rd, t0, t1)) { pc_fragColor = vec4(0.0, 1.0, 0.0, 1e9); return; }
+#else
+  if (uGroupCount == 0 || !boxHit(ro, rd, t0, t1)) { discard; return; }
+#endif
   float t = max(t0, 0.0);
   // the baked field already found where (or whether) this ray meets the surface:
   // rays that miss stop here, before any per-ray setup
@@ -795,6 +808,11 @@ void main() {
 #define PAST_WINDOW (uStartOn == 1)
 #endif
 #endif
+#ifdef DIRTY_ONLY
+  useStart = false;
+  t = max(t, en.z);
+  tEnd = en.w;
+#else
   if (uStartOn == 1) {
 #ifdef SDF_DIRTY
     vec4 st = texelFetch(uStartT, ivec2(gl_FragCoord.xy), 0);
@@ -810,11 +828,11 @@ void main() {
     // a baked near miss (an edge the bake rounded over): exactly, round its closest approach
     if (ts < 0.0 && st.z < 1.5 * uBakeH && st.w > 0.0) { tD = min(tD, st.w - 3.0 * uBakeH); tDx = max(tDx, st.w); }
     if (ts < -1.5) { tD = min(tD, st.y >= 0.0 ? st.y : t); tDx = 1e9; } // (the stale march ran out of steps)
-    if (ts < 0.0 && tD > 1e8) discard;
+    if (ts < 0.0 && tD > 1e8) { discard; return; }
     // with a bounded shift, nothing can be nearer than tS (the new field is at least the
     // baked one less the shift); no tS: the shifted field never came near (box hit)
     bool shiftOk = uShiftOn == 1 && st.y > -2.5;
-    if (shiftOk && ts == -1.0 && st.y < 0.0) discard;
+    if (shiftOk && ts == -1.0 && st.y < 0.0) { discard; return; }
     // (a ray through a cavity-only box keeps the window unless it turns out to meet the
     // cavity: the shell's outer surface and the air outside it don't depend on it; a
     // ray that missed doesn't meet the shell at all)
@@ -835,10 +853,11 @@ void main() {
 #else
     float ts = texelFetch(uStartT, ivec2(gl_FragCoord.xy), 0).r;
 #endif
-    if (ts < 0.0) discard;
+    if (ts < 0.0) { discard; return; }
     tStart = ts - uStartBack;
 #endif
   }
+#endif
   // normal samples reach up to max(pixel footprint, quarter texel) from the hit;
   // occlusion samples up to 1.95 along the normal, and see objects within that again
   float nReach = uPixelAngle * t1 + 0.002;
@@ -859,7 +878,13 @@ void main() {
 #else
   if (USE_START) { t = max(t, tStart - 2.0 * uBakeH); t1 = min(t1, tStart + 3.0 * uBakeH); }
 #endif
+#if defined(DIRTY_ONLY) && DIRTY_AO
+  // (occlusion from the stale bake: no wider mask)
+  uvec4 marchMask = rayMask(ro, rd, t, t1, nReach, span, marchClu), aoMask = marchMask;
+  aoClu = marchClu;
+#else
   uvec4 marchMask = rayMask(ro, rd, t, t1, nReach, span, marchClu), aoMask = USE_START ? marchMask : rayMask(ro, rd, t, t1, 4.0, aoSpan, aoClu);
+#endif
   gClu = marchClu;
   gAOClu = USE_START ? marchClu : aoClu;
   gMask = marchMask;
@@ -867,15 +892,24 @@ void main() {
   bool hit = false;
   // nothing near this ray: it can't hit (the cost view still reports the pixel)
   if (marchMask == uvec4(0u) && uObjCount <= 128) {
+#ifdef DIRTY_ONLY
+    // (how near: no object within DIRTY_NR pixels of the ray either, or unknown)
+    vec2 sp4; uint c4;
+    pc_fragColor = vec4(0.0, 1.0, 0.0, rayMask(ro, rd, t, t1, float(DIRTY_NR) * nReach, sp4, c4) == uvec4(0u) ? 1e9 : 0.5);
+    return;
+#endif
 #ifndef SDF_LIST
     if (uFlat == 2) { pc_fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
 #endif
-    discard;
+    { discard; return; }
   }
   // every surface lies inside the boxes the ray crosses: march only that stretch
   if (uObjCount <= 128) { t = max(t, span.x); t1 = min(t1, span.y); }
   if (USE_START) t = max(t, tStart);
   float d = 1e5, eps = 0.0;
+#ifdef DIRTY_ONLY
+  float nearPx = 1e9, dPrev = 1e5;
+#endif
   // One loop calls map() for the march, then the 3 normal taps, then (without a
   // baked field) the 4 occlusion taps, so the long inlined field appears once.
   // phase 0: marching (step i); 1-3: normal taps (forward differences from d at p);
@@ -895,6 +929,11 @@ void main() {
     float m = map(q);
     if (phase == 0) {
       d = m;
+#ifdef DIRTY_ONLY
+      // (between two steps the field is at least the mean of the two ends less the step)
+      nearPx = min(nearPx, 0.5 * (min(dPrev, 1e4) * 0.08 + d) / (uPixelAngle * t + uPixelSize + 1e-6));
+      dPrev = d;
+#endif
       eps = clamp((uPixelAngle * t + uPixelSize) * 0.35, 0.0008, 0.008);
       bool done = false;
 #if defined(SDF_LIST) && LIST_CREEP
@@ -960,7 +999,11 @@ void main() {
 #ifndef SDF_LIST
       if (uFlat == 2 && !hit) { pc_fragColor = vec4(float(min(gMapN, 255)) / 255.0, float(min(gObjN >> 8, 255)) / 255.0, float(gObjN & 255) / 255.0, 1.0); return; }
 #endif
-      if (!hit) discard;
+#ifdef DIRTY_ONLY
+      if (!hit) { pc_fragColor = vec4(0.0, 1.0, 0.0, max(nearPx, 1e-3)); return; }
+#else
+      if (!hit) { discard; return; }
+#endif
       p = ro + rd * t;
       vec4 clip = uProjView * vec4(p, 1.0);
       gl_FragDepth = clamp((clip.z / clip.w) * 0.5 + 0.5, 0.0, 1.0);
@@ -983,6 +1026,9 @@ void main() {
       if (uPass != 0) break;
 #endif
       // with a baked field, occlusion comes from it (below)
+#if defined(DIRTY_ONLY) && DIRTY_AO
+      break; // (occlusion from the stale bake, below)
+#endif
       if (USE_START) break;
       // occlusion: the wider mask, and the clay only (not the section plane)
       gMask = gAOMask;
@@ -1011,7 +1057,11 @@ void main() {
   vec3 key = normalize(-rd + vec3(0.35, 0.65, 0.2));
   float dif = clamp(dot(n, key), 0.0, 1.0);
   float hemi = 0.55 + 0.45 * n.y;
+#if defined(DIRTY_ONLY) && DIRTY_AO
+  if (true) {
+#else
   if (USE_START) {
+#endif
     for (int k = 0; k < 4; k++) { float h = 0.15 + 0.6 * float(k); occ += (h - bakedField(p + n * h)) * sca; sca *= 0.75; }
   }
   float ao = clamp(1.0 - 0.18 * occ, 0.0, 1.0);
@@ -1021,7 +1071,7 @@ void main() {
 #ifndef SDF_LIST
   if (uFlat == 2) pc_fragColor = vec4(float(min(gMapN, 255)) / 255.0, float(min(gObjN >> 8, 255)) / 255.0, float(gObjN & 255) / 255.0, 1.0);
 #endif
-#ifdef SDF_LIST
+#if defined(SDF_LIST) || defined(DIRTY_ONLY)
   // the colour as 8-bit channels packed in one float, the depth, hit
   vec3 c8 = floor(clamp(pc_fragColor.rgb, 0.0, 1.0) * 255.0 + 0.5);
   pc_fragColor = vec4(c8.r + c8.g * 256.0 + c8.b * 65536.0, gDepth, 1.0, 0.0);
@@ -1138,6 +1188,7 @@ export class SdfRenderer {
       glslVersion: THREE.GLSL3, vertexShader: this.material.vertexShader, fragmentShader: FRAG, uniforms: u,
       defines: { SDF_DIRTY: 1 }, depthWrite: true, depthTest: true,
     });
+
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3));
     this.mesh = new THREE.Mesh(geo, this.material);

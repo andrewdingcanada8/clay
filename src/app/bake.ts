@@ -23,6 +23,13 @@ const LIST_CREEP = +(typeof location !== 'undefined' && new URLSearchParams(loca
 const LIST_WIN = (typeof location !== 'undefined' && new URLSearchParams(location.search).get('lw') || '0.6,1').split(',').map(Number);
 const LIST_BACK = +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('lb') || 0.2);
 const SHOW_FLAGS = typeof location !== 'undefined' && new URLSearchParams(location.search).get('fv') === '1';
+/** Mid-drag exact pixels take their occlusion from the stale bake (1) or exactly (0). */
+const DIRTY_AO = +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('dao') || 1);
+/** Mid-drag exact pixels at half resolution first, the rest from their means where smooth (colour spread, relative depth spread). */
+const DIRTY_HALF = +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('dh') || 1);
+const DIRTY_CT = +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('dct') || 12);
+const DIRTY_DT = +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('ddt') || 0.03);
+const DIRTY_NR = +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('dnr') || 3);
 const DEBUG_TIMES = typeof location !== 'undefined' && new URLSearchParams(location.search).get('rt') === '1';
 /** The first batch, before the pace is known: this many rows of voxels. */
 const FIRST_ROWS = 8;
@@ -198,6 +205,15 @@ export class FieldBake {
   private listScene = new THREE.Scene();
   private listTex: THREE.DataTexture | null = null;
   private listRT: THREE.WebGLRenderTarget | null = null;
+  private dirtyListScene = new THREE.Scene();
+  private dirtyBuf = new Float32Array(4);
+  lastDirty = { n: 0, readMs: 0, listMs: 0, exactMs: 0, nA: 0, nI: 0, nB: 0 };
+  private dMark: Uint8Array | null = null;
+  private dSE: Float32Array | null = null;
+  private dIdx: Int32Array | null = null;
+  private resBuf = new Float32Array(4);
+  private mixList: THREE.DataTexture | null = null;
+  private mixRes: THREE.DataTexture | null = null;
   private scatterScene = new THREE.Scene();
   private scatterGeo = new THREE.BufferGeometry();
   private scatterMat: THREE.ShaderMaterial;
@@ -212,6 +228,9 @@ export class FieldBake {
   private geomOk = false;
   private dirtyKey = -1;
   private dirtyMemo: ReturnType<SdfRenderer['dirtyBoxes']> = null;
+  /** The field the complete bricks (and the coarse texture under them) hold, until a bake
+   *  starts overwriting them; null: none. */
+  private brickSnap: FieldSnapshot | null = null;
 
   constructor(private sdf: SdfRenderer) {
     this.bakeMat = new THREE.ShaderMaterial({
@@ -282,6 +301,14 @@ export class FieldBake {
     lm.frustumCulled = false;
     lm.onBeforeRender = (r, s, c, g, mat, grp) => sdf.mesh.onBeforeRender(r, s, c, g, mat, grp);
     this.listScene.add(lm);
+    // mid-drag: the pixels whose rays meet a changed box, exactly (dirtyPass)
+    const dm = new THREE.Mesh(tri(), new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: FRAG, uniforms: sdf.material.uniforms,
+      defines: { SDF_DIRTY: 1, DIRTY_ONLY: 1, DIRTY_AO, DIRTY_NR }, depthTest: false, depthWrite: false,
+    }));
+    dm.frustumCulled = false;
+    dm.onBeforeRender = (r, s, c, g, mat, grp) => sdf.mesh.onBeforeRender(r, s, c, g, mat, grp);
+    this.dirtyListScene.add(dm);
     this.scatterMat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, vertexShader: SCATTER_V, fragmentShader: SCATTER_F,
       uniforms: { uList: { value: null }, uRes: { value: null }, uViewSize: { value: new THREE.Vector2(1, 1) } },
@@ -330,6 +357,26 @@ export class FieldBake {
     (window as unknown as { __refine: unknown }).__refine = this.lastRefine;
     if (!n) return 0;
     // (4 consecutive entries fill one 2×2 quad: neighbouring pixels run side by side)
+    const L = this.listFor(n);
+    let k = 0;
+    for (let i = 0; i < W * H; i++) {
+      const al = px[i * 4 + 3];
+      if (al !== 128 && al !== 129) continue;
+      const v = px[i * 4] * 65536 + px[i * 4 + 1] * 256 + px[i * 4 + 2];
+      const o = FieldBake.slot(k);
+      L[o] = i % W; L[o + 1] = Math.floor(i / W); L[o + 2] = (v / 16777215) * tMax; L[o + 3] = al - 127;
+      k++;
+    }
+    const T2 = performance.now();
+    const u = this.sdf.material.uniforms;
+    u.uStartBack.value = LIST_BACK * this.h; u.uListWin.value.set(LIST_WIN[0], LIST_WIN[1]);
+    const T3 = this.runList(renderer, camera, t, n, this.listScene);
+    if (DEBUG_TIMES) { renderer.readRenderTargetPixels(t, 0, 0, 1, 1, new Uint8Array(4)); Object.assign(this.lastRefine, { readMs: T1 - T0, listMs: T2 - T1, exactMs: T3 - T2, scatterMs: performance.now() - T3 }); }
+    return n;
+  }
+
+  /** A list texture of at least n entries (4 consecutive entries fill one 2×2 quad), cleared. */
+  private listFor(n: number) {
     const rows = 2 * Math.ceil(n / (2 * LIST_W));
     if (!this.listTex || this.listTex.image.height < rows) {
       this.listTex?.dispose();
@@ -338,18 +385,20 @@ export class FieldBake {
     }
     const L = this.listTex.image.data as Float32Array;
     L.fill(0);
-    let k = 0;
-    for (let i = 0; i < W * H; i++) {
-      const al = px[i * 4 + 3];
-      if (al !== 128 && al !== 129) continue;
-      const v = px[i * 4] * 65536 + px[i * 4 + 1] * 256 + px[i * 4 + 2];
-      const q = k >> 2, hq = LIST_W >> 1, o = ((Math.floor(q / hq) * 2 + ((k >> 1) & 1)) * LIST_W + (q % hq) * 2 + (k & 1)) * 4;
-      L[o] = i % W; L[o + 1] = Math.floor(i / W); L[o + 2] = (v / 16777215) * tMax; L[o + 3] = al - 127;
-      k++;
-    }
-    this.listTex.needsUpdate = true;
-    const T2 = performance.now();
-    const lh = this.listTex.image.height;
+    return L;
+  }
+
+  /** Where list entry k goes in the list texture (float offset). */
+  private static slot(k: number) {
+    const q = k >> 2, hq = LIST_W >> 1;
+    return ((Math.floor(q / hq) * 2 + ((k >> 1) & 1)) * LIST_W + (q % hq) * 2 + (k & 1)) * 4;
+  }
+
+  /** The exact pass (scene) over the list's n entries, then each result back into frame t. Returns when the exact pass was issued. */
+  private runList(renderer: THREE.WebGLRenderer, camera: THREE.Camera, t: THREE.WebGLRenderTarget, n: number, scene: THREE.Scene, scatter = true) {
+    const W = t.width, H = t.height;
+    this.listTex!.needsUpdate = true;
+    const lh = this.listTex!.image.height;
     if (!this.listRT || this.listRT.height !== lh) {
       this.listRT?.dispose();
       this.listRT = new THREE.WebGLRenderTarget(LIST_W, lh, { type: THREE.FloatType, format: THREE.RGBAFormat, depthBuffer: false });
@@ -357,31 +406,194 @@ export class FieldBake {
     }
     // the exact pass over the list (misses discard: the target clears to 0, no hit)
     const u = this.sdf.material.uniforms;
-    u.uStartOn.value = 1; u.uStartT.value = this.listTex; u.uStartBack.value = LIST_BACK * this.h;
-    u.uBakeO.value.copy(this.origin); u.uViewSize.value.set(W, H); u.uListWin.value.set(LIST_WIN[0], LIST_WIN[1]);
+    u.uStartOn.value = 1; u.uStartT.value = this.listTex;
+    u.uBakeO.value.copy(this.origin); u.uViewSize.value.set(W, H);
     const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
     const clear = renderer.getClearColor(new THREE.Color()), clearA = renderer.getClearAlpha();
     renderer.setClearColor(0x000000, 0);
     renderer.setRenderTarget(this.listRT);
-    renderer.render(this.listScene, camera);
+    renderer.render(scene, camera);
     u.uStartOn.value = 0;
     if (DEBUG_TIMES) { const b = new Float32Array(4); renderer.readRenderTargetPixels(this.listRT, 0, 0, 1, 1, b); }
     const T3 = performance.now();
-    // back into the frame, one point each
+    renderer.setRenderTarget(prev);
+    renderer.setClearColor(clear, clearA);
+    if (scatter) this.scatter(renderer, t, this.listTex!, this.listRT.texture, n);
+    return T3;
+  }
+
+  /** Results res (packed colour, depth, hit) of the list's n entries back into frame t, one point each. */
+  private scatter(renderer: THREE.WebGLRenderer, t: THREE.WebGLRenderTarget, list: THREE.Texture, res: THREE.Texture, n: number) {
+    const W = t.width, H = t.height;
+    const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
     if (!this.scatterGeo.getAttribute('position') || this.scatterGeo.getAttribute('position').count < n) {
       this.scatterGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(Math.max(n, 1024) * 3 * 2), 3));
     }
     this.scatterGeo.setDrawRange(0, n);
     const su = this.scatterMat.uniforms;
-    su.uList.value = this.listTex; su.uRes.value = this.listRT.texture; su.uViewSize.value.set(W, H);
+    su.uList.value = list; su.uRes.value = res; su.uViewSize.value.set(W, H);
     renderer.autoClear = false;
     renderer.setRenderTarget(t);
     renderer.render(this.scatterScene, this.bakeCam);
     renderer.setRenderTarget(prev);
     renderer.autoClear = auto;
-    renderer.setClearColor(clear, clearA);
-    if (DEBUG_TIMES) { renderer.readRenderTargetPixels(t, 0, 0, 1, 1, new Uint8Array(4)); Object.assign(this.lastRefine, { readMs: T1 - T0, listMs: T2 - T1, exactMs: T3 - T2, scatterMs: performance.now() - T3 }); }
-    return n;
+  }
+
+  /**
+   * Mid-drag, over frame t drawn from the stale bricks: the pixels whose rays meet a changed
+   * box before the stale hit (the bake holds the field exactly everywhere else) are resolved
+   * exactly, from a list, and written over it; a ray the shifted field can't meet clears.
+   * st: the stale start pass at t's size (float: ts, tS, closest approach, where).
+   * Returns the number of pixels resolved.
+   */
+  dirtyPass(renderer: THREE.WebGLRenderer, camera: THREE.Camera, t: THREE.WebGLRenderTarget, st: THREE.WebGLRenderTarget, d: NonNullable<ReturnType<SdfRenderer['dirtyBoxes']>>) {
+    const W = t.width, H = t.height, h = this.h, back = 0.5 * h;
+    if (this.dirtyBuf.length !== W * H * 4) this.dirtyBuf = new Float32Array(W * H * 4);
+    const S = this.dirtyBuf;
+    const T0 = performance.now();
+    renderer.readRenderTargetPixels(st, 0, 0, W, H, S);
+    const T1 = performance.now();
+    const shiftOn = Number.isFinite(d.shift) && d.shift > 0;
+    const pa = this.sdf.material.uniforms.uPixelAngle.value as number, ps = this.sdf.material.uniforms.uPixelSize.value as number;
+    const boxes = [...d.full, ...d.cavity];
+    const M = (this.sdf.material.uniforms.uInvProjView.value as THREE.Matrix4).elements;
+    // (the ray through a pixel centre as the shader makes it: near and far points)
+    const pt = (x: number, y: number, z: number, o: number[]) => {
+      const w = M[3] * x + M[7] * y + M[11] * z + M[15];
+      o[0] = (M[0] * x + M[4] * y + M[8] * z + M[12]) / w; o[1] = (M[1] * x + M[5] * y + M[9] * z + M[13]) / w; o[2] = (M[2] * x + M[6] * y + M[10] * z + M[14]) / w;
+    };
+    const a = [0, 0, 0], b = [0, 0, 0];
+    const N = W * H;
+    if (!this.dMark || this.dMark.length !== N) { this.dMark = new Uint8Array(N); this.dSE = new Float32Array(2 * N); this.dIdx = new Int32Array(N); }
+    const mark = this.dMark, se = this.dSE!;
+    mark.fill(0);
+    let nd = 0;
+    const put = (x: number, y: number, s0: number, s1: number) => { const i = y * W + x; mark[i] = 1; se[2 * i] = s0; se[2 * i + 1] = s1; nd++; };
+    for (let y = 0; y < H; y++) {
+      const ny = ((y + 0.5) / H) * 2 - 1;
+      for (let x = 0; x < W; x++) {
+        const nx = ((x + 0.5) / W) * 2 - 1;
+        pt(nx, ny, -1, a); pt(nx, ny, 1, b);
+        let dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
+        const l = Math.hypot(dx, dy, dz); dx /= l; dy /= l; dz /= l;
+        let tD = 1e9, tDx = -1e9;
+        for (const B of boxes) {
+          let lo = 0, hi = 1e9;
+          const o = [a[0], a[1], a[2]], r = [dx, dy, dz];
+          for (let c = 0; c < 3 && lo <= hi; c++) {
+            const inv = 1 / r[c], p = (B.min[c] - o[c]) * inv, q = (B.max[c] - o[c]) * inv;
+            lo = Math.max(lo, Math.min(p, q)); hi = Math.min(hi, Math.max(p, q));
+          }
+          if (lo <= hi) { tD = Math.min(tD, lo); tDx = Math.max(tDx, hi); }
+        }
+        if (tD > 1e8) continue;
+        const i = (y * W + x) * 4, ts = S[i], tS = S[i + 1];
+        if (ts >= 0 && ts + 3 * h < tD) continue;
+        if (ts < -1.5) { tD = Math.min(tD, tS >= 0 ? tS : 0); tDx = 1e9; }
+        const shiftOk = shiftOn && tS > -2.5;
+        // (the shifted field never came near: a miss; how near in pixels, from the stale march's closest approach)
+        if (shiftOk && ts === -1 && tS < 0) { put(x, y, -Math.max(1e-3, (S[i + 2] - d.shift - h) / (pa * Math.max(S[i + 3], 0) + ps + 1e-6)), -1); continue; }
+        let t0 = (ts >= 0 ? Math.min(ts, tD) : tD) - back;
+        if (shiftOk && tS >= 0) t0 = Math.max(t0, tS - back);
+        put(x, y, Math.max(t0, 0), ts < -1.5 ? 1e9 : Math.max(tDx, ts) + 3 * h);
+      }
+    }
+    const T2 = performance.now();
+    this.lastDirty = { n: nd, readMs: T1 - T0, listMs: T2 - T1, exactMs: 0, nA: 0, nI: 0, nB: 0 };
+    (window as unknown as { __dirty: unknown }).__dirty = this.lastDirty;
+    if (!nd) return 0;
+    const idx = this.dIdx!;
+    // Half resolution first: the pixels at even (x, y) exactly; a pixel between such samples
+    // that all hit with nearly the same colour and depth takes their mean; the rest exactly.
+    const fill = (L: Float32Array, k: number, i: number) => { const o = FieldBake.slot(k); L[o] = i % W; L[o + 1] = (i / W) | 0; L[o + 2] = se[2 * i]; L[o + 3] = se[2 * i + 1]; };
+    let nA = 0;
+    if (DIRTY_HALF) {
+      for (let i = 0; i < N; i++) if (mark[i] && !(i % W & 1) && !(((i / W) | 0) & 1)) nA++;
+      const LA = this.listFor(nA);
+      let k = 0;
+      idx.fill(-1);
+      for (let i = 0; i < N; i++) if (mark[i] && !(i % W & 1) && !(((i / W) | 0) & 1)) { fill(LA, k, i); idx[i] = k++; }
+    }
+    let nB = 0, nI = 0;
+    if (nA) {
+      this.runList(renderer, camera, t, nA, this.dirtyListScene, false);
+      const rows = this.listTex!.image.height;
+      if (this.resBuf.length < LIST_W * rows * 4) this.resBuf = new Float32Array(LIST_W * rows * 4);
+      const R = this.resBuf;
+      renderer.readRenderTargetPixels(this.listRT!, 0, 0, LIST_W, rows, R);
+      // the samples and the means: coordinates and results side by side, scattered at once
+      const cam = camera as THREE.PerspectiveCamera, near = cam.near, far = cam.far;
+      const lin = (z: number) => (2 * near * far) / (far + near - (2 * z - 1) * (far - near));
+      const nMax = nd;
+      if (!this.mixList || this.mixList.image.height < 2 * Math.ceil(nMax / (2 * LIST_W))) {
+        const rows2 = 2 * Math.ceil(nMax / (2 * LIST_W));
+        this.mixList?.dispose(); this.mixRes?.dispose();
+        this.mixList = new THREE.DataTexture(new Float32Array(LIST_W * rows2 * 4), LIST_W, rows2, THREE.RGBAFormat, THREE.FloatType);
+        this.mixRes = new THREE.DataTexture(new Float32Array(LIST_W * rows2 * 4), LIST_W, rows2, THREE.RGBAFormat, THREE.FloatType);
+        for (const tx of [this.mixList, this.mixRes]) { tx.minFilter = tx.magFilter = THREE.NearestFilter; }
+      }
+      const ML = this.mixList.image.data as Float32Array, MR = this.mixRes!.image.data as Float32Array;
+      let m = 0;
+      const emit = (i: number, v: number, z: number, hit: number) => { const o = FieldBake.slot(m++); ML[o] = i % W; ML[o + 1] = (i / W) | 0; MR[o] = v; MR[o + 1] = z; MR[o + 2] = hit; };
+      for (let i = 0; i < N; i++) if (idx[i] >= 0) { const o = FieldBake.slot(idx[i]); emit(i, R[o], R[o + 1], R[o + 2]); }
+      const corners: number[] = [];
+      const why = [0, 0, 0, 0, 0, 0];
+      (this.lastDirty as unknown as { why: number[] }).why = why;
+      for (let i = 0; i < N; i++) {
+        if (!mark[i] || idx[i] >= 0) continue;
+        const x = i % W, y = (i / W) | 0;
+        corners.length = 0;
+        let ok = true;
+        for (const yy of y & 1 ? [y - 1, y + 1] : [y]) for (const xx of x & 1 ? [x - 1, x + 1] : [x]) {
+          if (xx >= W || yy >= H) { ok = false; continue; }
+          const j = yy * W + xx;
+          if (idx[j] < 0) { ok = false; continue; }
+          const o = FieldBake.slot(idx[j]);
+          corners.push(o);
+        }
+        // every sample a miss that came no nearer than DIRTY_NR pixels to a surface: a miss
+        if (ok && corners.every((o) => R[o + 2] < 0.5 && R[o + 3] >= DIRTY_NR)) { emit(i, 0, 1, 0); nI++; continue; }
+        if (!ok) why[0]++;
+        else if (corners.every((o) => R[o + 2] < 0.5)) why[corners.some((o) => R[o + 3] === 0) ? 1 : 2]++;
+        else if (corners.some((o) => R[o + 2] < 0.5)) why[3]++;
+        if (ok && corners.some((o) => R[o + 2] < 0.5)) ok = false;
+        if (ok) {
+          let rl = 255, rh = 0, gl = 255, gh = 0, bl = 255, bh = 0, zl = 1e30, zh = 0, rs = 0, gs = 0, bs = 0, zs = 0;
+          for (const o of corners) {
+            const v = R[o], r = v % 256, g = Math.floor(v / 256) % 256, bb = Math.floor(v / 65536), z = lin(R[o + 1]);
+            rl = Math.min(rl, r); rh = Math.max(rh, r); gl = Math.min(gl, g); gh = Math.max(gh, g); bl = Math.min(bl, bb); bh = Math.max(bh, bb);
+            zl = Math.min(zl, z); zh = Math.max(zh, z); rs += r; gs += g; bs += bb; zs += R[o + 1];
+          }
+          if (Math.max(rh - rl, gh - gl, bh - bl) <= DIRTY_CT && zh - zl <= DIRTY_DT * zl) {
+            const c = corners.length;
+            emit(i, Math.round(rs / c) + Math.round(gs / c) * 256 + Math.round(bs / c) * 65536, zs / c, 1);
+            nI++;
+            continue;
+          }
+          why[Math.max(rh - rl, gh - gl, bh - bl) > DIRTY_CT ? 4 : 5]++;
+        }
+        idx[i] = -2; nB++;
+      }
+      this.mixList.needsUpdate = true; this.mixRes!.needsUpdate = true;
+      this.scatter(renderer, t, this.mixList, this.mixRes!, m);
+    } else { for (let i = 0; i < N; i++) if (mark[i]) idx[i] = -2; nB = nd; }
+    if (nB) {
+      const LB = this.listFor(nB);
+      let k = 0;
+      for (let i = 0; i < N; i++) if (idx[i] === -2) fill(LB, k++, i);
+      this.runList(renderer, camera, t, nB, this.dirtyListScene);
+    }
+    Object.assign(this.lastDirty, { nA, nI, nB });
+    if (DEBUG_TIMES) { renderer.readRenderTargetPixels(t, 0, 0, 1, 1, new Uint8Array(4)); this.lastDirty.exactMs = performance.now() - T2; }
+    return nd;
+  }
+
+  /** The mid-drag exact pass's program, compiled at rest (once): the first drag frame would pay for it. */
+  private dirtyWarm = false;
+  private warmDirty(renderer: THREE.WebGLRenderer) {
+    if (this.dirtyWarm) return;
+    this.dirtyWarm = true;
+    renderer.compile(this.dirtyListScene, this.bakeCam);
   }
 
   /** The bricks match the field (the settled frame can come from them). */
@@ -394,13 +606,17 @@ export class FieldBake {
   get voxel() { return this.h; }
 
   /** Forget the bake (the GPU context it lived in is gone). */
-  reset() { this.target?.dispose(); this.target = null; this.job = null; this.readyVersion = -1; this.brickVersion = -1; for (const l of this.levels) l.dispose(); this.classRT?.dispose(); this.classRT = null; this.snaps = []; this.geomOk = false; }
+  reset() { this.target?.dispose(); this.target = null; this.job = null; this.readyVersion = -1; this.brickVersion = -1; for (const l of this.levels) l.dispose(); this.classRT?.dispose(); this.classRT = null; this.snaps = []; this.geomOk = false; this.brickSnap = null; this.dirtyWarm = false; }
 
   /**
    * Mid-drag (the field changed since the bake): where the baked texture may be wrong, as
    * world boxes; everywhere else it still holds the field exactly. null: unusable (no
    * complete bake on this grid, or the program's shape changed). Once per field version.
    */
+  /** Mid-drag: the bricks still hold the field the stale bake does, whole (staleDirty's boxes
+   *  are where they may be wrong); the settled pass can draw from them. */
+  get staleBricks() { return !!this.brickSnap && this.geomOk && !!this.target && this.snaps.length === 1 && this.snaps[0] === this.brickSnap; }
+
   staleDirty(): ReturnType<SdfRenderer['dirtyBoxes']> {
     if (!this.target || !this.geomOk || !this.snaps.length || this.snaps.length > 3) return null;
     if (this.dirtyKey !== this.sdf.fieldVersion) {
@@ -501,6 +717,8 @@ export class FieldBake {
       if (j.level >= this.levels.length) { j.level = 0; j.phase++; }
     }
     this.brickVersion = v;
+    this.brickSnap = this.snaps[this.snaps.length - 1] ?? null;
+    this.warmDirty(renderer);
     this.lastBake.brickMs = performance.now() - j.tb;
     dlog('bricks-done', { ms: this.lastBake.brickMs, bricks: this.lastBake.bricks, samples: this.lastBake.samples });
     this.job = null;
@@ -538,6 +756,8 @@ export class FieldBake {
     this.levels.forEach((L, i) => { if (L.count) L.curv(renderer, this.readAtlas!, this.zOff[i], 0, L.atlas!.height * L.atlas!.depth, this.shadeAtlas); });
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
     this.brickVersion = this.sdf.fieldVersion;
+    this.brickSnap = this.snaps[this.snaps.length - 1] ?? null;
+    this.warmDirty(renderer);
     this.lastBake.brickMs = performance.now() - tb;
     (window as unknown as { __brickStats: unknown }).__brickStats = { ...this.lastBake, cells: [...this.cells], atlas: this.levels.map((l) => l.atlas ? [l.atlas.width, l.atlas.height, l.atlas.depth] : null) };
     return performance.now() - t0;
@@ -560,6 +780,7 @@ export class FieldBake {
     if (h !== this.h || ox !== this.origin.x || oy !== this.origin.y || oz !== this.origin.z || !this.target
       || this.target.width !== nx || this.target.height !== ny || this.target.depth !== nz) { this.geomOk = false; this.snaps = []; }
     this.snaps.push(this.sdf.snapshot());
+    this.brickSnap = null;
     this.dirtyKey = -1;
     this.h = h;
     this.origin.set(ox, oy, oz);

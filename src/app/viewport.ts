@@ -25,6 +25,8 @@ export type GizmoMode = 'translate' | 'rotate' | 'scale' | 'off';
 
 /** SDF resolution while the view moves, as fractions of the settled one (starts at 0.5). */
 const MOVING_LEVELS = [0.35, 0.5, 0.7, 1];
+/** Edit frames from the stale bricks (settled pass) plus the changed rays exactly. */
+const EDIT_BRICKS = new URLSearchParams(location.search).get('eb') !== '0';
 /** Settled resolution caps by safe level (raised by each GPU loss, see Viewport.safer). */
 const SAFE_CAPS = [Infinity, 1, 0.6, 0.4];
 /** The SDF quad draws on its own layer: into an offscreen image, then onto the canvas
@@ -114,6 +116,7 @@ export class Viewport {
   /** Where each settled ray starts (from the baked field), full resolution. */
   private startRT: THREE.WebGLRenderTarget | null = null;
   private startLowRT: THREE.WebGLRenderTarget | null = null;
+  private startFloatRT: THREE.WebGLRenderTarget | null = null;
   private stateShift = 0;
   /** rows per ms a band took last (learned; 0 until measured) */
   private rowRate = 0;
@@ -313,7 +316,7 @@ export class Viewport {
     this.renderer = r;
     // (images of the old context are gone with it)
     this.rt = null; this.lowKey = this.frontKey = ''; this.band.active = false; this.fence = null; this.lowFence = null; this.shadow = null;
-    this.bake.reset(); this.startRT = null; this.startLowRT = null; this.bandStart = null;
+    this.bake.reset(); this.startRT = null; this.startLowRT = null; this.startFloatRT = null; this.bandStart = null;
     this.orbit.disconnect(); this.orbit.connect(r.domElement);
     this.gizmo.disconnect(); this.gizmo.connect(r.domElement);
     this.setupTap();
@@ -637,6 +640,15 @@ export class Viewport {
     const dirty = this.bake.staleDirty();
     if (now - this.lowLogAt > 1000) { this.lowLogAt = now; dlog('exact-frame', { w: t.width, h: t.height, moving: this.moving, editing: this.sdf.interactive, stale: dirty ? dirty.full.length + dirty.cavity.length : -1 }); }
     if (!dirty) { this.drawSdf(t); return; }
+    if (this.bake.staleBricks && EDIT_BRICKS) {
+      // the stale bricks' settled image, then the rays through changed boxes exactly over it
+      this.drawBricks(t);
+      this.stateShift = Number.isFinite(dirty.shift) ? dirty.shift : 0;
+      const start = this.startDepths(t.width, t.height, true, true);
+      this.stateShift = 0;
+      this.bake.dirtyPass(this.renderer, this.camera, t, start!, dirty);
+      return;
+    }
     this.sdf.setDirty(dirty);
     // (the start pass also finds where a field shifted by up to dirty.shift may begin)
     this.stateShift = Number.isFinite(dirty.shift) ? dirty.shift : 0;
@@ -647,13 +659,14 @@ export class Viewport {
 
   /** Where each settled ray starts, from the baked field (null: no bake yet). */
   /** (stale: from a bake older than the field, for drawLow; at the given size) */
-  private startDepths(w = this.renderer.domElement.width, h = this.renderer.domElement.height, stale = false): THREE.WebGLRenderTarget | null {
+  /** (float: full precision, read back by bake.dirtyPass) */
+  private startDepths(w = this.renderer.domElement.width, h = this.renderer.domElement.height, stale = false, float = false): THREE.WebGLRenderTarget | null {
     if (!this.bake.ready && !stale) return null;
-    const key = stale ? 'startLowRT' : 'startRT';
+    const key = float ? 'startFloatRT' : stale ? 'startLowRT' : 'startRT';
     let rt = this[key];
     if (!rt || rt.width !== w || rt.height !== h) {
       rt?.dispose();
-      rt = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, depthBuffer: false });
+      rt = new THREE.WebGLRenderTarget(w, h, { type: float ? THREE.FloatType : THREE.HalfFloatType, depthBuffer: false });
       rt.texture.minFilter = rt.texture.magFilter = THREE.NearestFilter;
       this[key] = rt;
     }
