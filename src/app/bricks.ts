@@ -35,6 +35,11 @@ export const NORMAL_E = +(Q.get('ne') ?? 1);
  *  axis); the second differences are baked beside the values (RGBA: d, Δ²x, Δ²y, Δ²z). */
 export const QUAD_CORR = Q.get('qc') !== '0';
 /** Atlas slots per row and per column. */
+/** Cone pre-pass block size (pixels), its radius in pixels for the block's corner rays (with
+ *  slack for uPixelAngle), and how near (voxels) it may come before the full rays take over. */
+export const CONE_PX = +(Q.get('cp') ?? 4);
+const CONE_R = CONE_PX * 0.71 + 0.7;
+const CONE_MARGIN = +(Q.get('cg') ?? 2);
 /** Atlas width and height in texels (each level fits as many slots across as it can). */
 export const ATLAS_W = 360;
 
@@ -107,6 +112,9 @@ uniform sampler3D uTex;
 uniform sampler3D uIndS;
 // every level's bricks, values and second differences (RGBA), one level after another in z
 uniform sampler3D uAtlasR;
+uniform vec3 uInvA;  // 1 / the read atlas's size
+uniform vec3 uInvN;  // 1 / the coarse texture's size
+uniform vec3 uNm1;   // the coarse texture's size - 1
 uniform vec3 uO;
 uniform vec3 uSize;
 uniform float uH;
@@ -120,6 +128,8 @@ uniform vec3 uCap;
 uniform float uPixelAngle;
 uniform float uPixelSize;
 uniform int uFlat;
+// where each block of CONE_PX × CONE_PX rays may start (cone pre-pass); >= 1e9: none hits
+uniform sampler2D uConeT;
 float coarse(vec3 p) {
   vec3 q = (p - uO) / uSize;
   vec3 c = clamp(q, 0.0, 1.0);
@@ -141,12 +151,14 @@ float field(vec3 p, out int level) {
   ivec3 c = clamp(ivec3(cf), ivec3(0), uCells - 1);
   vec4 e = texelFetch(uIndS, c, 0);
   vec3 l = clamp((g - cf * ${BRICK_B.toFixed(1)}) * (e.w * ${f(1 / BRICK_B)}), 0.0, e.w);
-  vec4 q = texture(uAtlasR, (e.xyz + 0.5 + l) / vec3(textureSize(uAtlasR, 0)));
+  vec4 q = texture(uAtlasR, (e.xyz + 0.5 + l) * uInvA);
   float fb = q.r;${QUAD_CORR ? `
   vec3 w = fract(l);
   fb -= 0.5 * dot(w * (1.0 - w), q.gba);` : ''}
   level = ivec3(cf) != c || e.w == 0.0 ? -1 : e.w == ${BRICK_N[0].toFixed(1)} ? 0 : 1;
-  return level >= 0 ? fb : coarse(p);
+  // (the ray stays inside the baked box: the coarse read needs no outside term)
+  float fc = texture(uTex, (clamp(g, vec3(0.0), uNm1) + 0.5) * uInvN).r;
+  return level >= 0 ? fb : fc;
 }
 bool boxHit(vec3 ro, vec3 rd, out float t0, out float t1) {
   vec3 lo = uO, hi = uO + uSize;
@@ -160,7 +172,9 @@ void main() {
   vec3 ro = a.xyz / a.w, rd = normalize(b.xyz / b.w - ro);
   float t0, t1;
   if (!boxHit(ro, rd, t0, t1)) discard;
-  float t = max(t0, 0.0);
+  float tc = texelFetch(uConeT, ivec2(gl_FragCoord.xy) / ${CONE_PX}, 0).r;
+  if (tc >= 1e9) discard;
+  float t = max(max(t0, 0.0), tc);
   int kind = 0, level = -1;
   bool hit = false, done = false;
   float d = 1e5, eps = 0.0;
@@ -300,6 +314,55 @@ void main() {
     d2[k] = texelFetch(uAtlas, base + c - e, 0).r - 2.0 * texelFetch(uAtlas, base + c, 0).r + texelFetch(uAtlas, base + c + e, 0).r;
   }
   fragColor = vec4(v, d2);
+}`;
+
+/** Cone pre-pass: one ray per block of CONE_PX × CONE_PX pixels, with a cone wide enough
+ *  to hold the block's rays, marched on the coarse field (one read per step) until the
+ *  cone comes within a margin of the surface; every ray of the block starts there. */
+export const CONE = /* glsl */ `
+precision highp float;
+precision highp int;
+precision highp sampler3D;
+in vec2 vNdc;
+out vec4 fragColor;
+uniform sampler3D uTex;
+uniform vec3 uO;
+uniform vec3 uSize;
+uniform float uH;
+uniform mat4 uInvProjView;
+uniform vec4 uClip;
+uniform int uClipOn;
+uniform float uPixelAngle;
+uniform float uPixelSize;
+uniform vec3 uInvN;
+uniform vec3 uNm1;
+uniform vec2 uFull; // the full frame's size (pixels)
+void main() {
+  vec2 ndc = (floor(gl_FragCoord.xy) * ${CONE_PX.toFixed(1)} + ${(CONE_PX / 2).toFixed(1)}) / uFull * 2.0 - 1.0;
+  vec4 a = uInvProjView * vec4(ndc, -1.0, 1.0), b = uInvProjView * vec4(ndc, 1.0, 1.0);
+  vec3 ro = a.xyz / a.w, rd = normalize(b.xyz / b.w - ro);
+  vec3 lo = uO, hi = uO + uSize;
+  vec3 inv = 1.0 / rd, ta = (lo - ro) * inv, tb = (hi - ro) * inv;
+  vec3 mn = min(ta, tb), mx = max(ta, tb);
+  float t0 = max(max(mn.x, mn.y), mn.z), t1 = min(min(mx.x, mx.y), mx.z);
+  if (t1 <= max(t0, 0.0)) { fragColor = vec4(1e10); return; }
+  float t = max(t0, 0.0);
+  // the block's rays lie within this radius of the centre ray (perspective: grows with t)
+  float k = ${CONE_R.toFixed(3)} * uPixelAngle, r0 = ${CONE_R.toFixed(3)} * uPixelSize + ${CONE_MARGIN.toFixed(3)} * uH;
+  // every step is safe for all the block's rays, so wherever the loop stops (near, or out
+  // of steps) they may start; only a cone that leaves the box lets them all go
+  bool gone = false;
+  for (int i = 0; i < 160; i++) {
+    vec3 p = ro + rd * t;
+    float d = texture(uTex, (clamp((p - uO) / uH, vec3(0.0), uNm1) + 0.5) * uInvN).r;
+    if (uClipOn == 1) d = max(d, -(dot(p, uClip.xyz) + uClip.w));
+    float r = k * t + r0;
+    if (d < r + 0.25 * uH) break;
+    // a safe step for every ray of the cone: the cone widens as it goes
+    t += (d - r) / (1.0 + k);
+    if (t > t1) { gone = true; break; }
+  }
+  fragColor = vec4(gone ? 1e10 : t);
 }`;
 
 export const tri = () => {

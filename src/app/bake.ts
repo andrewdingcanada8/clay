@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 import { FRAG, type SdfRenderer } from './raymarch';
 import { dlog } from './debugLog';
-import { drawRows, ATLAS_W, BRICK_NEAR, BRICK_B, BRICK_N, BRICK_SHARP, BRICK_THR, BrickLevel, CLASSIFY, SETTLED } from './bricks';
+import { CONE, CONE_PX, drawRows, ATLAS_W, BRICK_NEAR, BRICK_B, BRICK_N, BRICK_SHARP, BRICK_THR, BrickLevel, CLASSIFY, SETTLED } from './bricks';
 
 /** Voxels along the box's longest side. */
 const RES = 192;
@@ -139,6 +139,8 @@ export class FieldBake {
   private classRT: THREE.WebGLRenderTarget | null = null;
   readonly settledMat: THREE.ShaderMaterial;
   readonly settledScene = new THREE.Scene();
+  readonly coneScene = new THREE.Scene();
+  private coneRT: THREE.WebGLRenderTarget | null = null;
   private cells = new Int32Array(3);
 
   constructor(private sdf: SdfRenderer) {
@@ -174,7 +176,7 @@ export class FieldBake {
     this.settledMat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: SETTLED, depthTest: true, depthWrite: true,
       uniforms: {
-        uTex: { value: null }, uIndS: { value: null }, uAtlasR: { value: null },
+        uTex: { value: null }, uIndS: { value: null }, uAtlasR: { value: null }, uInvA: { value: new THREE.Vector3(1, 1, 1) }, uInvN: { value: new THREE.Vector3(1, 1, 1) }, uNm1: { value: new THREE.Vector3(1, 1, 1) }, uConeT: { value: null },
         uO: { value: this.origin }, uSize: { value: this.size }, uH: { value: 1 },
         uCells: { value: this.cells },
         uInvProjView: su.uInvProjView, uProjView: su.uProjView, uClip: su.uClip, uClipOn: su.uClipOn,
@@ -185,6 +187,37 @@ export class FieldBake {
     sm.frustumCulled = false;
     sm.onBeforeRender = (r, s, c, g, mat, grp) => sdf.mesh.onBeforeRender(r, s, c, g, mat, grp);
     this.settledScene.add(sm);
+    const u2 = this.settledMat.uniforms;
+    const coneMat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: CONE, depthTest: false, depthWrite: false,
+      uniforms: {
+        uTex: u2.uTex, uO: u2.uO, uSize: u2.uSize, uH: u2.uH, uInvProjView: su.uInvProjView, uClip: su.uClip, uClipOn: su.uClipOn,
+        uPixelAngle: su.uPixelAngle, uPixelSize: su.uPixelSize, uInvN: u2.uInvN, uNm1: u2.uNm1, uFull: { value: new THREE.Vector2(1, 1) },
+      },
+    });
+    const cm2 = new THREE.Mesh(tri(), coneMat);
+    cm2.frustumCulled = false;
+    cm2.onBeforeRender = (r, s, c, g, mat, grp) => sdf.mesh.onBeforeRender(r, s, c, g, mat, grp);
+    this.coneScene.add(cm2);
+  }
+
+  /** The cone pre-pass for a W × H frame, into its own target (the settled pass reads it). */
+  drawCone(renderer: THREE.WebGLRenderer, camera: THREE.Camera, W: number, H: number) {
+    const w = Math.ceil(W / CONE_PX), h = Math.ceil(H / CONE_PX);
+    if (!this.coneRT || this.coneRT.width !== w || this.coneRT.height !== h) {
+      this.coneRT?.dispose();
+      this.coneRT = new THREE.WebGLRenderTarget(w, h, { type: THREE.FloatType, format: THREE.RedFormat, depthBuffer: false });
+      this.coneRT.texture.minFilter = this.coneRT.texture.magFilter = THREE.NearestFilter;
+      this.coneRT.texture.generateMipmaps = false;
+    }
+    // (the block's centre ray: the low target's pixel centres map to the blocks' centres
+    // only when W and H are multiples of CONE_PX; the cone's slack covers the rest)
+    ((this.coneScene.children[0] as THREE.Mesh).material as THREE.ShaderMaterial).uniforms.uFull.value.set(W, H);
+    const prev = renderer.getRenderTarget();
+    renderer.setRenderTarget(this.coneRT);
+    renderer.render(this.coneScene, camera);
+    renderer.setRenderTarget(prev);
+    this.settledMat.uniforms.uConeT.value = this.coneRT.texture;
   }
 
   /** The bricks match the field (the settled frame can come from them). */
@@ -409,6 +442,9 @@ export class FieldBake {
     this.indS.needsUpdate = true;
     su.uTex.value = t.texture; su.uIndS.value = this.indS; su.uH.value = this.h;
     su.uAtlasR.value = this.readAtlas.texture;
+    su.uInvA.value.set(1 / ATLAS_W, 1 / ATLAS_W, 1 / D);
+    su.uInvN.value.set(1 / t.width, 1 / t.height, 1 / t.depth);
+    su.uNm1.value.set(t.width - 1, t.height - 1, t.depth - 1);
     this.lastBake.bricks = this.levels.map((l) => l.count);
     this.lastBake.samples = this.levels.reduce((a, l) => a + l.count * (l.core ? l.N : l.S) ** 3, 0);
     this.lastBake.classifyMs = performance.now() - t0;

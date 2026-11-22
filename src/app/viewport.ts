@@ -600,6 +600,7 @@ export class Viewport {
   /** The settled image from the coarse field and the fine bricks (bricks.ts), whole. */
   private drawBricks(t: THREE.WebGLRenderTarget) {
     const clear = this.renderer.getClearColor(new THREE.Color()), clearA = this.renderer.getClearAlpha();
+    this.bake.drawCone(this.renderer, this.camera, t.width, t.height);
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.setRenderTarget(t);
     this.renderer.render(this.bake.settledScene, this.camera);
