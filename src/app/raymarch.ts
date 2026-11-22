@@ -883,6 +883,7 @@ void main() {
   int phase = 0, i = 0, kind = 0;
 #if defined(SDF_LIST) && LIST_CREEP
   bool creep = false; // (a near-miss marching on alongside a face past its window)
+  int nCreep = 0; // (steps the window spent creeping: within 8 eps of a surface)
 #endif
   vec3 p = vec3(0.0), n = vec3(0.0);
   float ne = 0.0, occ = 0.0, sca = 1.0;
@@ -896,6 +897,9 @@ void main() {
       d = m;
       eps = clamp((uPixelAngle * t + uPixelSize) * 0.35, 0.0008, 0.008);
       bool done = false;
+#if defined(SDF_LIST) && LIST_CREEP
+      if (d < 8.0 * eps) nCreep++;
+#endif
       if (d < eps) hit = true;
 #if defined(SDF_LIST) && LIST_CREEP
       // (it left the face: the bricks saw nothing further)
@@ -910,7 +914,7 @@ void main() {
           // (a listed pixel whose bricks saw nothing past this window: done)
 #if LIST_CREEP
           // (or a ray creeping alongside a face at the window's end: on, as the full march would)
-          if ((en.w > 1.5 || d < 8.0 * eps) && t1 < t1Full) {
+          if ((en.w > 1.5 || (d < 8.0 * eps && nCreep >= LIST_CREEP_N)) && t1 < t1Full) {
 #else
           if (en.w > 1.5 && t1 < t1Full) {
 #endif
