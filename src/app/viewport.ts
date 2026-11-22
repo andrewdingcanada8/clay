@@ -584,12 +584,14 @@ export class Viewport {
 
   /** What the SDF image shows: camera, scene, canvas size (any change redraws it). */
   private lastCam = '';
+  /** The camera's pose only (a canvas resize — the phone's layout moving — is not a glide). */
   private camKey(): string {
-    const e = this.camera.matrixWorld.elements, p = this.camera.projectionMatrix.elements, c = this.renderer.domElement;
-    let k = `${c.width}x${c.height}|`;
-    for (let i = 0; i < 16; i++) k += `${e[i].toFixed(5)},${p[i].toFixed(5)},`;
+    const e = this.camera.matrixWorld.elements;
+    let k = '';
+    for (let i = 0; i < 16; i++) k += `${e[i].toFixed(4)},`;
     return k;
   }
+  private driftSince = 0;
   private sdfKey(): string {
     const e = this.camera.matrixWorld.elements, p = this.camera.projectionMatrix.elements;
     const c = this.renderer.domElement;
@@ -612,7 +614,11 @@ export class Viewport {
     };
     if (!this.rt) this.rt = { low: make(lw, lh, true), back: make(W, H, false), front: make(W, H, false) };
     const r = this.rt;
-    if (r.low.width !== lw || r.low.height !== lh) { r.low.setSize(lw, lh); this.lowKey = ''; }
+    // (at rest with a bake to run, the low image keeps its size through a resize — the
+    // phone's layout moving — and is shown stretched: resizing would clear it, and the
+    // only redraw before the bake is a whole exact frame, too heavy to do per resize)
+    const holdLow = this.lowKey !== '' && !this.moving && !this.sdf.interactive && (this.bakePending() || this.bake.busy);
+    if ((r.low.width !== lw || r.low.height !== lh) && !holdLow) { r.low.setSize(lw, lh); this.lowKey = ''; }
     if (r.back.width !== W || r.back.height !== H) { r.back.setSize(W, H); r.front.setSize(W, H); this.frontKey = ''; this.band.active = false; }
     return r;
   }
@@ -767,8 +773,10 @@ export class Viewport {
     // field or of the bake's state at rest is not a drift)
     const r = this.targets(), key = this.sdfKey(), cam = this.camKey(), drifting = cam !== this.lastCam;
     this.lastCam = cam;
-    // (the camera still gliding after release: the bake waits for it to stop, like a drag)
-    this.wasDrifting = drifting;
+    // (the camera still gliding after release: the bake waits for it to stop, like a drag;
+    // a glide never lasts long, so after 1.5 s of it the bake goes ahead regardless)
+    if (!drifting) this.driftSince = 0; else if (!this.driftSince) this.driftSince = now;
+    this.wasDrifting = drifting && now - this.driftSince < 1500;
     this.lastKey = key;
     if (key === this.frontKey) { this.band.active = false; this.present(r.front); return; }
     // at rest with a bake to run, keep the last image up rather than drawing a whole
@@ -784,7 +792,8 @@ export class Viewport {
       if (gl0.clientWaitSync(this.lowFence, 0, 0) === gl0.TIMEOUT_EXPIRED) lowBusy = true;
       else { gl0.deleteSync(this.lowFence); this.lowFence = null; }
     }
-    if (this.lowKey !== key && !bakeWait && !lowBusy) {
+    // (a low image just resized is empty: it is drawn whatever the fence says)
+    if (this.lowKey !== key && !bakeWait && (!lowBusy || this.lowKey === '')) {
       this.drawLow(r.low); this.lowKey = key;
       if (!this.bake.ready) { this.lowFence = gl0.fenceSync(gl0.SYNC_GPU_COMMANDS_COMPLETE, 0); gl0.flush(); }
     }
