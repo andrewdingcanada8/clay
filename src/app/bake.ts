@@ -18,7 +18,9 @@ const RES = 192;
 /** A batch of layers is sized to take about this long on the GPU. */
 const BATCH_MS = 30;
 /** (prototype: time the refinement's steps, ?rt=1) */
-const LIST_WIN = (typeof location !== 'undefined' && new URLSearchParams(location.search).get('lw') || '1,1.5').split(',').map(Number);
+const LIST_WIN = (typeof location !== 'undefined' && new URLSearchParams(location.search).get('lw') || '0.6,1').split(',').map(Number);
+const LIST_BACK = +(typeof location !== 'undefined' && new URLSearchParams(location.search).get('lb') || 0.2);
+const SHOW_FLAGS = typeof location !== 'undefined' && new URLSearchParams(location.search).get('fv') === '1';
 const DEBUG_TIMES = typeof location !== 'undefined' && new URLSearchParams(location.search).get('rt') === '1';
 /** The first batch, before the pace is known: this many rows of voxels. */
 const FIRST_ROWS = 8;
@@ -258,7 +260,7 @@ export class FieldBake {
    * back into frame t. Returns the number of flagged pixels.
    */
   refine(renderer: THREE.WebGLRenderer, camera: THREE.Camera, t: THREE.WebGLRenderTarget, tMax: number) {
-    if (!REFINE) return 0;
+    if (!REFINE || SHOW_FLAGS) return 0;
     const W = t.width, H = t.height;
     if (this.readBuf.length !== W * H * 4) this.readBuf = new Uint8Array(W * H * 4);
     const px = this.readBuf;
@@ -298,7 +300,7 @@ export class FieldBake {
     }
     // the exact pass over the list (misses discard: the target clears to 0, no hit)
     const u = this.sdf.material.uniforms;
-    u.uStartOn.value = 1; u.uStartT.value = this.listTex; u.uStartBack.value = 0.5 * this.h;
+    u.uStartOn.value = 1; u.uStartT.value = this.listTex; u.uStartBack.value = LIST_BACK * this.h;
     u.uBakeO.value.copy(this.origin); u.uViewSize.value.set(W, H); u.uListWin.value.set(LIST_WIN[0], LIST_WIN[1]);
     const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
     const clear = renderer.getClearColor(new THREE.Color()), clearA = renderer.getClearAlpha();

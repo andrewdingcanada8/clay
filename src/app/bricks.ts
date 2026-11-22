@@ -18,7 +18,7 @@ export const BRICK_N = [+(Q.get('bn') ?? 4), +(Q.get('bn2') ?? 8)];
  *  reaches half a voxel past the surface for the normal taps, plus slack). */
 export const BRICK_THR = +(Q.get('bt') ?? 1.2);
 /** A band cell is sharp if a second difference of its samples exceeds this (voxels). */
-export const BRICK_SHARP = +(Q.get('bs') ?? 0.6);
+export const BRICK_SHARP = +(Q.get('bs') ?? 99);
 /** Objects that can't change a brick's values within this many voxels of the surface are
  *  left out of its bake (any further, they only raise values already past the band). */
 export const BRICK_REACH = +(Q.get('br') ?? 3);
@@ -44,7 +44,7 @@ const CONE_MARGIN = +(Q.get('cg') ?? 2);
  *  FLAG_CREASE fine spacings, or whose ray passed that near such a place within FLAG_NEAR fine
  *  spacings of the surface without touching it, are resolved by the exact pass. */
 export const REFINE = Q.get('rf') !== '0';
-export const FLAG_CREASE = +(Q.get('fc') ?? 0.45);
+export const FLAG_CREASE = +(Q.get('fc') ?? 0.35);
 export const FLAG_NEAR = +(Q.get('fn') ?? 0.5);
 const FLAG_HITS = Q.get('fh') !== '0', FLAG_MISSES = Q.get('fm') !== '0';
 /** Atlas width and height in texels (each level fits as many slots across as it can). */
