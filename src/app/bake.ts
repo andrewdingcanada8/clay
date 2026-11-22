@@ -823,7 +823,12 @@ export class FieldBake {
       return true;
     }
     if (j.phase === 1.5) {
-      // each level's object masks, a few rows of slots at a time
+      // each level's object masks, a few rows of slots at a time (incremental: the changed slots')
+      if (this.sets && this.levels[0].maskRows() === this.levels[0].slotTex!.image.height) {
+        this.levels[0].maskSlots(renderer, this.origin, this.h, this.sets.bake.slots);
+        j.phase = 2; j.row = 0; j.level = 0; j.batch = 0;
+        return true;
+      }
       while (j.level < this.levels.length) {
         const L = this.levels[j.level];
         const H = L.count ? L.masks(renderer, this.origin, this.h, j.row, MASK_ROWS) : 0;
@@ -924,7 +929,8 @@ export class FieldBake {
     this.classify(renderer);
     const ph: number[] = [performance.now() - tb];
     const mark = () => { if (DEBUG_TIMES) { gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4)); ph.push(performance.now() - tb); } };
-    for (const L of this.levels) if (L.count) L.masks(renderer, this.origin, this.h, 0, 1 << 20);
+    if (this.sets && this.levels[0].maskRows() === this.levels[0].slotTex!.image.height) this.levels[0].maskSlots(renderer, this.origin, this.h, this.sets.bake.slots);
+    else for (const L of this.levels) if (L.count) L.masks(renderer, this.origin, this.h, 0, 1 << 20);
     mark();
     const sets = this.sets, L0 = this.levels[0];
     if (sets) L0.draw(renderer, this.origin, this.h, 0, sets.bake.n, sets.bake);
@@ -1276,7 +1282,7 @@ export class FieldBake {
       const cl = lists[0], toBake: number[] = [];
       for (let q = 0; q < cl.length; q += 3) {
         const i = cl[q], j = cl[q + 1], k = cl[q + 2], c = (k * cy + j) * cx + i;
-        if (old[c] > 0 && !hits(this.inc!.brick, 0, i, j, k)) { nInd[c] = old[c]; used[old[c] - 1] = 1; }
+        if (old[c] > 0 && !hits(this.inc!.brick, 1.5 * this.h, i, j, k) && !hits(this.inc!.coarse, 1.5 * this.h, i, j, k)) { nInd[c] = old[c]; used[old[c] - 1] = 1; }
       }
       let free = 0, top = 0;
       for (let s2 = 0; s2 < used.length; s2++) if (used[s2]) top = s2 + 1;

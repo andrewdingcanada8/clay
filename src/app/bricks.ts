@@ -29,6 +29,8 @@ export const AO_FINE = Q.get('ao') === '1';
 export const APRON_COPY = Q.get('ap') !== '0';
 /** Second differences count only along sample lines that come this near the surface (voxels). */
 export const BRICK_NEAR = +(Q.get('bl') ?? 1);
+/** Brick samples where the coarse field is farther than this many voxels from the surface take its value (0: all exact). */
+export const BRICK_FAR = +(Q.get('bf') ?? 0);
 /** Normal taps this many fine spacings from the hit. */
 export const NORMAL_E = +(Q.get('ne') ?? 1);
 /** Brick reads: take off trilinear's curvature error, ½Σ w(1-w)·(second difference along each
@@ -311,19 +313,25 @@ void main() {
   int slot = (sl.z * sl3.y + sl.y) * sl3.x + sl.x;
   ivec3 cell = ivec3(texelFetch(uSlotTab, ivec2(slot & 4095, slot >> 12), 0).xyz + 0.5);
   ivec3 over = ivec3(greaterThanEqual(l, ivec3(N)));
-  float own = coreAt(uLevel, slot, vec3(min(l, ivec3(N - 1))));
+  // inside the core: its own sample, one read
+  ivec3 base = uLevel == 0 ? slotOf(slot, uSlots0) * N0 : slotOf(slot, uSlots1) * N1;
+  if (over == ivec3(0)) { fragColor = vec4(uLevel == 0 ? texelFetch(uCore0, base + l, 0).r : texelFetch(uCore1, base + l, 0).r, 0.0, 0.0, 1.0); return; }
   ivec3 nc = cell + over;
   float s = all(lessThan(nc, uCells)) ? texelFetch(uInd, min(nc, uCells - 1), 0).r : 0.0;
-  int lv = s > 0.0 ? 0 : 1, ns = max(int(abs(s) + 0.5) - 1, 0);
-  vec3 ll = vec3(l - over * N) * (float(lv == 0 ? N0 : N1) / float(N));
-  float nb = coreAt(lv, ns, ll);
-  // no neighbour: linear extrapolation along each axis that steps out
-  vec3 lc = vec3(min(l, ivec3(N - 1)));
-  float ex = own;
-  if (over.x == 1) ex += own - coreAt(uLevel, slot, lc - vec3(1.0, 0.0, 0.0));
-  if (over.y == 1) ex += own - coreAt(uLevel, slot, lc - vec3(0.0, 1.0, 0.0));
-  if (over.z == 1) ex += own - coreAt(uLevel, slot, lc - vec3(0.0, 0.0, 1.0));
-  float v = over == ivec3(0) ? own : s != 0.0 ? nb : ex;
+  float v;
+  if (s != 0.0) {
+    int lv = s > 0.0 ? 0 : 1, ns = max(int(abs(s) + 0.5) - 1, 0);
+    vec3 ll = vec3(l - over * N) * (float(lv == 0 ? N0 : N1) / float(N));
+    v = coreAt(lv, ns, ll);
+  } else {
+    // no neighbour: linear extrapolation along each axis that steps out
+    vec3 lc = vec3(min(l, ivec3(N - 1)));
+    float own = coreAt(uLevel, slot, lc);
+    v = own;
+    if (over.x == 1) v += own - coreAt(uLevel, slot, lc - vec3(1.0, 0.0, 0.0));
+    if (over.y == 1) v += own - coreAt(uLevel, slot, lc - vec3(0.0, 1.0, 0.0));
+    if (over.z == 1) v += own - coreAt(uLevel, slot, lc - vec3(0.0, 0.0, 1.0));
+  }
   fragColor = vec4(v, 0.0, 0.0, 1.0);
 }`;
 
@@ -353,6 +361,7 @@ export class SlotSet {
   /** Per group: slot layer, first quad, end quad. */
   readonly groups: [number, number, number][] = [];
   readonly n: number;
+  readonly slots: Int32Array;
   private scenes = new Map<THREE.Material, THREE.Scene>();
   constructor(slots: Int32Array | number[], sx: number) {
     const sorted = Int32Array.from(slots).sort();
@@ -366,6 +375,7 @@ export class SlotSet {
       pos.set([x0, y0, 0, x1, y0, 0, x1, y1, 0, x0, y0, 0, x1, y1, 0, x0, y1, 0], q); q += 18;
     }
     this.n = sorted.length;
+    this.slots = sorted;
     this.geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   }
   /** Quads [q0, q1) with this material into target (slot size S, from layer zOff on). */
@@ -558,9 +568,13 @@ export class BrickLevel {
   private bakeMat: THREE.ShaderMaterial;
   private maskScene = new THREE.Scene();
   private maskRT: THREE.WebGLRenderTarget | null = null;
+  private maskPts: THREE.Points | null = null;
+  private maskPtsScene = new THREE.Scene();
+  /** Whether the mask target holds rows for this many slots (an incremental bake redoes only its slots). */
+  maskRows(): number { return this.maskRT ? this.maskRT.height / 2 : 0; }
   private cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-  constructor(readonly N: number, frag: string, private uniforms: Record<string, THREE.IUniform>) {
+  constructor(readonly N: number, private frag: string, private uniforms: Record<string, THREE.IUniform>) {
     this.S = N + 1;
     const mat = this.bakeMat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: frag, uniforms,
@@ -633,6 +647,40 @@ export class BrickLevel {
     renderer.setRenderTarget(prev);
     renderer.autoClear = auto;
     return H;
+  }
+
+  /** The masks of these slots only (points at their two texels; the mask target as it is otherwise). */
+  maskSlots(renderer: THREE.WebGLRenderer, origin: THREE.Vector3, h: number, slots: Int32Array | number[]) {
+    const rt = this.maskRT;
+    if (!rt || !slots.length) return;
+    const H = rt.height, pos = new Float32Array(slots.length * 6);
+    for (let k = 0; k < slots.length; k++) {
+      const s = slots[k], x = ((s & 4095) + 0.5) / 4096 * 2 - 1;
+      for (let r = 0; r < 2; r++) pos.set([x, (2 * (s >> 12) + r + 0.5) / H * 2 - 1, 0], k * 6 + r * 3);
+    }
+    if (!this.maskPts) {
+      const mat = new THREE.ShaderMaterial({
+        glslVersion: THREE.GLSL3, vertexShader: 'out vec2 vNdc; void main(){ vNdc = position.xy; gl_PointSize = 1.0; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+        fragmentShader: this.frag,
+        uniforms: this.uniforms, defines: { SDF_MASK: 1 }, depthTest: false, depthWrite: false,
+      });
+      this.maskPts = new THREE.Points(new THREE.BufferGeometry(), mat);
+      this.maskPts.frustumCulled = false;
+      this.maskPtsScene.add(this.maskPts);
+    }
+    this.maskPts.geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const u = this.uniforms;
+    u.uBakeO.value.copy(origin);
+    u.uBakeH.value = h;
+    u.uStartT.value = this.slotTex;
+    u.uBrickCell.value = BRICK_B;
+    u.uBrickReach.value = (0.87 * BRICK_B + BRICK_REACH) * h;
+    const prev = renderer.getRenderTarget(), auto = renderer.autoClear;
+    renderer.autoClear = false;
+    renderer.setRenderTarget(rt);
+    renderer.render(this.maskPtsScene, this.cam);
+    renderer.setRenderTarget(prev);
+    renderer.autoClear = auto;
   }
 
   /** Lay out the atlas for these cells (x, y, z triples). */
@@ -713,6 +761,7 @@ export class BrickLevel {
     (u.uBrickSlots.value as Int32Array).set(this.slots);
     u.uBrickCell.value = BRICK_B;
     u.uBrickStep.value = BRICK_B / this.N;
+    u.uBrickFar.value = BRICK_FAR * h;
     if (set) set.draw(renderer, this.bakeTarget, this.bakeMat, this.cam, APRON_COPY ? this.N : this.S, (z) => { u.uBakeZ.value = z; }, r0, r0 + n);
     else drawRows(renderer, this.bakeTarget, this.scene, this.cam, (z) => { u.uBakeZ.value = z; }, r0, n);
   }
