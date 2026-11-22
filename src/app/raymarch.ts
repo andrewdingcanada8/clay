@@ -112,7 +112,6 @@ uniform ivec3 uBrickSlots;
 uniform float uBrickCell;
 uniform float uBrickStep;
 uniform float uBrickReach;
-uniform float uBrickFar; // brick bake: samples where the coarse field is farther than this take its value
 // occlusion from the baked field (settled pass with a bake): the same four taps
 float bakedField(vec3 p) {
   vec3 q = clamp((p - uBakeO) / uBakeSize, 0.0, 1.0);
@@ -730,20 +729,11 @@ bool boxHit(vec3 ro, vec3 rd, out float t0, out float t1) {
   return t1 > max(t0, 0.0);
 }
 #ifdef SDF_BAKE
-// bake: the field at the voxel centres of layer uBakeZ (no clip plane, no culling).
-// Two levels (uBakeBand > 0): the half-resolution field (uBakeLow, baked first) stands in
-// wherever it says the surface is farther than the band; map() runs only near the surface.
-uniform highp sampler3D uBakeLow;
-uniform vec3 uBakeLowInv;
-uniform float uBakeBand;
+// bake: the field at the voxel centres of layer uBakeZ (no clip plane, no culling)
 void main() {
   gNoClip = true;
-  vec3 g = vec3(gl_FragCoord.xy - 0.5, uBakeZ);
-  if (uBakeBand > 0.0) {
-    float v = texture(uBakeLow, (g * 0.5 + 0.5) * uBakeLowInv).r;
-    if (abs(v) > uBakeBand) { pc_fragColor = vec4(v, 0.0, 0.0, 1.0); return; }
-  }
-  pc_fragColor = vec4(map(uBakeO + g * uBakeH), 0.0, 0.0, 1.0);
+  vec3 p = uBakeO + vec3(gl_FragCoord.xy - 0.5, uBakeZ) * uBakeH;
+  pc_fragColor = vec4(map(p), 0.0, 0.0, 1.0);
 }
 #elif defined(SDF_BRICK)
 // brick bake: atlas layer uBakeZ; each slot's cell comes from the slot table (uStartT)
@@ -757,13 +747,6 @@ void main() {
   gMask = texelFetch(uBrickMask, ivec2(st.x, 2 * st.y), 0);
   gClu = texelFetch(uBrickMask, ivec2(st.x, 2 * st.y + 1), 0).x;
   vec3 p = uBakeO + (cell * uBrickCell + vec3(l) * uBrickStep) * uBakeH;
-  // far from the surface the coarse field (exact voxels there) stands in: only the samples near
-  // the surface shape the hit, its normal and the creases
-  if (uBrickFar > 0.0) {
-    vec3 g = cell * uBrickCell + vec3(l) * uBrickStep;
-    float c = texture(uBakeTex, (g + 0.5) / vec3(textureSize(uBakeTex, 0))).r;
-    if (abs(c) > uBrickFar) { pc_fragColor = vec4(c, 0.0, 0.0, 1.0); return; }
-  }
   pc_fragColor = vec4(map(p), 0.0, 0.0, 1.0);
 }
 #elif defined(SDF_MASK)
@@ -1148,7 +1131,6 @@ export class SdfRenderer {
       uBrickCell: { value: 2 },
       uBrickStep: { value: 0.5 },
       uBrickReach: { value: 1 },
-      uBrickFar: { value: 0 },
       uBrickMask: { value: null },
       uBakeTex: { value: null },
       uBakeSize: { value: new THREE.Vector3(1, 1, 1) },
