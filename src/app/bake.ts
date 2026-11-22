@@ -40,6 +40,7 @@ uniform int uClipOn;
 uniform vec3 uClay;
 uniform vec3 uCap;
 uniform int uMode;
+uniform float uShift;
 uniform float uPixelAngle;
 float field(vec3 p) {
   vec3 q = (p - uO) / uSize;
@@ -66,24 +67,54 @@ void main() {
   vec4 a = uInvProjView * vec4(vNdc, -1.0, 1.0), b = uInvProjView * vec4(vNdc, 1.0, 1.0);
   vec3 ro = a.xyz / a.w, rd = normalize(b.xyz / b.w - ro);
   float t0, t1;
-  if (!boxHit(ro, rd, t0, t1)) { if (uMode == 1) { fragColor = vec4(-1.0); return; } discard; }
+#ifdef START
+  if (!boxHit(ro, rd, t0, t1)) { fragColor = vec4(-1.0, -3.0, 1e5, -1.0); return; } // (tS -3: unknown)
+#else
+  if (!boxHit(ro, rd, t0, t1)) discard;
+#endif
   float t = max(t0, 0.0);
   int kind = 0;
   bool hit = false;
   float d = 1e5, dMin = 1e5, tMin = -1.0;
+#ifdef START
+  // Mid-drag the field may have moved by up to uShift since the bake (objects only
+  // translated): the march first steps by d - uShift, and tS is where that bound first
+  // allows a surface; then on to the baked hit as usual.
+  float tS = -1.0;
+  bool ended = false;
+  for (int i = 0; i < 240; i++) {
+    if (uShift == 0.0 && i >= 160) break; // (the settled start as it always was)
+#else
   for (int i = 0; i < 160; i++) {
+#endif
     d = sdf(ro + rd * t, kind);
     float eps = max(0.25 * uH, uPixelAngle * t * 0.5);
+#ifdef START
+    if (tS < 0.0 && d - uShift < eps) tS = t;
+#endif
     if (d < eps) { hit = true; break; }
     if (d < dMin) { dMin = d; tMin = t; }
+#ifdef START
+    t += max((tS < 0.0 ? d - uShift : d) * 0.9, 0.5 * eps);
+    if (t > t1) { ended = true; break; }
+#else
     t += max(d * 0.9, 0.5 * eps);
     if (t > t1) break;
+#endif
   }
-  // (start pass, no hit: also its closest approach, where the exact field may still meet it)
-  if (!hit) { if (uMode == 1) { fragColor = vec4(-1.0, 0.0, dMin, tMin); return; } discard; }
+#ifdef START
+  // (no hit: also its closest approach, where the exact field may still meet it;
+  // -2: out of steps, the bake can't say)
+  if (!hit) { fragColor = vec4(ended ? -1.0 : -2.0, tS, dMin, tMin); return; }
+#else
+  if (!hit) { if (uMode == 1) { fragColor = vec4(-1.0); return; } discard; }
+#endif
   // a little closer: two steps on the interpolated field
   for (int i = 0; i < 2; i++) { t += sdf(ro + rd * t, kind); }
-  if (uMode == 1) { fragColor = vec4(t, 0.0, 0.0, 0.0); return; }
+#ifdef START
+  fragColor = vec4(t, tS, 0.0, 0.0);
+  return;
+#endif
   vec3 p = ro + rd * t;
   vec4 clip = uProjView * vec4(p, 1.0);
   gl_FragDepth = clamp((clip.z / clip.w) * 0.5 + 0.5, 0.0, 1.0);
@@ -124,7 +155,7 @@ export class FieldBake {
   private startMat: THREE.ShaderMaterial;
   private marchMesh: THREE.Mesh;
   /** Draw the march as the shading pass (0) or the settled pass's start (1). */
-  useMarch(mode: 0 | 1) { this.marchMesh.material = mode ? this.startMat : this.marchMat; }
+  useMarch(mode: 0 | 1, shift = 0) { this.marchMesh.material = mode ? this.startMat : this.marchMat; this.startMat.uniforms.uShift.value = shift; }
   readonly marchScene = new THREE.Scene();
   private origin = new THREE.Vector3();
   private size = new THREE.Vector3();
@@ -158,7 +189,7 @@ export class FieldBake {
     // (the start pass: the same march as its own program, so the shading one stays as it was)
     this.startMat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: MARCH, depthTest: true, depthWrite: true,
-      uniforms: { ...this.marchMat.uniforms, uMode: { value: 1 } }, defines: { START: 1 },
+      uniforms: { ...this.marchMat.uniforms, uMode: { value: 1 }, uShift: { value: 0 } }, defines: { START: 1 },
     });
     const mm = new THREE.Mesh(tri(), this.marchMat);
     this.marchMesh = mm;

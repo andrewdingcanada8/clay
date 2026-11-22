@@ -114,6 +114,7 @@ export class Viewport {
   /** Where each settled ray starts (from the baked field), full resolution. */
   private startRT: THREE.WebGLRenderTarget | null = null;
   private startLowRT: THREE.WebGLRenderTarget | null = null;
+  private stateShift = 0;
   /** rows per ms a band took last (learned; 0 until measured) */
   private rowRate = 0;
   private blit = (() => {
@@ -588,7 +589,7 @@ export class Viewport {
   /** The baked-field march into t: mode 0 shades (moving image), 1 writes where each ray meets the surface. */
   private drawMarch(t: THREE.WebGLRenderTarget, mode: 0 | 1) {
     this.bake.marchMat.uniforms.uMode.value = mode;
-    this.bake.useMarch(mode);
+    this.bake.useMarch(mode, mode ? this.stateShift : 0);
     const clear = this.renderer.getClearColor(new THREE.Color()), clearA = this.renderer.getClearAlpha();
     this.renderer.setClearColor(0x000000, mode ? 1 : 0);
     if (mode) this.renderer.setClearColor(new THREE.Color(-1, -1, -1), -1);
@@ -612,7 +613,10 @@ export class Viewport {
     if (now - this.lowLogAt > 1000) { this.lowLogAt = now; dlog('exact-frame', { w: t.width, h: t.height, moving: this.moving, editing: this.sdf.interactive, stale: dirty ? dirty.full.length + dirty.cavity.length : -1 }); }
     if (!dirty) { this.drawSdf(t); return; }
     this.sdf.setDirty(dirty);
+    // (the start pass also finds where a field shifted by up to dirty.shift may begin)
+    this.stateShift = Number.isFinite(dirty.shift) ? dirty.shift : 0;
     this.drawSdf(t, 0, t.height, this.startDepths(t.width, t.height, true));
+    this.stateShift = 0;
     this.sdf.setDirty(null);
   }
 

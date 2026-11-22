@@ -88,7 +88,8 @@ uniform int uStartOn;
 // (FieldSnapshot / dirtyBoxes); a ray that meets one before its baked window ends is
 // marched exactly from there, with exact occlusion
 uniform int uDirtyN;
-uniform int uDirtyFull; // boxes [uDirtyFull, uDirtyN) changed only inside a hollow body's cavity (its grid)
+uniform int uDirtyFull;
+uniform int uShiftOn; // the field moved by at most the start pass's uShift since the bake (tS valid) // boxes [uDirtyFull, uDirtyN) changed only inside a hollow body's cavity (its grid)
 uniform vec3 uDirtyMin[${MAX_DIRTY}];
 uniform vec3 uDirtyMax[${MAX_DIRTY}];
 uniform sampler2D uStartT;
@@ -754,7 +755,12 @@ void main() {
     }
     // a baked near miss (an edge the bake rounded over): exactly, round its closest approach
     if (ts < 0.0 && st.z < 1.5 * uBakeH && st.w > 0.0) { tD = min(tD, st.w - 3.0 * uBakeH); tDx = max(tDx, st.w); }
+    if (ts < -1.5) { tD = min(tD, st.y >= 0.0 ? st.y : t); tDx = 1e9; } // (the stale march ran out of steps)
     if (ts < 0.0 && tD > 1e8) discard;
+    // with a bounded shift, nothing can be nearer than tS (the new field is at least the
+    // baked one less the shift); no tS: the shifted field never came near (box hit)
+    bool shiftOk = uShiftOn == 1 && st.y > -2.5;
+    if (shiftOk && ts == -1.0 && st.y < 0.0) discard;
     // (a ray through a cavity-only box keeps the window unless it turns out to meet the
     // cavity: the shell's outer surface and the air outside it don't depend on it; a
     // ray that missed doesn't meet the shell at all)
@@ -766,7 +772,8 @@ void main() {
       // its hit (or, if it saw none, than that box's far side)
       useStart = false;
       t = max(t, (ts >= 0.0 ? min(ts, tD) : tD) - uStartBack);
-      tEnd = max(tDx, ts) + 3.0 * uBakeH;
+      if (shiftOk && st.y >= 0.0) t = max(t, st.y - uStartBack);
+      tEnd = ts < -1.5 ? 1e9 : max(tDx, ts) + 3.0 * uBakeH;
     }
 #else
     float ts = texelFetch(uStartT, ivec2(gl_FragCoord.xy), 0).r;
@@ -952,6 +959,7 @@ export class SdfRenderer {
       uStartOn: { value: 0 },
       uDirtyN: { value: 0 },
       uDirtyFull: { value: 0 },
+      uShiftOn: { value: 0 },
       uDirtyMin: { value: range(MAX_DIRTY).map(() => new THREE.Vector3()) },
       uDirtyMax: { value: range(MAX_DIRTY).map(() => new THREE.Vector3()) },
       uStartT: { value: null },
@@ -1178,7 +1186,7 @@ export class SdfRenderer {
     const body = new Map<CompiledObject, number>();
     this.groups.forEach((g, k) => { for (const o of [...g.shells, ...g.solids, ...g.subs]) body.set(o, k); });
     const grow = (k: number) => (reach[k] ?? 0) + (round[k] ?? 0) + 3 * (k < MAX_GRIDS ? cavH[k] : 0) + 0.05 + 2.1;
-    const objs = new Map<string, { key: string; box: Box }>();
+    const objs = new Map<string, { key: string; box: Box; shape: string; pos: [number, number, number] }>();
     const bodyGrow = this.groups.map((_, k) => grow(k));
     for (const o of this.objs) {
       const k = body.get(o) ?? 0, g = this.groups[k];
@@ -1187,7 +1195,8 @@ export class SdfRenderer {
       if (g && g.holes.size && [...g.holes].some((h) => h.startsWith(`${o.obj.id}|`))) e += 2 * r; // depth through openings
       if (g && g.subs.includes(o)) e += 2 * g.t; // a cut's wall lies up to t inside it
       bodyGrow[k] = Math.max(bodyGrow[k], e);
-      objs.set(o.obj.id, { key: JSON.stringify([o.obj, Array.from(o.pos), Array.from(o.rot), Array.from(o.scale), o.round, k]), box: growBox(o.worldBounds, e) });
+      const shape = JSON.stringify([{ ...o.obj, transform: { ...o.obj.transform, position: null } }, Array.from(o.rot), Array.from(o.scale), o.round, k]);
+      objs.set(o.obj.id, { key: JSON.stringify([shape, Array.from(o.pos)]), shape, pos: [o.pos[0], o.pos[1], o.pos[2]], box: growBox(o.worldBounds, e) });
     }
     const bodies = new Map<string, { key: string; box: Box; grid: number; cavBox: Box }>();
     this.groups.forEach((g, k) => {
@@ -1210,11 +1219,23 @@ export class SdfRenderer {
    * World boxes (at most MAX_DIRTY) covering everywhere the field may differ from any of
    * the snapshots' fields; null when everything may (the program's shape changed). Cheap: one pass over the objects, run once per edit.
    */
-  dirtyBoxes(snaps: FieldSnapshot[]): { full: Box[]; cavity: Box[] } | null {
+  dirtyBoxes(snaps: FieldSnapshot[]): { full: Box[]; cavity: Box[]; shift: number } | null {
     const now = this.snapshot();
     const full: Box[] = [], cavity: Box[] = [];
+    // shift: if every change is an object moving without turning or changing, the most
+    // any moved (its field changes by at most that anywhere); else Infinity
+    let shift = 0;
     for (const s of snaps) {
       if (s.shape !== now.shape) return null;
+      for (const [id, e] of now.objs) {
+        const w = s.objs.get(id);
+        if (!w) { shift = Infinity; continue; }
+        if (w.key === e.key) continue;
+        if (w.shape !== e.shape) shift = Infinity;
+        else shift = Math.max(shift, Math.hypot(e.pos[0] - w.pos[0], e.pos[1] - w.pos[1], e.pos[2] - w.pos[2]));
+      }
+      if (s.objs.size !== now.objs.size) shift = Infinity;
+      for (const [id, e] of now.bodies) { const w = s.bodies.get(id); if (!w || w.key !== e.key) shift = Infinity; }
       for (const map of ['objs', 'bodies'] as const) {
         const was = s[map], is = now[map];
         for (const [id, e] of is) { const w = was.get(id); if (!w || w.key !== e.key) { full.push(e.box); if (w) full.push(w.box); } }
@@ -1224,12 +1245,13 @@ export class SdfRenderer {
       for (const [id, e] of now.bodies) { const w = s.bodies.get(id); if (w && w.key === e.key && w.grid !== e.grid) { cavity.push(e.cavBox); } }
     }
     const f = mergeBoxes(full, cavity.length ? MAX_DIRTY - 2 : MAX_DIRTY);
-    return { full: f, cavity: mergeBoxes(cavity, MAX_DIRTY - f.length) };
+    return { full: f, cavity: mergeBoxes(cavity, MAX_DIRTY - f.length), shift };
   }
 
   /** Set the shader's changed-region boxes and draw with the SDF_DIRTY variant (null: back to the plain one). */
-  setDirty(d: { full: Box[]; cavity: Box[] } | null) {
+  setDirty(d: { full: Box[]; cavity: Box[]; shift: number } | null) {
     const u = this.material.uniforms;
+    u.uShiftOn.value = d && Number.isFinite(d.shift) && d.shift > 0 ? 1 : 0;
     this.mesh.material = d ? this.dirtyMaterial : this.material;
     const boxes = d ? [...d.full, ...d.cavity] : null;
     u.uDirtyFull.value = d ? d.full.length : 0;
@@ -1526,7 +1548,7 @@ export class SdfRenderer {
 
 type Box = { min: [number, number, number]; max: [number, number, number] };
 /** See SdfRenderer.snapshot. */
-export interface FieldSnapshot { shape: string; objs: Map<string, { key: string; box: Box }>; bodies: Map<string, { key: string; box: Box; grid: number; cavBox: Box }> }
+export interface FieldSnapshot { shape: string; objs: Map<string, { key: string; box: Box; shape: string; pos: [number, number, number] }>; bodies: Map<string, { key: string; box: Box; grid: number; cavBox: Box }> }
 const gridIds = new WeakMap<object, number>();
 let nextGridId = 1;
 function gridId(g: object): number { let i = gridIds.get(g); if (!i) { i = nextGridId++; gridIds.set(g, i); } return i; }
