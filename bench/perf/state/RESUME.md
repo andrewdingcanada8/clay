@@ -61,6 +61,8 @@ Updated: 2026-11-22 (device fix 3 published)
 
 ## 19:40 UTC: full-edit2 confirmed: still 55 ms (103x), drag 117 ms (6.2x), images identical. Clay Preview v10 = bench/perf/ref/dist-edit2-merged. Next: bake time (time to sharp after edit).
 
+- Bake agent launched (branch claude/sdf-perf-bake, journal JOURNAL-bake.md in its worktree): prepareMs 3-5x, incremental re-bake.
+
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.

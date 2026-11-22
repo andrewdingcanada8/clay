@@ -2,13 +2,14 @@
  "text": "Still frame ~100x (composite 5.67 s -> 55 ms headless); drag frames 6.2x (725 -> 117 ms); orbit ~36x (1530 -> 42 ms). IoU strict on all 14 scenes, pixel diff strict on 13 (grazing 2.35%). Time to sharp after an edit is the weak spot: bake ~10 s headless. Awaiting an iPhone run of the new build.",
  "noise": "Noise: 5 baseline runs of the composite scene, 5552\u20135777 ms (\u03c3 \u2248 1.5%). A change must beat the incumbent by > 3% and hold on a confirmation run.",
  "now": {
-  "current": "Still ~100x and editing 6x done; next: time to sharp after an edit (bake)",
-  "agents": [],
+  "current": "Time to sharp after an edit: bake agent",
+  "agents": [
+   "Bake lineage: incremental re-bake of changed regions, culled coarse bake, progressive order"
+  ],
   "queue": [
    "User iPhone run on Clay Preview",
-   "Bake after an edit: ~10 s headless",
    "Grazing strict pixel diff"
   ],
-  "updated": 1795369774028
+  "updated": 1795369794318
  }
 }
