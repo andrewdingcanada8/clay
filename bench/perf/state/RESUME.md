@@ -19,6 +19,9 @@ Updated: 2026-11-22 (device fix 3 published)
 - Bricks: cone pre-pass gives composite 51 ms but misses 2/3 of clay (cone step cap); being fixed.
 - Editing: stale-bake reuse mid-drag, drag frames 2.5-3.9x faster, settled bit-identical (attempt e3). Not merged yet.
 
+## 02:35 UTC
+- Agents stopped at limit ~01:00, reset 02:00; resumed 02:35.
+
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.
