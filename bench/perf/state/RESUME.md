@@ -76,6 +76,8 @@ Updated: 2026-11-22 (device fix 3 published)
 
 ## 23:00 UTC: diagnostics status UI, session recording + marks (recordings/<id>/chunks), bench/perf/replay.mjs, orbit damping 0.15 (ecead3b). Clay Preview v13 = bench/perf/ref/dist-rec. To replay a user recording: ArtifactData read recordings/<id> + recordings/<id>/chunks -> JSON {meta, events} -> node bench/perf/replay.mjs file --dist bench/perf/ref/dist-rec.
 
+## 23:20 UTC: vanished-piece fix (80d4eff): canvas resizes no longer count as camera glide; glide capped 1.5 s; low image held through resizes while baking. Clay Preview v14 = bench/perf/ref/dist-fix3. Check: scratchpad perf/resizecheck.mjs.
+
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.
