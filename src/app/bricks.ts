@@ -73,6 +73,8 @@ uniform float uThr;   // world units
 uniform float uSharp; // world units
 out uvec4 fragColor;
 uniform float uNear;  // world units
+uniform int uK0;      // cells [uK0, uK1] in z only (an incremental bake's region)
+uniform int uK1;
 #define B ${BRICK_B}
 // a bend only rounds the surface off where it lies near it
 bool near(float a, float b, float c) { return min(min(abs(a), abs(b)), abs(c)) < uNear; }
@@ -86,7 +88,8 @@ void main() {
   uvec4 bits = uvec4(0u);
   for (int k = 0; k < 128; k++) {
     int K = kOff + k;
-    if (K * B >= n.z - 1) break;
+    if (K * B >= n.z - 1 || K > uK1) break;
+    if (K < uK0) continue;
     float m = 1e9, s = 0.0;
     float v[(B + 1) * (B + 1) * (B + 1)];
     for (int z = 0; z <= B; z++) for (int y = 0; y <= B; y++) for (int x = 0; x <= B; x++) {
