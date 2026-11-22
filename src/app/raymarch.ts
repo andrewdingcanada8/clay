@@ -729,11 +729,20 @@ bool boxHit(vec3 ro, vec3 rd, out float t0, out float t1) {
   return t1 > max(t0, 0.0);
 }
 #ifdef SDF_BAKE
-// bake: the field at the voxel centres of layer uBakeZ (no clip plane, no culling)
+// bake: the field at the voxel centres of layer uBakeZ (no clip plane, no culling).
+// Two levels (uBakeBand > 0): the half-resolution field (uBakeLow, baked first) stands in
+// wherever it says the surface is farther than the band; map() runs only near the surface.
+uniform highp sampler3D uBakeLow;
+uniform vec3 uBakeLowInv;
+uniform float uBakeBand;
 void main() {
   gNoClip = true;
-  vec3 p = uBakeO + vec3(gl_FragCoord.xy - 0.5, uBakeZ) * uBakeH;
-  pc_fragColor = vec4(map(p), 0.0, 0.0, 1.0);
+  vec3 g = vec3(gl_FragCoord.xy - 0.5, uBakeZ);
+  if (uBakeBand > 0.0) {
+    float v = texture(uBakeLow, (g * 0.5 + 0.5) * uBakeLowInv).r;
+    if (abs(v) > uBakeBand) { pc_fragColor = vec4(v, 0.0, 0.0, 1.0); return; }
+  }
+  pc_fragColor = vec4(map(uBakeO + g * uBakeH), 0.0, 0.0, 1.0);
 }
 #elif defined(SDF_BRICK)
 // brick bake: atlas layer uBakeZ; each slot's cell comes from the slot table (uStartT)
