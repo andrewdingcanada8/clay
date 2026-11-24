@@ -156,6 +156,7 @@ uniform sampler2D uConeT;
 // pixels to resolve exactly (uFlagOn): written as alpha 0.5 with the start distance / uTMax in rgb
 uniform int uFlagOn;
 uniform float uTMax;
+uniform float uCoarsePx; // flag hits where a fine spacing spans more than this many pixels (0: off)
 float gCrease = 0.0; // the last brick read's largest second difference, in fine spacings
 float coarse(vec3 p) {
   vec3 q = (p - uO) / uSize;
@@ -229,6 +230,11 @@ void main() {
   // alpha 128: the exact pass looks only round the start (the bricks saw nothing further);
   // 129: past it too (the bricks hit there)
   bool creaseHit = hit && level >= 0 && gCrease > ${FLAG_CREASE.toFixed(3)};
+  // a hit where the samples are coarser than the screen (a wide scene, or close up): the
+  // exact pass draws it, so the bricks never show detail coarser than about uCoarsePx pixels
+  float spacing = level >= 0 ? uH * ${f(BRICK_B / BRICK_N[0])} : uH;
+  // (a hit outside every brick is on the coarse field alone: always exact)
+  if (hit && uCoarsePx > 0.0 && (level < 0 || spacing > uCoarsePx * (uPixelAngle * t + uPixelSize))) creaseHit = true;
   // (a ray that passed near a crease but hit something else further on keeps its brick hit)
   bool flag = uFlagOn == 1 && (hit ? ${FLAG_HITS ? 'creaseHit' : 'false'} : ${FLAG_MISSES ? 'nearCrease' : 'false'});
 ${DBG ? `  if (!hit && !flag && dbgGap < 1e8) { fragColor = vec4(clamp(dbgGap / (uH * ${f(BRICK_B / BRICK_N[0])}), 0.0, 1.0), float(dbgN) / 255.0, clamp(dbgCr / 4.0, 0.0, 1.0), dbgLv >= 0 ? 1.0 : 0.5); gl_FragDepth = 0.0; return; }` : ''}

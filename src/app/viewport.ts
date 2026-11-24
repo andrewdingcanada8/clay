@@ -520,7 +520,7 @@ export class Viewport {
     else {
       const r = this.targets();
       if (moving) { this.drawLow(r.low); this.present(r.low); }
-      else if (this.bake.bricksReady) { this.drawBricks(r.back); this.present(r.back); }
+      else if (this.bake.bricksReady && this.drawBricks(r.back)) this.present(r.back);
       else { this.drawSdf(r.back, 0, r.back.height, this.startDepths()); this.present(r.back); }
     }
     const gl = this.renderer.getContext(), px = new Uint8Array(4);
@@ -643,7 +643,7 @@ export class Viewport {
   }
 
   /** The settled image from the coarse field and the fine bricks (bricks.ts), whole. */
-  private drawBricks(t: THREE.WebGLRenderTarget) {
+  private drawBricks(t: THREE.WebGLRenderTarget, drag = false): boolean {
     const clear = this.renderer.getClearColor(new THREE.Color()), clearA = this.renderer.getClearAlpha();
     this.bake.drawCone(this.renderer, this.camera, t.width, t.height);
     this.renderer.setClearColor(0x000000, 0);
@@ -654,11 +654,19 @@ export class Viewport {
     // (the section plane is a variant of the program: the plane-free one carries none of its code)
     const sm = this.bake.settledMat, clip = this.sdf.material.uniforms.uClipOn.value ? 1 : 0;
     if (sm.defines.CLIP !== clip) { sm.defines.CLIP = clip; sm.needsUpdate = true; }
+    // (mid-drag the samples may be coarser than the screen: the frame refines on release)
+    const cpx = sm.uniforms.uCoarsePx.value as number;
+    if (drag) sm.uniforms.uCoarsePx.value = 0;
     this.renderer.render(this.bake.settledScene, this.camera);
-    this.bake.refine(this.renderer, this.camera, t, tMax);
+    const n = this.bake.refine(this.renderer, this.camera, t, tMax, !drag);
+    sm.uniforms.uCoarsePx.value = cpx;
     this.renderer.setRenderTarget(null);
     this.renderer.setClearColor(clear, clearA);
+    // (false: too many pixels need the exact field for one draw; use the banded pass)
+    return n >= 0;
   }
+  /** The view key for which the bricks were too coarse (the banded exact pass draws it). */
+  private bricksSkipKey = '';
 
   /** The image drawn while moving: the baked field when it is ready, else the exact field. */
   private lowLogAt = 0;
@@ -677,7 +685,7 @@ export class Viewport {
     if (!dirty) { this.drawSdf(t); return; }
     if (this.bake.staleBricks && EDIT_BRICKS) {
       // the stale bricks' settled image, then the rays through changed boxes exactly over it
-      this.drawBricks(t);
+      this.drawBricks(t, true);
       this.stateShift = Number.isFinite(dirty.shift) ? dirty.shift : 0;
       // (only where the changed boxes can show)
       const rect = FieldBake.dirtyRect(this.camera, t.width, t.height, dirty);
@@ -807,14 +815,18 @@ export class Viewport {
     // from the bake as soon as it lands (and the two together can outlast a frame)
     // (what was on screen stays: the sharp image if it was sharp, not the coarse one)
     if (this.bakePending() || this.bake.busy) { this.band.active = false; this.present(this.shown ?? r.low); this.needsRender = true; return; }
-    if (this.bake.bricksReady) {
+    if (this.bake.bricksReady && this.bricksSkipKey !== key) {
       // cheap enough to draw whole
-      this.band.active = false;
-      this.drawBricks(r.back);
-      [r.back, r.front] = [r.front, r.back];
-      this.frontKey = key;
-      this.present(r.front);
-      return;
+      if (this.drawBricks(r.back)) {
+        this.band.active = false;
+        [r.back, r.front] = [r.front, r.back];
+        this.frontKey = key;
+        this.present(r.front);
+        return;
+      }
+      // the bricks are too coarse for this view: the banded exact pass draws it
+      this.bricksSkipKey = key;
+      dlog('bricks-coarse', { flagged: this.bake.lastRefine.flagged, covered: this.bake.lastRefine.covered });
     }
     const H = r.back.height, b = this.band;
     const gl = this.renderer.getContext() as WebGL2RenderingContext;

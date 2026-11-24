@@ -293,6 +293,7 @@ function sync(interactive: boolean) {
   buildNotes = [];
   const r = expandDoc(doc, buildNotes);
   if (doc.kernel === 'mesh') {
+    rec?.doc(doc, interactive); // (the switch to the mesh view goes into a recording too)
     view.setMode('mesh');
     if (!interactive) builder.request('mesh', r, ui.quality);
     return;

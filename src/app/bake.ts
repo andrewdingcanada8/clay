@@ -35,6 +35,10 @@ const DIRTY_NR = +(typeof location !== 'undefined' && new URLSearchParams(locati
 const DEBUG_TIMES = typeof location !== 'undefined' && new URLSearchParams(location.search).get('rt') === '1';
 /** The first batch, before the pace is known: this many rows of voxels. */
 const FIRST_ROWS = 8;
+/** Bricks coarser than this many screen pixels are drawn exactly instead (0: never). */
+const COARSE_PX = +(new URLSearchParams(location.search).get('cpx') ?? 4);
+/** Above this share of covered pixels flagged, the settled frame uses the banded exact pass. */
+const REFINE_MAX_SHARE = 0.25;
 /** At most this many texels of the exact field per bake batch. */
 const MAP_MAX = 32768;
 /** Two-level coarse bake: map() only where the half-resolution field is within this many
@@ -344,7 +348,7 @@ export class FieldBake {
     this.settledMat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: SETTLED, depthTest: true, depthWrite: true, defines: { CLIP: 0 },
       uniforms: {
-        uTex: { value: null }, uIndS: { value: null }, uAtlasR: { value: null }, uAtlasG: { value: null }, uInvA: { value: new THREE.Vector3(1, 1, 1) }, uInvN: { value: new THREE.Vector3(1, 1, 1) }, uNm1: { value: new THREE.Vector3(1, 1, 1) }, uConeT: { value: null }, uFlagOn: { value: REFINE ? 1 : 0 }, uTMax: { value: 1 },
+        uTex: { value: null }, uIndS: { value: null }, uAtlasR: { value: null }, uAtlasG: { value: null }, uInvA: { value: new THREE.Vector3(1, 1, 1) }, uInvN: { value: new THREE.Vector3(1, 1, 1) }, uNm1: { value: new THREE.Vector3(1, 1, 1) }, uConeT: { value: null }, uFlagOn: { value: REFINE ? 1 : 0 }, uTMax: { value: 1 }, uCoarsePx: { value: COARSE_PX },
         uO: { value: this.origin }, uSize: { value: this.size }, uH: { value: 1 },
         uCells: { value: this.cells },
         uInvProjView: su.uInvProjView, uProjView: su.uProjView, uClip: su.uClip, uClipOn: su.uClipOn,
@@ -416,7 +420,7 @@ export class FieldBake {
    * exact settled pass, one fragment per flagged pixel in a compact list, and put the results
    * back into frame t. Returns the number of flagged pixels.
    */
-  refine(renderer: THREE.WebGLRenderer, camera: THREE.Camera, t: THREE.WebGLRenderTarget, tMax: number) {
+  refine(renderer: THREE.WebGLRenderer, camera: THREE.Camera, t: THREE.WebGLRenderTarget, tMax: number, capped = true) {
     if (!REFINE || SHOW_FLAGS) return 0;
     const W = t.width, H = t.height;
     if (this.readBuf.length !== W * H * 4) this.readBuf = new Uint8Array(W * H * 4);
@@ -429,6 +433,9 @@ export class FieldBake {
     this.lastRefine = { flagged: n, covered, hits } as typeof this.lastRefine;
     (window as unknown as { __refine: unknown }).__refine = this.lastRefine;
     if (!n) return 0;
+    // too many for one exact draw (a long single submission is what a phone's GPU watchdog
+    // resets): the caller draws the frame with the paced, banded exact pass instead
+    if (capped && n > REFINE_MAX_SHARE * Math.max(1, covered + n)) return -1;
     // (4 consecutive entries fill one 2×2 quad: neighbouring pixels run side by side)
     const L = this.listFor(n);
     let k = 0;
