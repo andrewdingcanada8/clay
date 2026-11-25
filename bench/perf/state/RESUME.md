@@ -98,3 +98,8 @@ Updated: 2026-11-22 (device fix 3 published)
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.
 3. Heartbeat: send_later 60 min, re-armed every step.
+
+## 2026-11-25 22:35 UTC
+- Screenshot recording committed (78ce8ec), Clay Preview v20 published with it.
+- User report: original app crashes after ~4 orbits on 4 jugs, Preview after ~6. The crash is NOT solved; headless gains did not reach it.
+- Answered the user honestly; waiting on their decision (per-piece bake boxes / auditor). No new optimization work until they reply.
