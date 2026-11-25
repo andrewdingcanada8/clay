@@ -585,7 +585,7 @@ export class BrickLevel {
     this.S = N + 1;
     const mat = this.bakeMat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: frag, uniforms,
-      defines: { SDF_BRICK: 1, BRICK_S: APRON_COPY ? N : this.S }, depthTest: false, depthWrite: false,
+      defines: { SDF_BRICK: 1, BRICK_S: APRON_COPY ? N : this.S, ...(BRICK_FAR > 0 ? { BRICK_FAR: 1 } : {}) }, depthTest: false, depthWrite: false,
     });
     this.copyMat = new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: COPY, depthTest: false, depthWrite: false,

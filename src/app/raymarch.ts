@@ -759,11 +759,15 @@ void main() {
   vec3 p = uBakeO + (cell * uBrickCell + vec3(l) * uBrickStep) * uBakeH;
   // far from the surface the coarse field (exact voxels there) stands in: only the samples near
   // the surface shape the hit, its normal and the creases
+  // (compiled in only when that option is on: it costs the program a texture unit, and
+  // with uStartT and uBrickMask that makes 17, over the 16 a phone allows)
+#ifdef BRICK_FAR
   if (uBrickFar > 0.0) {
     vec3 g = cell * uBrickCell + vec3(l) * uBrickStep;
     float c = texture(uBakeTex, (g + 0.5) / vec3(textureSize(uBakeTex, 0))).r;
     if (abs(c) > uBrickFar) { pc_fragColor = vec4(c, 0.0, 0.0, 1.0); return; }
   }
+#endif
   pc_fragColor = vec4(map(p), 0.0, 0.0, 1.0);
 }
 #elif defined(SDF_MASK)

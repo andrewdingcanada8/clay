@@ -149,7 +149,16 @@ for (const name of names) {
       v.benchEdit(true);
     }
     for (const o of [...hide, ...helpers]) o.visible = true;
-    return { ms, msMove, msEdit, prepareMs, w: W, h: H, covered: n, mapsPerPx: n ? maps / n : 0, maxMaps, objsPerMap: maps ? objs / maps : 0, objsPerPx: n ? objs / n : 0, png: cv.toDataURL('image/png') };
+    // the most texture units any compiled program uses: an iPhone allows 16 (this test
+    // browser allows more, so an over-limit program works here and fails on the phone)
+    const SAMPLERS = new Set([gl.SAMPLER_2D, gl.SAMPLER_3D, gl.SAMPLER_CUBE, gl.SAMPLER_2D_ARRAY, gl.INT_SAMPLER_2D, gl.INT_SAMPLER_3D, gl.UNSIGNED_INT_SAMPLER_2D, gl.UNSIGNED_INT_SAMPLER_3D, gl.SAMPLER_2D_SHADOW]);
+    let maxSamplers = 0;
+    for (const pi of v.renderer.info.programs) {
+      let n = 0;
+      for (let i = 0, c = gl.getProgramParameter(pi.program, gl.ACTIVE_UNIFORMS); i < c; i++) { const u = gl.getActiveUniform(pi.program, i); if (SAMPLERS.has(u.type)) n += u.size; }
+      maxSamplers = Math.max(maxSamplers, n);
+    }
+    return { maxSamplers, ms, msMove, msEdit, prepareMs, w: W, h: H, covered: n, mapsPerPx: n ? maps / n : 0, maxMaps, objsPerMap: maps ? objs / maps : 0, objsPerPx: n ? objs / n : 0, png: cv.toDataURL('image/png') };
   }, { view: sc.view, frames, runs });
   const foreign = +foreignCores(cpu0, cpuSample()).toFixed(2);
   fs.writeFileSync(path.join(runDir, `${name}.png`), Buffer.from(r.png.split(',')[1], 'base64'));
@@ -164,8 +173,9 @@ for (const name of names) {
     w: r.w, h: r.h, coveredPx: r.covered, mapsPerPx: +r.mapsPerPx.toFixed(2), maxMaps: r.maxMaps, objsPerMap: +r.objsPerMap.toFixed(2), objsPerPx: +r.objsPerPx.toFixed(1), settleMs,
     // machine-independent work of one settled frame (the cost view's counts): object
     // evaluations and field evaluations summed over the covered pixels
-    workObjEvals: Math.round(r.objsPerPx * r.covered), workMaps: Math.round(r.mapsPerPx * r.covered), foreignCores: foreign, ms: r.ms.map((x) => +x.toFixed(1)),
+    maxSamplers: r.maxSamplers, workObjEvals: Math.round(r.objsPerPx * r.covered), workMaps: Math.round(r.mapsPerPx * r.covered), foreignCores: foreign, ms: r.ms.map((x) => +x.toFixed(1)),
   };
+  if (r.maxSamplers > 16) console.log(`WARNING ${name}: a GPU program uses ${r.maxSamplers} texture units; an iPhone allows 16 (it will fail to compile there)`);
   console.log(`${name.padEnd(16)} ${mean.toFixed(0).padStart(6)} ms  moving ${meanMove.toFixed(0).padStart(5)} ms  edit ${meanEdit === null ? '  –' : meanEdit.toFixed(0).padStart(5)} ms  bake ${r.prepareMs.toFixed(0).padStart(6)} ms  p95 ${pct(r.ms, 0.95).toFixed(0).padStart(6)}  fps ${(1000 / mean).toFixed(3)}  maps/px ${r.mapsPerPx.toFixed(1)}  objs/map ${r.objsPerMap.toFixed(2)}  settle ${settleMs} ms  work ${(r.objsPerPx * r.covered / 1e6).toFixed(2)}M obj-evals${foreign > 0.25 ? `  CONTAMINATED (${foreign} foreign cores)` : ''}`);
 }
 const fpsList = Object.values(results.scenes).map((s) => s.fps);
