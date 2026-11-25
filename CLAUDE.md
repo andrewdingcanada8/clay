@@ -8,6 +8,14 @@ booleans), profile texture rebuilds, history commits and anything else slow once
 In code: `update(mut, interactive=true)` / `sync(true)` must stay cheap; the release path
 calls `update(mut)` with `interactive=false`.
 
+## Bug reports: reproduce first, and compare
+Before changing anything for a reported bug, reproduce it and put the reproduction next
+to the user's evidence (screenshot, recording, device log). The fix starts only once the
+two match. If they don't match, say so and keep looking. Settings a recording doesn't
+capture (section cut, quality, kernel) are set by hand. The device's debug log is read
+for errors such as shader compile/validate failures. The test browser allows more than
+an iPhone does: 32 texture units versus 16, among others.
+
 ## Workflow
 - Iterate via the published Artifact first (`npm run build:single` + `scripts/make-artifact.py`);
   commit/push in the background.
