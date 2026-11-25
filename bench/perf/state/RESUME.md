@@ -91,6 +91,8 @@ Updated: 2026-11-22 (device fix 3 published)
 
 ## 2026-11-24: 4-jug grain fix from the user's recording rmwv5vdu8 (11 marks, all 'sharp'): surface hits outside bricks / bricks > 4 px go exact; >25% flagged -> banded exact. Clay Preview v16 = bench/perf/ref/dist-fix6. Replay helper: scratchpad perf/jugsharp.mjs. Open: why only ~7k bricks on 4 jugs (brick band misses thin features in wide scenes) - per-piece bake boxes would fix at the root.
 
+## 2026-11-25: 16-texture limit fix (1f0b340) confirmed on phone (no shader error). Crash after: grids at rest -> whole exact frame (drift from -0/0 sign flip in view keys). Fixed (this commit). Clay Preview v18 = bench/perf/ref/dist-fix8. Repro script: scratchpad perf/restexact.mjs.
+
 ## Next
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.
