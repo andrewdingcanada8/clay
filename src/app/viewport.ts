@@ -503,7 +503,8 @@ export class Viewport {
   }
 
   /** A different document was opened: its first bake is a full one (nothing of the last one's carries over). */
-  newDocument() { this.bake.forget(); }
+  // (a new piece: the last piece's image no longer stands in while this one bakes)
+  newDocument() { this.bake.forget(); this.shown = null; this.lowKey = this.frontKey = ''; }
 
   /** For the harness: finish any per-edit work now (the bake), waited on. Returns ms. */
   benchPrepare(): number {
@@ -588,7 +589,7 @@ export class Viewport {
   private camKey(): string {
     const e = this.camera.matrixWorld.elements;
     let k = '';
-    for (let i = 0; i < 16; i++) k += `${e[i].toFixed(4)},`;
+    for (let i = 0; i < 16; i++) k += `${Math.round(e[i] * 1e4)},`;
     return k;
   }
   private driftSince = 0;
@@ -597,7 +598,9 @@ export class Viewport {
     const c = this.renderer.domElement;
     const bg = this.scene.background as THREE.Color | null;
     let k = `${this.sdf.version}|${this.bake.ready ? 'b' : 'x'}${this.bake.bricksReady ? 'f' : ''}|${c.width}x${c.height}|${bg?.getHexString?.() ?? ''}|`;
-    for (let i = 0; i < 16; i++) k += `${e[i].toFixed(5)},${p[i].toFixed(5)},`;
+    // (rounded to integers so -0 and 0 read the same: a camera matrix recomputed with a
+    // tiny sign flip in a zero entry is not a move, and must not redraw anything)
+    for (let i = 0; i < 16; i++) k += `${Math.round(e[i] * 1e5)},${Math.round(p[i] * 1e5)},`;
     return k;
   }
 
@@ -617,7 +620,7 @@ export class Viewport {
     // (at rest with a bake to run, the low image keeps its size through a resize — the
     // phone's layout moving — and is shown stretched: resizing would clear it, and the
     // only redraw before the bake is a whole exact frame, too heavy to do per resize)
-    const holdLow = this.lowKey !== '' && !this.moving && !this.sdf.interactive && (this.bakePending() || this.bake.busy);
+    const holdLow = !!this.shown && !this.moving && !this.sdf.interactive && (this.bakePending() || this.bake.busy);
     if ((r.low.width !== lw || r.low.height !== lh) && !holdLow) { r.low.setSize(lw, lh); this.lowKey = ''; }
     if (r.back.width !== W || r.back.height !== H) { r.back.setSize(W, H); r.front.setSize(W, H); this.frontKey = ''; this.band.active = false; }
     return r;
@@ -666,7 +669,7 @@ export class Viewport {
     return n >= 0;
   }
   /** The view key for which the bricks were too coarse (the banded exact pass draws it). */
-  private bricksSkipKey = '';
+  private bricksSkipField = -1;
 
   /** The image drawn while moving: the baked field when it is ready, else the exact field. */
   private lowLogAt = 0;
@@ -793,7 +796,8 @@ export class Viewport {
     // at rest with a bake to run, keep the last image up rather than drawing a whole
     // frame of the exact field (a heavy scene's whole frame can outlast what a phone
     // lets one frame run); the bake's image follows in a moment
-    const bakeWait = !this.moving && !drifting && !this.sdf.interactive && (this.bakePending() || this.bake.busy) && !!this.lowKey;
+    // (anything already on screen counts: the sharp image too, not only a low one)
+    const bakeWait = !this.moving && !drifting && !this.sdf.interactive && (this.bakePending() || this.bake.busy) && !!this.shown;
     // a moving image waits until the GPU has finished the last one (an exact-field frame
     // of a heavy scene can take longer than a display frame: without the wait the work
     // piles up until the phone resets the GPU); the last image stays up meanwhile
@@ -815,7 +819,9 @@ export class Viewport {
     // from the bake as soon as it lands (and the two together can outlast a frame)
     // (what was on screen stays: the sharp image if it was sharp, not the coarse one)
     if (this.bakePending() || this.bake.busy) { this.band.active = false; this.present(this.shown ?? r.low); this.needsRender = true; return; }
-    if (this.bake.bricksReady && this.bricksSkipKey !== key) {
+    // (once a field version proved too coarse for the bricks, it stays on the banded pass:
+    // no full-frame readback every frame to find that out again)
+    if (this.bake.bricksReady && this.bricksSkipField !== this.sdf.fieldVersion) {
       // cheap enough to draw whole
       if (this.drawBricks(r.back)) {
         this.band.active = false;
@@ -825,7 +831,7 @@ export class Viewport {
         return;
       }
       // the bricks are too coarse for this view: the banded exact pass draws it
-      this.bricksSkipKey = key;
+      this.bricksSkipField = this.sdf.fieldVersion;
       dlog('bricks-coarse', { flagged: this.bake.lastRefine.flagged, covered: this.bake.lastRefine.covered });
     }
     const H = r.back.height, b = this.band;
