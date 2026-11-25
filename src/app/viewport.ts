@@ -209,6 +209,8 @@ export class Viewport {
         this.needsRender = false;
         this.drawFrame(now);
         lastDraw = now;
+        // (a screenshot is read right after a draw: the canvas holds the frame only now)
+        if (this.shotWaiting.length) this.takeShots();
         if (this.moving && this.mode === 'sdf') this.adaptMoving(now);
         if (drewLast) this.hudFrame(now - drewLast);
       }
@@ -257,6 +259,25 @@ export class Viewport {
     const c = this.renderer.domElement;
     this.hud.textContent = `${regime}${state ? ' · ' + state : ''}\n${ms ? `${Math.round(1000 / ms)} fps · ${ms.toFixed(0)} ms` : '–'}  ${c.width}×${c.height} @${this.renderer.getPixelRatio().toFixed(2)}${this.sharpInfo ? '\n' + this.sharpInfo : ''}`;
     if (this.moving || this.sdf.interactive) this.hudMs.length = Math.min(this.hudMs.length, 30); else if (state === 'sharp') this.hudMs.length = 0;
+  }
+
+  // ---------- screenshots for the session recorder: what is on screen, scaled down
+  private shotWaiting: ((url: string) => void)[] = [];
+  /** The next drawn frame as a JPEG data URL (at most maxW pixels wide). */
+  requestShot(cb: (url: string) => void) {
+    this.shotWaiting.push(cb);
+    this.needsRender = true; // (an idle view draws once: at rest that is a cheap copy of the last image)
+  }
+  private takeShots() {
+    const waiting = this.shotWaiting; this.shotWaiting = [];
+    try {
+      const c = this.renderer.domElement, maxW = 480, k = Math.min(1, maxW / c.width);
+      const o = document.createElement('canvas');
+      o.width = Math.round(c.width * k); o.height = Math.round(c.height * k);
+      o.getContext('2d')!.drawImage(c, 0, 0, o.width, o.height);
+      const url = o.toDataURL('image/jpeg', 0.72);
+      for (const cb of waiting) cb(url);
+    } catch { /* unreadable canvas */ }
   }
 
   /** Called on every turn of the view's loop (the session recorder listens). */

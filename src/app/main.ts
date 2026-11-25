@@ -930,7 +930,7 @@ function setNum(key: string, v: number, interactive: boolean) {
     }, interactive);
   }
   if (key === 'pin') { ui.pinRadius = Math.max(0.02, v); return; }
-  if (key === 'section') { ui.section.t = v; view.setSection(true, ui.section.axis, v); return; }
+  if (key === 'section') { ui.section.t = v; view.setSection(true, ui.section.axis, v); rec?.event('section', { ...ui.section }); return; }
   const o = selected();
   if (!o) return;
   if (key.startsWith('p.')) {
@@ -998,7 +998,7 @@ panel.addEventListener('change', (e) => {
     });
     renderPanel();
   }
-  if (act === 'section-toggle') { ui.section.on = el.checked; view.setSection(el.checked, ui.section.axis, ui.section.t); renderPanel(); }
+  if (act === 'section-toggle') { ui.section.on = el.checked; view.setSection(el.checked, ui.section.axis, ui.section.t); rec?.event('section', { ...ui.section }); renderPanel(); }
   if (act === 'hand-toggle') { ui.hand = el.checked; view.setHandVisible(el.checked); renderStatus(); }
   if (act === 'wire-toggle') { ui.wire = el.checked; if (lastResult) view.setResult(lastResult, ui.wire); }
 });
@@ -1160,13 +1160,13 @@ function onSeg(name: string, value: string) {
     case 'holeMode': ui.holeMode = value as 'face' | 'pin'; break;
     case 'kernel': update((d) => { d.kernel = value as SceneDoc['kernel']; }); break;
     case 'meshMethod': update((d) => { d.meshMethod = value as SceneDoc['meshMethod']; }); break;
-    case 'quality': ui.quality = value as Quality; sync(false); break;
+    case 'quality': ui.quality = value as Quality; rec?.event('quality', ui.quality); sync(false); break;
     case 'section': update((d) => { d.objects.find((x) => x.id === ui.selectedId)!.params.section = value as 'circle' | 'square' | 'custom'; }); break;
     case 'join': update((d) => { d.objects.find((x) => x.id === ui.selectedId)!.params.join = value as 'round' | 'miter'; }); break;
     case 'cap': update((d) => { d.objects.find((x) => x.id === ui.selectedId)!.params.cap = value as 'flat' | 'round' | 'square'; }); break;
     case 'plane': update((d) => { d.objects.find((x) => x.id === ui.selectedId)!.params.plane = value as 'xy' | 'xz' | 'yz'; }); break;
     case 'galleryTab': ui.galleryTab = value as 'mine' | 'examples'; closeCards(); break;
-    case 'axis': ui.section.axis = value as 'x' | 'y' | 'z'; view.setSection(true, ui.section.axis, ui.section.t); break;
+    case 'axis': ui.section.axis = value as 'x' | 'y' | 'z'; view.setSection(true, ui.section.axis, ui.section.t); rec?.event('section', { ...ui.section }); break;
   }
   renderPanel();
   renderStatus();
@@ -1883,7 +1883,7 @@ async function runDiag(kind: 'scene' | 'piece') {
 }
 
 function startRecording() {
-  rec = new Recorder({ piece: current.name, ...view.gpuReport(), ua: navigator.userAgent }, cloneDoc(doc), view.cameraState());
+  rec = new Recorder({ piece: current.name, ...view.gpuReport(), ua: navigator.userAgent, quality: ui.quality, section: { ...ui.section } }, cloneDoc(doc), view.cameraState(), (cb) => view.requestShot(cb));
   dlog('rec-start', { id: rec.id }, true);
   const bar = document.createElement('div');
   bar.style.cssText = 'position:fixed;left:8px;right:8px;top:max(8px,env(safe-area-inset-top));z-index:60;display:flex;gap:8px;align-items:center;padding:8px 10px;border-radius:10px;background:#b91c1c;color:#fff;font:600 13px system-ui';
@@ -1892,7 +1892,7 @@ function startRecording() {
   const tick = window.setInterval(() => {
     if (!rec) return;
     const s = Math.floor(rec.elapsedMs / 1000);
-    (bar.querySelector('[data-r="t"]') as HTMLElement).textContent = `● REC ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}${rec.marks ? ` · ${rec.marks} mark${rec.marks > 1 ? 's' : ''}` : ''}`;
+    (bar.querySelector('[data-r="t"]') as HTMLElement).textContent = `● REC ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}${rec.marks ? ` · ${rec.marks} mark${rec.marks > 1 ? 's' : ''}` : ''}${rec.shots ? ` · ${rec.shots} shots` : ''}`;
   }, 500);
   bar.addEventListener('click', (e) => {
     const a = (e.target as HTMLElement).closest('[data-r]')?.getAttribute('data-r');
@@ -2012,6 +2012,9 @@ sync(false);
   openDoc: (d: SceneDoc, v: ViewState | null = null) => loadDoc(d, { id: null, name: 'test' }, v),
   /** replay a recorded document change: set it as an edit would */
   applyDoc: (d: SceneDoc, interactive: boolean) => { doc = d; sync(interactive); },
+  /** replay recorded view settings */
+  setQuality: (q: Quality) => { ui.quality = q; sync(false); },
+  setSection: (sec: typeof ui.section) => { ui.section = { ...sec }; view.setSection(sec.on, sec.axis, sec.t); },
   exampleIds: () => exampleList.map((e) => e.id),
   setKernel: (k: SceneDoc['kernel']) => { if (doc.kernel !== k) update((d) => { d.kernel = k; }); },
   busy: () => busy || !!document.querySelector('.chip.busy'),

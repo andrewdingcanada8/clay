@@ -18,10 +18,13 @@ export type RecEvent =
   | { t: number; k: 'doc'; interactive: boolean; objects?: unknown[]; removed?: string[]; full?: SceneDoc }
   | { t: number; k: 'frame'; dt: number; state: string }
   | { t: number; k: 'mark'; note: string; cam: Cam; state: string }
-  | { t: number; k: 'event'; ev: string; data?: unknown };
+  | { t: number; k: 'event'; ev: string; data?: unknown }
+  | { t: number; k: 'shot'; n: number; reason: string; state: string; cam: Cam };
 
 const r4 = (v: number) => Math.round(v * 1e4) / 1e4;
 const FLUSH_MS = 3000;
+/** Screenshots: every SHOT_EVERY_MS, at each mark, when the view goes sharp after an orbit or a bake. */
+const SHOT_EVERY_MS = 5000, MAX_SHOTS = 150;
 
 export class Recorder {
   readonly id = `r${Date.now().toString(36)}`;
@@ -36,9 +39,14 @@ export class Recorder {
   private timer = 0;
   private db: Db | null | undefined;
   marks = 0;
+  shots = 0;
   stopped = false;
+  private lastShotAt = 0;
+  private lastState = '';
+  private lastCamState: Cam | null = null;
 
-  constructor(private meta: Record<string, unknown>, doc: SceneDoc, cam: Cam) {
+  /** capture: the next drawn frame as an image (Viewport.requestShot). */
+  constructor(private meta: Record<string, unknown>, doc: SceneDoc, cam: Cam, private capture?: (cb: (url: string) => void) => void) {
     this.remember(doc);
     this.meta = { ...meta, startedAt: Date.now(), doc0: doc, cam0: cam };
     void this.saveMeta({ ...this.meta, status: 'recording' });
@@ -59,6 +67,27 @@ export class Recorder {
     if (key !== this.lastCam) { this.lastCam = key; this.events.push({ t, k: 'cam', pos: cam.pos.map(r4), target: cam.target.map(r4) }); }
     if (this.lastFrame) this.events.push({ t, k: 'frame', dt: Math.round(now - this.lastFrame), state });
     this.lastFrame = now;
+    this.lastCamState = cam;
+    // screenshots: periodically, and when the view goes sharp after an orbit or a bake
+    const prev = this.lastState;
+    this.lastState = state;
+    if (state === 'sharp' && prev && prev !== 'sharp' && (prev === 'orbit' || prev.startsWith('baking') || prev === 'refining' || prev === 'editing')) this.shot(`sharp after ${prev.startsWith('baking') ? 'bake' : prev}`, state, cam);
+    else if (t - this.lastShotAt >= SHOT_EVERY_MS) this.shot('periodic', state, cam);
+  }
+
+  /** A screenshot of what is on screen now (the next drawn frame), saved on its own. */
+  shot(reason: string, state: string, cam: Cam) {
+    if (!this.capture || this.stopped || this.shots >= MAX_SHOTS) return;
+    this.lastShotAt = this.now();
+    const n = ++this.shots, t = this.now();
+    this.events.push({ t, k: 'shot', n, reason, state, cam });
+    this.capture((img) => void this.saveShot({ n, t, reason, state, cam, img }));
+  }
+  private async saveShot(d: Record<string, unknown>) {
+    const db = await this.getDb();
+    const id = `s${String(d.n).padStart(4, '0')}`;
+    try { await db?.collection(`recordings/${this.id}/shots`).doc(id).set(d); } catch { /* offline */ }
+    if (!db) try { const k = `clay.rec.${this.id}.shots`; const a = JSON.parse(localStorage.getItem(k) ?? '[]'); a.push(d); localStorage.setItem(k, JSON.stringify(a.slice(-30))); } catch { /* storage full */ }
   }
 
   /** The document as just set on the view (interactive: mid-drag). */
@@ -83,6 +112,7 @@ export class Recorder {
   mark(note: string, cam: Cam, state: string) {
     this.marks++;
     this.events.push({ t: this.now(), k: 'mark', note, cam, state });
+    this.shot(`mark ${this.marks}${note ? ': ' + note.slice(0, 60) : ''}`, state, cam);
     void this.flush();
   }
 
@@ -93,7 +123,7 @@ export class Recorder {
     this.stopped = true;
     clearInterval(this.timer);
     await this.flush();
-    await this.saveMeta({ ...this.meta, status: 'stopped', endedAt: Date.now(), durationMs: this.now(), chunks: this.chunk, marks: this.marks });
+    await this.saveMeta({ ...this.meta, status: 'stopped', endedAt: Date.now(), durationMs: this.now(), chunks: this.chunk, marks: this.marks, shots: this.shots });
   }
 
   get elapsedMs() { return this.now(); }

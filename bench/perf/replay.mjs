@@ -4,8 +4,12 @@
 // taken at each mark, and the app's debug log (bakes, exact frames, GPU allocations) is
 // written next to them, so what the view did at each moment can be compared with the
 // device's log.
-// Input: a JSON file { meta, events } — meta is the recordings/<id> document, events the
-// chunks' events concatenated in order (fetch them from the artifact database).
+// Input: a JSON file { meta, events, shots? } — meta is the recordings/<id> document, events
+// the chunks' events concatenated in order, shots the recordings/<id>/shots documents
+// (each { n, t, reason, img }); fetch them from the artifact database. The recording's
+// quality and section cut are applied, and so are their changes.
+// At each device screenshot the replay takes its own (replay-shot-<n>.png) and writes the
+// device's beside it (device-shot-<n>.jpg), so the two can be compared directly.
 // Usage: node bench/perf/replay.mjs <recording.json> [--dist dir] [--out dir] [--speed 1]
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
@@ -29,7 +33,15 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 await page.goto(`file://${dist}/index.html`);
 await page.waitForFunction(() => window.__clay?.openDoc, null, { timeout: 300000 });
-await page.evaluate(({ doc, cam }) => { window.__clay.openDoc(doc); if (cam) window.__clay.view.setCameraState(cam); }, { doc: rec.meta.doc0, cam: rec.meta.cam0 });
+await page.evaluate(({ doc, cam, quality, section }) => {
+  if (quality) window.__clay.setQuality(quality);
+  window.__clay.openDoc(doc);
+  if (cam) window.__clay.view.setCameraState(cam);
+  if (section) window.__clay.setSection(section);
+}, { doc: rec.meta.doc0, cam: rec.meta.cam0, quality: rec.meta.quality, section: rec.meta.section });
+const deviceShots = new Map((rec.shots ?? []).map((s) => [s.n, s]));
+// the device had its piece baked when recording started: so does the replay, before the clock starts
+await page.waitForFunction(() => { const s = window.__clay.view.sharpState(); return s.ready && !s.busy && !s.refining && !window.__clay.busy(); }, null, { timeout: 2400000, polling: 500 });
 await page.waitForTimeout(500);
 
 // the document as the recording goes (object changes are applied to the last one)
@@ -58,7 +70,17 @@ for (const e of events) {
     const state = await page.evaluate(() => window.__clay.view.stateLabel());
     await page.screenshot({ path: path.join(out, `mark-${marks}.png`) });
     console.log(`mark ${marks} at ${(e.t / 1000).toFixed(1)} s: "${e.note}" (device: ${e.state}; replay: ${state})`);
-  } else if (e.k === 'event') console.log(`event at ${(e.t / 1000).toFixed(1)} s: ${e.ev}`);
+  } else if (e.k === 'shot') {
+    const state = await page.evaluate(() => window.__clay.view.stateLabel());
+    await page.screenshot({ path: path.join(out, `replay-shot-${e.n}.png`) });
+    const d = deviceShots.get(e.n);
+    if (d?.img) fs.writeFileSync(path.join(out, `device-shot-${e.n}.jpg`), Buffer.from(d.img.split(',')[1], 'base64'));
+    console.log(`shot ${e.n} at ${(e.t / 1000).toFixed(1)} s (${e.reason}; device: ${e.state}; replay: ${state})${d ? '' : ' — no device image'}`);
+  } else if (e.k === 'event') {
+    if (e.ev === 'quality') await page.evaluate((q) => window.__clay.setQuality(q), e.data);
+    if (e.ev === 'section') await page.evaluate((sec) => window.__clay.setSection(sec), e.data);
+    console.log(`event at ${(e.t / 1000).toFixed(1)} s: ${e.ev} ${e.data !== undefined ? JSON.stringify(e.data) : ''}`);
+  }
 }
 await page.waitForTimeout(2000);
 await page.screenshot({ path: path.join(out, 'end.png') });
