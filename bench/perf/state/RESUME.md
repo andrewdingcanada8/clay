@@ -93,7 +93,8 @@ Updated: 2026-11-22 (device fix 3 published)
 
 ## 2026-11-25: 16-texture limit fix (1f0b340) confirmed on phone (no shader error). Crash after: grids at rest -> whole exact frame (drift from -0/0 sign flip in view keys). Fixed (this commit). Clay Preview v18 = bench/perf/ref/dist-fix8. Repro script: scratchpad perf/restexact.mjs.
 
-## Next
+## 2026-11-25 later: crash after orbit while refining. Finding: bricks cover only ~2/3 of the 4 jugs' surface (7152 bricks for a 169 cm scene; 36% of pixels flagged, mostly hits outside bricks), so every still uses the banded exact pass (the original crash path). Mitigation 16 ms bands, 2x growth, band log (Clay Preview v19 = bench/perf/ref/dist-fix9). ROOT FIX NEXT: per-piece bake boxes (each piece its own coarse grid + bricks, ~4x finer on the 4 jugs). The cpx (brick spacing > N px) rule is not the driver (cpx=0 gives the same flags).
+
 1. When bricks reports: merge its branch into claude/sdf-perf-hillclimb, full suite (bench/perf/bench.sh full-<name> --dist bench/perf/ref/dist-<name>), compare.py vs full-baseline, log, publish Clay Preview + dashboard, ask user for iPhone rerun.
 2. When pruning reports: measure msEdit; integrate if it wins.
 3. Heartbeat: send_later 60 min, re-armed every step.
