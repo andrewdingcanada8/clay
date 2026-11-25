@@ -34,7 +34,8 @@ const SAFE_CAPS = [Infinity, 1, 0.6, 0.4];
 const SDF_LAYER = 1;
 /** A settled SDF frame is drawn in bands of rows, each about this long on the GPU,
  *  so no single submission runs long enough for a phone to reset the graphics. */
-const BAND_MS = 30;
+/** GPU time a band of the exact pass aims for (an iPhone resets the GPU when one submission runs long). */
+const BAND_MS = 16;
 const BLIT_FRAG = /* glsl */ `
 uniform sampler2D tColor;
 uniform sampler2D tDepth;
@@ -845,10 +846,15 @@ export class Viewport {
       // the next band waits until the GPU has finished the last one (so work never
       // piles up), and the rate comes from how long that took (to the nearest frame,
       // so it errs slow: smaller bands)
-      if (gl.clientWaitSync(this.fence, 0, 0) === gl.TIMEOUT_EXPIRED) { this.present(r.low); return; }
+      // (meanwhile the image on screen stays: the coarse low one would flash)
+      if (gl.clientWaitSync(this.fence, 0, 0) === gl.TIMEOUT_EXPIRED) { this.present(this.shown ?? r.low); return; }
       gl.deleteSync(this.fence); this.fence = null;
-      this.rowRate = b.rows / Math.max(1, now - b.at);
-      b.rows = Math.round(Math.min(b.rows * 4, this.rowRate * BAND_MS));
+      const ms = Math.max(1, now - b.at);
+      this.rowRate = b.rows / ms;
+      if (b.n < 40) dlog('band', { n: b.n, y: b.y - b.rows, rows: b.rows, ms: Math.round(ms) });
+      // (grows at most 2x a band: the rows above can be cheap sky and the next ones the
+      // piece itself, many times dearer)
+      b.rows = Math.round(Math.min(b.rows * 2, this.rowRate * BAND_MS));
     }
     b.rows = Math.max(8, Math.min(H - b.y, b.rows));
     this.drawSdf(r.back, b.y, b.rows, this.bandStart);
